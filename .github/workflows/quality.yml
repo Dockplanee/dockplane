@@ -1,0 +1,181 @@
+name: Quality
+
+# The checks a change has to pass, called both by ordinary CI and by a release.
+#
+# A release runs exactly what a push runs. There is no shorter path that only
+# the thing being published takes, because the build nobody watches is the one
+# that needs the gates most.
+
+on:
+  workflow_call:
+
+# Read-only. Nothing here publishes anything.
+permissions:
+  contents: read
+
+env:
+  # The toolchains the release images are built with, so a gate that passes
+  # here is a gate that passed against what ships.
+  NODE_VERSION: '22.23.2'
+  GO_VERSION: '1.26.5'
+  SHELLCHECK_IMAGE: 'koalaman/shellcheck:v0.11.0'
+
+jobs:
+  control-server:
+    name: Control server
+    runs-on: ubuntu-24.04
+
+    # Sessions, enrollment, revocation and the audit trail depend on real
+    # constraints and real transactions, so the integration tests run against
+    # PostgreSQL rather than a mock — the same version the stack ships.
+    services:
+      postgres:
+        image: postgres:17.6-bookworm
+        env:
+          POSTGRES_USER: dockplane
+          POSTGRES_PASSWORD: dockplane
+          POSTGRES_DB: dockplane
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready --username dockplane --dbname dockplane"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+
+      - name: Install
+        working-directory: api
+        run: npm ci
+
+      - name: Lint
+        working-directory: api
+        run: npm run lint
+
+      - name: Typecheck
+        working-directory: api
+        run: npm run typecheck
+
+      - name: Test
+        working-directory: api
+        env:
+          # The disposable database above. Named here rather than left to the
+          # default, so a test run cannot silently reach a different one.
+          DATABASE_URL: postgres://dockplane:dockplane@localhost:5433/dockplane
+        run: npm test
+
+      - name: Build
+        working-directory: api
+        run: npm run build
+
+  application:
+    name: Application
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install
+        working-directory: app
+        run: npm ci
+
+      - name: Lint
+        working-directory: app
+        run: npm run lint
+
+      - name: Typecheck
+        working-directory: app
+        run: npm run typecheck
+
+      - name: Test
+        working-directory: app
+        run: npm test
+
+      - name: Build
+        working-directory: app
+        run: npm run build
+
+  agent:
+    name: Agent
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: agent/go.sum
+
+      - name: Formatting
+        working-directory: agent
+        run: |
+          unformatted="$(gofmt -l .)"
+
+          if [[ -n "$unformatted" ]]; then
+            echo "not gofmt-clean:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+
+      - name: Vet
+        working-directory: agent
+        run: go vet ./...
+
+      - name: Test
+        working-directory: agent
+        run: go test ./...
+
+  packaging:
+    name: Packaging and release scripts
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Shell syntax
+        run: |
+          for script in deploy/*.sh deploy/dockplane-control; do
+            bash -n "$script"
+          done
+
+      - name: Shellcheck
+        run: |
+          docker run --rm --volume "$PWD:/mnt:ro" --workdir /mnt \
+            "$SHELLCHECK_IMAGE" --severity=warning \
+            deploy/*.sh deploy/dockplane-control
+
+      - name: Installer
+        run: deploy/test-installer.sh
+
+      - name: Backup and restore
+        run: deploy/test-backup-restore.sh
+
+      - name: Release scripts
+        run: deploy/test-release.sh

@@ -1,0 +1,74 @@
+dockplane-agent for Debian and Ubuntu
+=====================================
+
+The package installs the agent and its service unit. It does not enroll the
+host and does not start the service, because an agent with no identity has
+nothing to connect to.
+
+Enrolling
+---------
+
+  1. Create an enrollment token in Dockplane (Agents → Create enrollment
+     token). It is shown once, is single-use and expires in ten minutes.
+
+  2. Hand it to the agent, as the account the service runs as:
+
+       sudo -u dockplane-agent \
+         DOCKPLANE_AGENT_STATE_DIR=/var/lib/dockplane-agent \
+         dockplane-agent enroll --server https://dockplane.example.com --token-stdin
+
+     There is deliberately no --token flag: a token on a command line is
+     visible in the process list to every user on the machine and is written
+     to the shell history. Use --token-stdin, --token-file, the
+     DOCKPLANE_ENROLLMENT_TOKEN environment variable, or the prompt.
+
+  3. Start it:
+
+       sudo systemctl enable --now dockplane-agent
+
+     The host appears in Dockplane within a few seconds.
+
+Docker socket access
+--------------------
+
+The unit gives the service account membership of the `docker` group, which is
+how the agent reaches the Engine API.
+
+**Membership of the `docker` group is equivalent to root on this host.**
+Anything able to talk to the Docker daemon can start a privileged container
+that mounts the filesystem. This is unavoidable for managing Docker, and it is
+the reason the agent has no way to run a command: its set of operations is
+fixed at build time, and the three that change anything — start, stop and
+restart a container — take a container identifier and nothing else.
+
+Do not expose the Docker daemon over unauthenticated TCP as an alternative.
+
+Files
+-----
+
+  /usr/bin/dockplane-agent                        the binary
+  /usr/lib/systemd/system/dockplane-agent.service the unit
+  /etc/dockplane-agent/agent.env                  optional settings (conffile)
+  /var/lib/dockplane-agent/                       identity and private key, 0700
+
+The state directory is created by systemd on first start and is owned by the
+service account. Nothing in it is shipped by this package.
+
+Upgrading
+---------
+
+  sudo dpkg -i dockplane-agent_<version>_<arch>.deb
+
+The identity, the private key and /etc/dockplane-agent survive. The agent
+keeps the same agent ID and does not need enrolling again; a running service
+is restarted onto the new binary. Downgrades are only supported between
+versions that speak the same protocol version — see `dockplane-agent version`.
+
+Removing
+--------
+
+  sudo apt remove dockplane-agent    keeps /var/lib/dockplane-agent
+  sudo apt purge  dockplane-agent    deletes it
+
+After a purge the host has no identity and must be enrolled again. Revoke the
+old agent in Dockplane as well: its certificate stays valid until you do.

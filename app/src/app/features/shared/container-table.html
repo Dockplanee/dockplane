@@ -1,0 +1,78 @@
+@if (containers().length > 0) {
+  <dp-table-shell
+    [count]="containers().length"
+    [total]="total()"
+    noun="container"
+    nounPlural="containers"
+    [minWidth]="minWidth()"
+  >
+    <table class="dp-table">
+      <caption>
+        Containers with their state, health and resource usage
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">Name</th>
+          @if (showHost()) {
+            <th scope="col">Host</th>
+          }
+          <th scope="col">Image</th>
+          <th scope="col">Status</th>
+          <th scope="col">Health</th>
+          <th scope="col" class="numeric">Restarts</th>
+          <th scope="col">Uptime</th>
+          <th scope="col"><span class="dp-sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (container of containers(); track container.id) {
+          <tr>
+            <th scope="row">
+              <a class="identifier" [routerLink]="['/containers', container.id]">{{
+                container.name
+              }}</a>
+            </th>
+            @if (showHost()) {
+              <td class="dp-unknown">{{ container.hostname }}</td>
+            }
+            <td class="dp-mono dp-unknown">{{ container.image }}</td>
+            <td>
+              <dp-status-badge
+                [tone]="state(container.state).tone"
+                [label]="state(container.state).label"
+              />
+              <!--
+                A stale row is the last thing a host said before it went quiet,
+                so the state is reported as history rather than as fact. Said
+                in words: the badge's colour is unchanged, because the state
+                itself is not what is in doubt.
+              -->
+              @if (container.stale) {
+                <span class="dp-unknown last-known">last known</span>
+              }
+            </td>
+            <td>
+              <dp-status-badge
+                [tone]="health(container.health).tone"
+                [label]="health(container.health).label"
+              />
+            </td>
+            <td class="numeric" [class.dp-unknown]="container.restarts === 0">
+              {{ container.restarts }}
+            </td>
+            <td class="shrink dp-mono">{{ runningFor(container) }}</td>
+            <td class="shrink">
+              <dp-row-menu
+                [subject]="container.name"
+                [actions]="actionsFor(container)"
+                (selected)="onAction(container, $event)"
+              />
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </dp-table-shell>
+} @else {
+  <dp-empty-state icon="containers" [title]="emptyTitle()" [detail]="emptyDetail()" />
+}

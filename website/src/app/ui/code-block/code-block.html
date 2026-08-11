@@ -1,0 +1,9 @@
+@if (label(); as text) {
+  <p class="dp-mono-label code__label">{{ text }}</p>
+}
+
+<pre
+  class="code__body"
+  tabindex="0"
+  [attr.aria-label]="label() ?? null"
+><code>@for (line of lines(); track $index) {<span class="code__line">{{ line }}</span>}</code></pre>

@@ -1,0 +1,34 @@
+<svg
+  class="dp-logo__mark"
+  viewBox="0 0 160 78"
+  fill="none"
+  [attr.role]="variant() === 'mark' ? 'img' : null"
+  [attr.aria-label]="variant() === 'mark' ? label() : null"
+  [attr.aria-hidden]="variant() === 'mark' ? null : 'true'"
+  [attr.focusable]="false"
+>
+  <g class="dp-logo__blocks">
+    <rect x="40" y="0" width="24" height="16" rx="3" />
+    <rect x="96" y="0" width="24" height="16" rx="3" />
+    <rect x="40" y="62" width="24" height="16" rx="3" />
+    <rect x="96" y="62" width="24" height="16" rx="3" />
+  </g>
+
+  <g class="dp-logo__connectors" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M52 16V27H64" />
+    <path d="M108 16V27H96" />
+    <path d="M52 62V51H64" />
+    <path d="M108 62V51H96" />
+  </g>
+
+  <g class="dp-logo__control">
+    <path d="M8 39H152" stroke-width="4" stroke-linecap="round" />
+    <circle cx="8" cy="39" r="7" />
+    <circle cx="152" cy="39" r="7" />
+    <rect x="67" y="31" width="26" height="16" rx="5" />
+  </g>
+</svg>
+
+@if (variant() === 'lockup') {
+  <span class="dp-logo__wordmark">Dock<span class="dp-logo__wordmark-accent">plane</span></span>
+}

@@ -1,0 +1,153 @@
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--dp-line);
+}
+
+.state {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+/*
+ * The indicator carries a colour and a word, never a colour alone: an operator
+ * has to be able to tell a live stream from a dead one without seeing green.
+ */
+.indicator {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background-color: var(--dp-fg-muted);
+}
+
+.indicator--live {
+  background-color: var(--dp-status-ok);
+}
+
+.indicator--paused {
+  background-color: var(--dp-status-warn);
+}
+
+.indicator--idle {
+  background-color: var(--dp-status-info);
+}
+
+.indicator--off {
+  background-color: var(--dp-status-neutral);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search__icon {
+  position: absolute;
+  left: 0.5rem;
+  color: var(--dp-fg-muted);
+  pointer-events: none;
+}
+
+.search .dp-field {
+  padding-left: 2rem;
+  min-width: 14rem;
+}
+
+.notice {
+  margin: 0.75rem 1rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--dp-line);
+  border-radius: var(--dp-radius-md);
+  background-color: var(--dp-surface-inset);
+  color: var(--dp-fg-muted);
+  font-size: 0.8125rem;
+}
+
+.notice--warn {
+  border-left: 3px solid var(--dp-status-warn);
+}
+
+/*
+ * A log viewer, not a terminal.
+ *
+ * Monospace because columns matter, on the application's own inset surface
+ * rather than a black rectangle: a shell-looking pane invites someone to try
+ * typing into it, and there is nothing here that would accept it.
+ */
+.viewport {
+  height: min(60vh, 40rem);
+  margin: 0.75rem 0 0;
+  padding: 0.5rem 1rem 1rem;
+  overflow: auto;
+  background-color: var(--dp-surface-inset);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.viewport:focus-visible {
+  outline: 2px solid var(--dp-focus);
+  outline-offset: -2px;
+}
+
+.line {
+  display: flex;
+  gap: 0.625rem;
+  align-items: baseline;
+  white-space: pre;
+}
+
+.viewport--wrap .line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.line__time {
+  flex: none;
+  color: var(--dp-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.line__stream {
+  flex: none;
+  width: 2rem;
+  color: var(--dp-fg-muted);
+  text-transform: lowercase;
+}
+
+.line--stderr .line__stream {
+  color: var(--dp-status-critical);
+}
+
+.line--stderr .line__text {
+  color: var(--dp-status-critical);
+}
+
+.line__text {
+  min-width: 0;
+}
+
+.line__mark {
+  color: var(--dp-status-warn);
+}
+
+.empty {
+  padding: 1rem 0;
+  color: var(--dp-fg-muted);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+}

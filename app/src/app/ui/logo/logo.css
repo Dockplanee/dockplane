@@ -1,0 +1,41 @@
+:host {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625em;
+  font-size: 1.125rem;
+  line-height: 1;
+  color: var(--dp-fg);
+}
+
+.dp-logo__mark {
+  height: 1.05em;
+  width: auto;
+  flex: none;
+}
+
+.dp-logo__blocks rect {
+  fill: var(--dp-mark-block);
+}
+
+.dp-logo__connectors path {
+  stroke: var(--dp-mark-block);
+}
+
+.dp-logo__control path {
+  stroke: var(--dp-accent);
+}
+
+.dp-logo__control circle,
+.dp-logo__control rect {
+  fill: var(--dp-accent);
+}
+
+.dp-logo__wordmark {
+  font-weight: 600;
+  font-size: 1.05em;
+  letter-spacing: -0.025em;
+}
+
+.dp-logo__wordmark-accent {
+  color: var(--dp-accent-text);
+}

@@ -1,0 +1,204 @@
+# The Dockplane control plane.
+#
+# Three long-running services and one that runs to completion:
+#
+#   postgres   durable state, reachable only from the backend network
+#   migrate    applies the schema, exits, and gates the API on having done so
+#   api        the control server and the agent gateway
+#   caddy      public TLS, the browser application, and the API in front of it
+#
+# The agent is deliberately absent. It runs natively under systemd on each
+# managed Docker host and connects inward to the gateway.
+
+name: dockplane
+
+# The account the control server runs as, inside the container and on the host.
+#
+# Deliberately not the image's own uid 1000: on most distributions that is the
+# first human login account, and the secrets and the certificate authority are
+# owned by whoever the containers run as. This uid exists on neither side as a
+# login user, so the material belongs to the service and to root alone.
+x-service-user: &service-user '${DOCKPLANE_UID:-10001}:${DOCKPLANE_GID:-10001}'
+
+x-images:
+  # Both images carry the same release tag. A stack is one version of Dockplane.
+  api: &api-image ${DOCKPLANE_API_IMAGE:-ghcr.io/dockplanee/dockplane-control-server}:${DOCKPLANE_VERSION:?set DOCKPLANE_VERSION}
+  web: &web-image ${DOCKPLANE_WEB_IMAGE:-ghcr.io/dockplanee/dockplane-web}:${DOCKPLANE_VERSION:?set DOCKPLANE_VERSION}
+
+services:
+  postgres:
+    image: postgres:17.6-bookworm
+    restart: unless-stopped
+    networks: [backend]
+    # Never published. The database is reachable from the API and the migration
+    # job and from nothing else, including the host.
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres-password
+      # Initialising with scram-sha-256 rather than the image default.
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
+    secrets:
+      - postgres-password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # Asks the database whether it accepts connections, rather than assuming
+      # it does once the container is up.
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -q']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    # The image's entrypoint starts as root to fix ownership of the data
+    # directory and to initialise a new cluster, then drops to the postgres
+    # account; CHOWN, SETUID and SETGID are what that needs and all it needs.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+
+  # Runs once per `up`, applies what is missing, and exits. The API waits for it
+  # to complete successfully, so a failed migration stops the upgrade instead of
+  # producing a server that starts against a schema it does not understand.
+  migrate:
+    image: *api-image
+    restart: 'no'
+    user: *service-user
+    networks: [backend]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL_FILE: /run/secrets/database-url
+    secrets:
+      - database-url
+    command: ['node', 'dist/cli/migrate.js']
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    image: *api-image
+    restart: unless-stopped
+    init: true
+    user: *service-user
+    networks: [backend, frontend]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      # The agent gateway, and only the agent gateway. It speaks mutual TLS and
+      # authenticates each host by its client certificate, so it is reached
+      # directly rather than through Caddy: a proxy that terminated this TLS
+      # would destroy the identity the connection carries.
+      - '${AGENT_GATEWAY_PORT:-9443}:9443'
+      # The REST API is not published. Caddy reaches it over the frontend
+      # network; nothing on the host can.
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL_FILE: /run/secrets/database-url
+      PUBLIC_APP_URL: https://${DOCKPLANE_DOMAIN:?set DOCKPLANE_DOMAIN}
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
+      APPLICATION_ENCRYPTION_KEY_FILE: /run/secrets/application-encryption-key
+      AGENT_GATEWAY_HOST: 0.0.0.0
+      AGENT_GATEWAY_PORT: 9443
+      AGENT_GATEWAY_ADVERTISED_URL: https://${DOCKPLANE_DOMAIN}:${AGENT_GATEWAY_PORT:-9443}
+      AGENT_GATEWAY_TLS_CERT_PATH: /var/lib/dockplane/pki/gateway.crt
+      AGENT_GATEWAY_TLS_KEY_PATH: /var/lib/dockplane/pki/gateway.key
+      AGENT_CLIENT_CA_CERT_PATH: /var/lib/dockplane/pki/agent-ca.crt
+      AGENT_CA_CERT_PATH: /var/lib/dockplane/pki/agent-ca.crt
+      AGENT_CA_KEY_PATH: /var/lib/dockplane/pki/agent-ca.key
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    secrets:
+      - application-encryption-key
+      - database-url
+    volumes:
+      # The certificate authority that issues agent identities. Read-only: the
+      # server signs with the key but never rewrites this directory, and a
+      # container recreate must not be able to mint a new authority.
+      - ${DOCKPLANE_PKI_DIR:-./pki}:/var/lib/dockplane/pki:ro
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://127.0.0.1:3000/health/ready',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    # Nothing durable is written inside the container; the temporary directory
+    # is the only writable path and it does not survive a restart.
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # Long enough for open log streams and agent connections to be closed.
+    stop_grace_period: 30s
+
+  caddy:
+    image: *web-image
+    restart: unless-stopped
+    init: true
+    networks: [frontend]
+    depends_on:
+      - api
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      DOCKPLANE_DOMAIN: ${DOCKPLANE_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Issued certificates and Caddy's own state. Without these a recreate
+      # would ask Let's Encrypt for a new certificate every time and meet the
+      # rate limit. This is Caddy's trust material and has nothing to do with
+      # the agent PKI above; the two are never mixed.
+      - caddy-data:/data
+      - caddy-config:/config
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1:2019/config/']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    # Binding 80 and 443 is the only privilege Caddy needs; it writes its
+    # certificates to the volumes above and nothing else.
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 20s
+
+networks:
+  # Reachable from outside through published ports.
+  frontend:
+  # The database and the services that talk to it. No published port.
+  backend:
+    internal: true
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:
+
+secrets:
+  postgres-password:
+    file: ${DOCKPLANE_SECRETS_DIR:-./secrets}/postgres-password
+  application-encryption-key:
+    file: ${DOCKPLANE_SECRETS_DIR:-./secrets}/application-encryption-key
+  # The whole connection string, so no password is ever an environment variable.
+  database-url:
+    file: ${DOCKPLANE_SECRETS_DIR:-./secrets}/database-url

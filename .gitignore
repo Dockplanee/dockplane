@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+tmp/
+out-tsc/
+.angular/
+
+# Test output
+coverage/
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Agent certificate authority material
+pki/
+*.key
+*.pem
+
+# Deployment secrets. Mounted into the containers from files on the host and
+# never part of an image or of this repository.
+deploy/compose/secrets/
+dist/release/
+
+# Git history archives. They contain everything, including anything that was
+# ever committed by mistake, and must not be committed back in.
+*.bundle
+
+# Agent build output
+agent/dockplane-agent

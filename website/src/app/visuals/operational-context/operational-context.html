@@ -1,0 +1,41 @@
+<figure class="context">
+  <figcaption class="context__caption">
+    Interface preview showing resource usage, container log output and recent operational events for
+    a workload.
+  </figcaption>
+
+  <dp-app-frame view="paperless-db" context="docker-02">
+    <div class="context__metrics">
+      @for (metric of metrics; track metric.label) {
+        <dp-metric-tile
+          class="tile--aligned"
+          [label]="metric.label"
+          [value]="metric.value"
+          [detail]="metric.detail"
+        />
+      }
+    </div>
+
+    <div class="context__panel">
+      <p class="dp-mono-label context__panel-title">Logs</p>
+      <pre
+        class="context__log"
+        tabindex="0"
+        aria-label="Container log output"
+      ><code>@for (line of logLines; track $index) {<span class="context__log-line">{{ line }}</span>}</code></pre>
+    </div>
+
+    <div class="context__panel">
+      <p class="dp-mono-label context__panel-title">Recent events</p>
+      <ul class="context__events">
+        @for (event of events; track event.time) {
+          <li class="context__event">
+            <span class="context__event-time">{{ event.time }}</span>
+            <span class="context__event-summary">{{ event.summary }}</span>
+            <span class="context__event-target">{{ event.target }}</span>
+          </li>
+        }
+      </ul>
+    </div>
+  </dp-app-frame>
+</figure>

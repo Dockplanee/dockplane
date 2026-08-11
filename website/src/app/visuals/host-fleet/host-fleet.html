@@ -1,0 +1,33 @@
+<figure class="fleet">
+  <figcaption class="fleet__caption">
+    Interface preview of the Dockplane host list, showing state, workload count, Docker Engine
+    version and agent connectivity for each connected host.
+  </figcaption>
+
+  <dp-app-frame view="Hosts" context="4 connected">
+    <div class="fleet__scroll">
+      <table class="fleet__table">
+        <thead>
+          <tr>
+            <th scope="col">Host</th>
+            <th scope="col">State</th>
+            <th scope="col" class="fleet__numeric">Containers</th>
+            <th scope="col">Docker</th>
+            <th scope="col">Agent</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (host of hosts; track host.name) {
+            <tr>
+              <th scope="row" class="fleet__host">{{ host.name }}</th>
+              <td><dp-status-badge [tone]="host.tone" [label]="host.status" /></td>
+              <td class="fleet__numeric">{{ host.containers }}</td>
+              <td class="fleet__mono">{{ host.dockerVersion }}</td>
+              <td class="fleet__muted">{{ host.agentState }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </dp-app-frame>
+</figure>

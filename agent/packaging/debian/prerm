@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+# Stops the service before its binary goes away. An upgrade leaves it running:
+# postinst restarts it once the new binary is in place, so a managed host is
+# unreachable for a moment rather than until someone notices.
+
+set -e
+
+case "$1" in
+	remove | deconfigure)
+		if [ -d /run/systemd/system ]; then
+			systemctl --quiet stop dockplane-agent.service || true
+			systemctl --quiet disable dockplane-agent.service || true
+		fi
+		;;
+
+	upgrade | failed-upgrade) ;;
+
+	*)
+		echo "prerm called with unknown argument \`$1'" >&2
+		exit 1
+		;;
+esac
+
+exit 0

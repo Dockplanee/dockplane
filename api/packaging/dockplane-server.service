@@ -1,0 +1,56 @@
+[Unit]
+Description=Dockplane Control Server
+Documentation=https://github.com/Dockplanee/dockplane
+# Ordered after the database, but not required by it. A database restart is
+# routine maintenance: the server reports itself unready while PostgreSQL is
+# away and recovers when it returns. Requires= would instead propagate the
+# stop, taking the control plane down and leaving it down.
+After=network-online.target postgresql.service
+Wants=network-online.target postgresql.service
+
+[Service]
+Type=exec
+User=dockplane
+Group=dockplane
+WorkingDirectory=/opt/dockplane/server
+ExecStart=/usr/bin/node /opt/dockplane/server/dist/main.js
+
+# Configuration and secrets live in one file the service account may read and
+# nothing else can. Nothing sensitive is passed on the command line, where it
+# would be visible in the process list.
+EnvironmentFile=/etc/dockplane/server.env
+
+Restart=on-failure
+RestartSec=5s
+
+# The server closes its listeners, ends agent connections and log streams, and
+# exits. Thirty seconds is generous for that.
+KillSignal=SIGTERM
+TimeoutStopSec=30s
+
+# --- Sandbox.
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectProc=invisible
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+# Only what an HTTP server and a TLS listener need.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+# The server writes nothing outside its own state directory.
+StateDirectory=dockplane
+StateDirectoryMode=0750
+
+[Install]
+WantedBy=multi-user.target

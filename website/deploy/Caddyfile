@@ -1,0 +1,35 @@
+# Serving the prerendered Dockplane website with Caddy.
+#
+# Replace the site address and point `root` at the build output
+# (dist/dockplane-website/browser). Caddy obtains and renews TLS itself.
+
+dockplane.de {
+	root * /srv/dockplane-website
+	encode zstd gzip
+
+	# The site loads no third-party resources and uses no inline scripts or styles.
+	header {
+		Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Content-Type-Options "nosniff"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	# Build output is content-hashed and safe to cache indefinitely.
+	@immutable path *.js *.css /fonts/*
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+	# HTML is revalidated so a deployment takes effect immediately.
+	@documents path *.html /
+	header @documents Cache-Control "public, no-cache"
+
+	# Unknown addresses must answer 404, not 200, or they become indexable.
+	handle_errors {
+		@notfound expression {err.status_code} == 404
+		rewrite @notfound /404/index.html
+		file_server
+	}
+
+	file_server
+}

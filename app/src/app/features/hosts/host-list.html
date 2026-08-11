@@ -1,0 +1,182 @@
+<dp-panel flush>
+  <div class="dp-controls">
+    <div class="dp-controls__search">
+      <label class="dp-sr-only" for="host-search">Search hosts</label>
+      <dp-icon name="search" class="dp-controls__search-icon" />
+      <input
+        id="host-search"
+        class="dp-field"
+        type="search"
+        placeholder="Search hosts"
+        [value]="query()"
+        (input)="query.set($any($event.target).value)"
+      />
+    </div>
+
+    <dp-select-filter
+      id="host-status"
+      label="Filter by status"
+      [options]="statusOptions"
+      [value]="statusFilter()"
+      (valueChange)="statusFilter.set($event)"
+    />
+
+    <dp-select-filter
+      id="host-os"
+      label="Filter by operating system"
+      [options]="osOptions()"
+      [value]="osFilter()"
+      (valueChange)="osFilter.set($event)"
+    />
+
+    <button #enrollTrigger type="button" dpButton variant="primary" (click)="openEnrollment()">
+      <dp-icon name="plus" />
+      Connect host
+    </button>
+  </div>
+
+  @if (rows().length > 0) {
+    <dp-table-shell
+      [count]="rows().length"
+      [total]="hosts().length"
+      noun="host"
+      nounPlural="hosts"
+      minWidth="70rem"
+    >
+      <table class="dp-table">
+        <caption>
+          Connected Docker hosts
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col" [attr.aria-sort]="ariaSort('name')">
+              <dp-sort-button [direction]="directionFor('name')" (sort)="toggleSort('name')"
+                >Host</dp-sort-button
+              >
+            </th>
+            <th scope="col" [attr.aria-sort]="ariaSort('status')">
+              <dp-sort-button [direction]="directionFor('status')" (sort)="toggleSort('status')"
+                >Status</dp-sort-button
+              >
+            </th>
+            <th scope="col" [attr.aria-sort]="ariaSort('os')">
+              <dp-sort-button [direction]="directionFor('os')" (sort)="toggleSort('os')"
+                >OS / Version</dp-sort-button
+              >
+            </th>
+            <th scope="col" [attr.aria-sort]="ariaSort('containers')">
+              <dp-sort-button
+                [direction]="directionFor('containers')"
+                (sort)="toggleSort('containers')"
+                >Containers</dp-sort-button
+              >
+            </th>
+            <th scope="col" [attr.aria-sort]="ariaSort('cpu')">
+              <dp-sort-button [direction]="directionFor('cpu')" (sort)="toggleSort('cpu')"
+                >CPU</dp-sort-button
+              >
+            </th>
+            <th scope="col" [attr.aria-sort]="ariaSort('memory')">
+              <dp-sort-button [direction]="directionFor('memory')" (sort)="toggleSort('memory')"
+                >Memory</dp-sort-button
+              >
+            </th>
+            <th scope="col" [attr.aria-sort]="ariaSort('disk')">
+              <dp-sort-button [direction]="directionFor('disk')" (sort)="toggleSort('disk')"
+                >Disk</dp-sort-button
+              >
+            </th>
+            <th scope="col">Agent</th>
+            <th scope="col" [attr.aria-sort]="ariaSort('lastSeen')">
+              <dp-sort-button [direction]="directionFor('lastSeen')" (sort)="toggleSort('lastSeen')"
+                >Last seen</dp-sort-button
+              >
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (host of rows(); track host.id) {
+            <tr>
+              <th scope="row">
+                <a class="identifier" [routerLink]="['/hosts', host.id]">{{ host.name }}</a>
+                @if (host.stale) {
+                  <span class="secondary"
+                    >Last observed {{ host.observedAt ? age(host.observedAt) : 'never' }}</span
+                  >
+                }
+              </th>
+              <td>
+                <dp-status-badge
+                  [tone]="status(host.status).tone"
+                  [label]="status(host.status).label"
+                />
+              </td>
+              <td>
+                {{ host.os ?? '—' }}
+                <span class="secondary">
+                  @if (host.dockerVersion) {
+                    Docker {{ host.dockerVersion }}
+                  } @else {
+                    Docker version unknown
+                  }
+                </span>
+              </td>
+              <td class="dp-mono">
+                {{ containerCount(host).running }} / {{ containerCount(host).total }}
+              </td>
+              <td>
+                @if (host.cpu; as cpu) {
+                  <dp-meter [percent]="cpu.percent" [label]="'CPU ' + cpu.detail" />
+                } @else {
+                  <span class="dp-unknown">—</span>
+                }
+              </td>
+              <td>
+                @if (host.memory; as memory) {
+                  <dp-meter [percent]="memory.percent" [label]="'Memory ' + memory.detail" />
+                } @else {
+                  <span class="dp-unknown">—</span>
+                }
+              </td>
+              <td>
+                @if (host.disk; as disk) {
+                  <dp-meter [percent]="disk.percent" [label]="'Disk ' + disk.detail" />
+                } @else {
+                  <span class="dp-unknown">—</span>
+                }
+              </td>
+              <td class="dp-mono dp-unknown">{{ host.agentVersion ?? '—' }}</td>
+              <td class="shrink dp-unknown">{{ host.lastSeen ? age(host.lastSeen) : '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </dp-table-shell>
+  } @else if (hosts().length === 0) {
+    <dp-empty-state
+      icon="hosts"
+      title="No Docker hosts connected yet"
+      detail="Install the Dockplane Agent on a Docker host and enroll it to start managing this environment."
+    />
+  } @else {
+    <dp-empty-state
+      icon="search"
+      title="No host matches your filters"
+      detail="Adjust the search term or clear the status and operating system filters."
+    />
+  }
+</dp-panel>
+
+<dp-confirm-dialog
+  heading="Connect a Docker host"
+  description="A host joins Dockplane by enrolling its agent. Enrollment uses a short-lived, single-use token; the agent then holds its own device credential, which can be revoked independently of every other host."
+  confirmLabel="Close"
+  [details]="[
+    { label: 'Step 1', value: 'Create an enrollment token' },
+    { label: 'Step 2', value: 'Install the agent on the host' },
+    { label: 'Step 3', value: 'Agent enrolls over TLS' },
+    { label: 'Step 4', value: 'Credential is issued and audited' },
+  ]"
+  (confirmed)="closeEnrollment()"
+  (dismissed)="closeEnrollment()"
+/>

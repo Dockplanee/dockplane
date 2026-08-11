@@ -1,0 +1,52 @@
+<dialog #dialog aria-label="Search Docker inventory" (close)="query.set('')">
+  <form class="field" role="search" (submit)="submit($event)">
+    <dp-icon name="search" class="field-icon" />
+    <label class="dp-sr-only" for="palette-input"
+      >Search hosts, containers and Compose projects</label
+    >
+    <input
+      #field
+      id="palette-input"
+      type="text"
+      autocomplete="off"
+      placeholder="Search hosts, containers and Compose projects"
+      role="combobox"
+      aria-expanded="true"
+      aria-controls="palette-results"
+      [attr.aria-activedescendant]="results().length ? 'palette-option-' + activeIndex() : null"
+      [value]="query()"
+      (input)="onQuery($any($event.target).value)"
+      (keydown.arrowdown)="move(1, $event)"
+      (keydown.arrowup)="move(-1, $event)"
+    />
+    <button type="button" class="dismiss" aria-label="Close search" (click)="close()">
+      <dp-icon name="close" />
+    </button>
+  </form>
+
+  <div id="palette-results" class="results" role="listbox" aria-label="Results">
+    @for (group of groups(); track group.title) {
+      <p class="dp-label group-title">{{ group.title }}</p>
+      <ul>
+        @for (result of group.items; track result.id) {
+          <li>
+            <button
+              type="button"
+              role="option"
+              [id]="'palette-option-' + flatIndex(result)"
+              [attr.aria-selected]="flatIndex(result) === activeIndex()"
+              [class.active]="flatIndex(result) === activeIndex()"
+              (click)="go(result)"
+            >
+              <dp-icon [name]="result.icon" class="result-icon" />
+              <span class="result-label">{{ result.label }}</span>
+              <span class="result-context">{{ result.context }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    } @empty {
+      <p class="no-results">No host, container or Compose project matches “{{ query() }}”.</p>
+    }
+  </div>
+</dialog>

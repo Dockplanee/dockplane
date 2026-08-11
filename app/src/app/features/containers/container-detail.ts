@@ -1,0 +1,278 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  effect,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { RouterOutlet } from '@angular/router';
+
+import { ApiError } from '../../core/api-error';
+import { InventoryRefresh } from '../../core/inventory-refresh';
+import { PageContext } from '../../core/page-context';
+import { Permission, Permissions } from '../../core/permissions';
+import { DockplaneApi } from '../../data/dockplane-api';
+import { containerHealth, containerState, isReporting } from '../../domain/status';
+import { Button } from '../../ui/button';
+import { ConfirmDetail, ConfirmDialog } from '../../ui/confirm-dialog/confirm-dialog';
+import { EmptyState } from '../../ui/empty-state/empty-state';
+import { ErrorState } from '../../ui/error-state/error-state';
+import { Icon } from '../../ui/icon/icon';
+import { Panel } from '../../ui/panel/panel';
+import { StaleNotice } from '../../ui/stale-notice/stale-notice';
+import { StatusBadge } from '../../ui/status-badge/status-badge';
+import { TabBar } from '../../ui/tabs/tab-bar';
+import { ContainerStore } from './container-store';
+
+type Lifecycle = 'start' | 'stop' | 'restart';
+
+const TABS = [
+  { label: 'Overview', path: 'overview' },
+  { label: 'Logs', path: 'logs' },
+  { label: 'Configuration', path: 'configuration' },
+  { label: 'Networks', path: 'networks' },
+  { label: 'Volumes', path: 'volumes' },
+];
+
+const COPY: Record<Lifecycle, { verb: string; consequence: string }> = {
+  start: { verb: 'Start', consequence: 'The container will be started on its host.' },
+  stop: {
+    verb: 'Stop',
+    consequence: 'The workload becomes unavailable until it is started again.',
+  },
+  restart: {
+    verb: 'Restart',
+    consequence: 'The workload is briefly unavailable, usually for a few seconds.',
+  },
+};
+
+@Component({
+  selector: 'dp-container-detail',
+  imports: [
+    RouterOutlet,
+    Button,
+    ConfirmDialog,
+    EmptyState,
+    ErrorState,
+    Icon,
+    Panel,
+    StaleNotice,
+    StatusBadge,
+    TabBar,
+  ],
+  templateUrl: './container-detail.html',
+  styleUrl: './container-detail.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [ContainerStore],
+})
+export class ContainerDetail {
+  private readonly api = inject(DockplaneApi);
+  private readonly page = inject(PageContext);
+  private readonly permissions = inject(Permissions);
+  private readonly refresh = inject(InventoryRefresh);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly dialog = viewChild.required(ConfirmDialog);
+
+  protected readonly store = inject(ContainerStore);
+  protected readonly tabs = TABS;
+  protected readonly state = containerState;
+  protected readonly health = containerHealth;
+
+  protected readonly running = signal(false);
+  protected readonly failure = signal<
+    { message: string; code?: string; requestId: string } | undefined
+  >(undefined);
+
+  private readonly pending = signal<Lifecycle | undefined>(undefined);
+
+  /** Announced after a successful operation, then cleared by the next one. */
+  protected readonly outcome = signal<string | undefined>(undefined);
+
+  protected readonly isRunning = computed(() => {
+    const state = this.store.container()?.state;
+    return state === 'running' || state === 'restarting';
+  });
+
+  /**
+   * An action is offered only when it can actually be carried out.
+   *
+   * Four things have to hold: the operator holds the permission, the container
+   * is in a state the operation applies to, the host can be reached, and no
+   * other operation is running on this container. An enabled control missing
+   * any of them would promise something the control server refuses.
+   *
+   * This is what the interface offers, not what is allowed. The control server
+   * authorizes every request again, and a request made anyway is refused there.
+   */
+  private readonly reachable = computed(() => {
+    const host = this.store.host();
+
+    return host ? isReporting(host.status) : false;
+  });
+
+  private readonly ready = computed(() => this.reachable() && !this.running());
+
+  protected readonly canStart = computed(
+    () => !this.isRunning() && this.permissions.has('containers.start') && this.ready(),
+  );
+  protected readonly canStop = computed(
+    () => this.isRunning() && this.permissions.has('containers.stop') && this.ready(),
+  );
+  protected readonly canRestart = computed(
+    () => this.isRunning() && this.permissions.has('containers.restart') && this.ready(),
+  );
+
+  /** Why a control is disabled, so an operator is not left guessing. */
+  protected readonly startHint = computed(() => this.hint('start', 'containers.start'));
+  protected readonly stopHint = computed(() => this.hint('stop', 'containers.stop'));
+  protected readonly restartHint = computed(() => this.hint('restart', 'containers.restart'));
+
+  protected readonly heading = computed(() => {
+    const action = this.pending();
+    const name = this.store.container()?.name ?? '';
+    return action ? `${COPY[action].verb} ${name}?` : 'Confirm action';
+  });
+
+  protected readonly description = computed(() => {
+    const action = this.pending();
+    return action ? COPY[action].consequence : '';
+  });
+
+  protected readonly confirmLabel = computed(() => {
+    const action = this.pending();
+    return action ? `${COPY[action].verb} container` : 'Confirm';
+  });
+
+  protected readonly details = computed<readonly ConfirmDetail[]>(() => {
+    const container = this.store.container();
+
+    if (!container) {
+      return [];
+    }
+
+    return [
+      { label: 'Container', value: container.name },
+      { label: 'Host', value: container.hostname },
+      { label: 'Image', value: container.image },
+    ];
+  });
+
+  constructor() {
+    effect(() => {
+      const container = this.store.container();
+
+      this.page.set({
+        title: container?.name ?? 'Container',
+        breadcrumb: [
+          { label: 'Containers', path: '/containers' },
+          { label: container?.name ?? this.store.id() },
+        ],
+      });
+    });
+  }
+
+  protected request(action: Lifecycle): void {
+    this.failure.set(undefined);
+    this.outcome.set(undefined);
+    this.pending.set(action);
+    this.dialog().open();
+  }
+
+  /**
+   * Carries out the operation.
+   *
+   * The server's answer decides what is shown. Nothing is set optimistically:
+   * a start that returned does not mean the container is running, and the
+   * response carries the state the host was observed in afterwards.
+   */
+  protected confirm(): void {
+    const action = this.pending();
+    const container = this.store.container();
+
+    if (!action || !container || this.running()) {
+      return;
+    }
+
+    this.running.set(true);
+    this.failure.set(undefined);
+
+    this.api
+      .runContainerOperation(action, container.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.settle();
+
+          if (result.status === 'timed_out') {
+            this.failure.set({
+              message:
+                'The host did not answer in time. The operation may still have been carried out; what is shown below is what was observed afterwards.',
+              code: result.errorCode ?? 'AGENT_REQUEST_TIMEOUT',
+              requestId: result.actionId,
+            });
+          } else {
+            this.outcome.set(`${container.name} was ${past(action)}.`);
+          }
+
+          /*
+           * The container is read again rather than assumed. A start that was
+           * accepted is not a container that is running, and the rest of the
+           * interface shows what discovery reports, not what was asked for.
+           */
+          this.refresh.request();
+        },
+        error: (error: unknown) => {
+          const problem = ApiError.from(error);
+
+          this.settle();
+          this.failure.set({
+            message: problem.message,
+            code: problem.code,
+            requestId: problem.requestId ?? '',
+          });
+
+          // A refusal still says something about the container — it may already
+          // be running, or its host may have gone quiet since the page loaded.
+          this.refresh.request();
+        },
+      });
+  }
+
+  protected dismiss(): void {
+    if (!this.running()) {
+      this.pending.set(undefined);
+    }
+  }
+
+  private settle(): void {
+    this.running.set(false);
+    this.pending.set(undefined);
+    this.dialog().close();
+  }
+
+  private hint(action: Lifecycle, permission: Permission): string {
+    if (!this.permissions.has(permission)) {
+      return `Requires the ${permission} permission.`;
+    }
+
+    if (action === 'start' ? this.isRunning() : !this.isRunning()) {
+      return action === 'start'
+        ? 'The container is already running.'
+        : 'The container is not running.';
+    }
+
+    if (!this.reachable()) {
+      return 'The host is not reachable, so nothing can be carried out on it now.';
+    }
+
+    return this.running() ? 'Another operation is running on this container.' : '';
+  }
+}
+
+function past(action: Lifecycle): string {
+  return action === 'stop' ? 'stopped' : action === 'start' ? 'started' : 'restarted';
+}

@@ -1,0 +1,26 @@
+<section class="missing" aria-labelledby="not-found-heading">
+  <div class="dp-shell missing__inner">
+    <p class="dp-mono-label missing__code">Error 404</p>
+
+    <h1 class="missing__heading" id="not-found-heading">This page does not exist.</h1>
+
+    <p class="missing__body">
+      The address could not be resolved. The pages below cover the product, its security model and
+      how Dockplane is deployed.
+    </p>
+
+    <div class="missing__actions">
+      <a dpButton variant="primary" routerLink="/">Go to the homepage</a>
+    </div>
+
+    <dp-control-rule class="missing__rule" label="Pages" />
+
+    <ul class="missing__links">
+      @for (link of navigation; track link.path) {
+        <li>
+          <a class="dp-link-arrow" [routerLink]="link.path">{{ link.label }}</a>
+        </li>
+      }
+    </ul>
+  </div>
+</section>

@@ -1,0 +1,148 @@
+<section class="summary" aria-label="Environment summary">
+  @for (card of cards(); track card.key) {
+    <dp-summary-card
+      [label]="card.label"
+      [value]="card.value"
+      [detail]="card.detail"
+      [icon]="card.icon"
+      [tone]="card.tone"
+    />
+  }
+</section>
+
+<div class="panels">
+  <dp-panel heading="Needs attention" icon="alertTriangle" headingId="attention-heading" flush>
+    <a panelActions class="panel-link" routerLink="/health">View all</a>
+
+    @if (attention().length > 0) {
+      <ul class="issues">
+        @for (issue of attention(); track issue.id) {
+          <li>
+            <a class="issue" [routerLink]="issue.link">
+              <span class="issue-severity" [class]="'tone-' + severity(issue.severity).tone">
+                <dp-icon [name]="issue.icon" />
+              </span>
+
+              <span class="issue-body">
+                <span class="issue-title">{{ issue.title }}</span>
+                <span class="issue-detail">{{ issue.detail }}</span>
+              </span>
+
+              <span class="issue-meta">
+                <dp-status-badge
+                  [tone]="severity(issue.severity).tone"
+                  [label]="severity(issue.severity).label"
+                  plated
+                />
+                @if (issue.since) {
+                  <span class="issue-age">{{ age(issue.since) }}</span>
+                }
+              </span>
+
+              <dp-icon name="chevronRight" class="issue-chevron" />
+            </a>
+          </li>
+        }
+      </ul>
+    } @else {
+      <dp-empty-state
+        icon="check"
+        title="Nothing needs attention"
+        detail="No host, workload or agent is currently reporting a problem."
+      />
+    }
+  </dp-panel>
+</div>
+
+<dp-panel heading="Hosts" icon="hosts" headingId="hosts-heading" flush class="hosts">
+  <div panelActions class="hosts-actions">
+    <dp-select-filter
+      id="overview-status"
+      label="Filter hosts by status"
+      [options]="statusFilters"
+      [value]="statusFilter()"
+      (valueChange)="statusFilter.set($event)"
+    />
+    <a dpButton variant="secondary" routerLink="/hosts">View all hosts</a>
+  </div>
+
+  @if (filteredHosts().length > 0) {
+    <dp-table-shell
+      [count]="filteredHosts().length"
+      [total]="hosts().length"
+      noun="host"
+      nounPlural="hosts"
+      minWidth="58rem"
+    >
+      <table class="dp-table" aria-labelledby="hosts-heading">
+        <caption>
+          Connected Docker hosts with their current resource usage
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Host</th>
+            <th scope="col">Status</th>
+            <th scope="col">Containers</th>
+            <th scope="col">CPU</th>
+            <th scope="col">Memory</th>
+            <th scope="col">Disk</th>
+            <th scope="col">Uptime</th>
+            <th scope="col">Last seen</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (host of filteredHosts(); track host.id) {
+            <tr>
+              <th scope="row">
+                <a class="identifier" [routerLink]="['/hosts', host.id]">{{ host.name }}</a>
+                @if (host.stale) {
+                  <span class="secondary"
+                    >Last observed {{ host.observedAt ? age(host.observedAt) : 'never' }}</span
+                  >
+                }
+              </th>
+              <td>
+                <dp-status-badge
+                  [tone]="status(host.status).tone"
+                  [label]="status(host.status).label"
+                />
+              </td>
+              <td class="dp-mono">
+                {{ containerCount(host).running }} / {{ containerCount(host).total }}
+              </td>
+              <td>
+                @if (host.cpu; as cpu) {
+                  <dp-meter [percent]="cpu.percent" [label]="'CPU ' + cpu.detail" />
+                } @else {
+                  <span class="dp-unknown">—</span>
+                }
+              </td>
+              <td>
+                @if (host.memory; as memory) {
+                  <dp-meter [percent]="memory.percent" [label]="'Memory ' + memory.detail" />
+                } @else {
+                  <span class="dp-unknown">—</span>
+                }
+              </td>
+              <td>
+                @if (host.disk; as disk) {
+                  <dp-meter [percent]="disk.percent" [label]="'Disk ' + disk.detail" />
+                } @else {
+                  <span class="dp-unknown">—</span>
+                }
+              </td>
+              <td class="shrink dp-mono">{{ uptimeOf(host.uptimeSeconds) ?? '—' }}</td>
+              <td class="shrink dp-unknown">{{ host.lastSeen ? age(host.lastSeen) : '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </dp-table-shell>
+  } @else {
+    <dp-empty-state
+      icon="hosts"
+      title="No host matches this filter"
+      detail="Change the status filter to see the connected Docker hosts."
+    />
+  }
+</dp-panel>

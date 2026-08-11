@@ -1,0 +1,52 @@
+<div class="brand">
+  <a routerLink="/overview" class="brand-link" (click)="navigated.emit()">
+    @if (collapsed()) {
+      <dp-logo variant="mark" label="Dockplane" />
+    } @else {
+      <dp-logo />
+    }
+    <span class="dp-sr-only">— overview</span>
+  </a>
+</div>
+
+<nav class="nav" aria-label="Sections">
+  @for (group of groups(); track group.title) {
+    <div class="group">
+      @if (group.title) {
+        <p class="dp-label group-title" [attr.aria-hidden]="collapsed()">
+          {{ collapsed() ? '' : group.title }}
+        </p>
+      }
+
+      <ul>
+        @for (item of group.items; track item.path) {
+          <li>
+            <a
+              [routerLink]="item.path"
+              routerLinkActive="active"
+              #link="routerLinkActive"
+              [attr.aria-current]="link.isActive ? 'page' : null"
+              [attr.title]="collapsed() ? item.label : null"
+              (click)="navigated.emit()"
+            >
+              <dp-icon [name]="item.icon" />
+              <span class="label" [class.dp-sr-only]="collapsed()">{{ item.label }}</span>
+            </a>
+          </li>
+        }
+      </ul>
+    </div>
+  }
+</nav>
+
+<div class="foot">
+  <button
+    type="button"
+    class="collapse-toggle"
+    [attr.aria-label]="collapsed() ? 'Expand navigation' : 'Collapse navigation'"
+    (click)="collapseToggled.emit()"
+  >
+    <dp-icon [name]="collapsed() ? 'chevronRight' : 'chevronLeft'" />
+    <span class="label" [class.dp-sr-only]="collapsed()">Collapse</span>
+  </button>
+</div>

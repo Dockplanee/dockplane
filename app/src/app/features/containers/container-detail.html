@@ -1,0 +1,110 @@
+@if (store.container(); as container) {
+  <header class="head">
+    <div class="identity">
+      <h2>{{ container.name }}</h2>
+      <dp-status-badge
+        [tone]="state(container.state).tone"
+        [label]="state(container.state).label"
+        plated
+      />
+      <dp-status-badge
+        [tone]="health(container.health).tone"
+        [label]="health(container.health).label"
+        plated
+      />
+    </div>
+
+    <div class="actions">
+      <button
+        type="button"
+        dpButton
+        variant="secondary"
+        [disabled]="!canStart()"
+        [attr.title]="startHint() || null"
+        (click)="request('start')"
+      >
+        <dp-icon name="play" />
+        Start
+      </button>
+      <button
+        type="button"
+        dpButton
+        variant="secondary"
+        [disabled]="!canStop()"
+        [attr.title]="stopHint() || null"
+        (click)="request('stop')"
+      >
+        <dp-icon name="stop" />
+        Stop
+      </button>
+      <button
+        type="button"
+        dpButton
+        variant="secondary"
+        [disabled]="!canRestart()"
+        [attr.title]="restartHint() || null"
+        (click)="request('restart')"
+      >
+        <dp-icon name="refresh" />
+        Restart
+      </button>
+    </div>
+  </header>
+
+  <p class="meta">
+    <span class="dp-mono">{{ container.image }}</span>
+    <span class="dp-mono">{{ container.dockerId.slice(0, 12) }}</span>
+    <span class="dp-mono">{{ container.hostname }}</span>
+    <span>{{ container.restarts }} restarts</span>
+  </p>
+
+  @if (store.stale()) {
+    <dp-stale-notice
+      class="stale"
+      [lastSeen]="store.observedAt() ?? ''"
+      reason="Nothing is refreshing this container, so what is shown is the last observation."
+    />
+  }
+
+  @if (failure(); as error) {
+    <dp-error-state
+      class="stale"
+      [message]="error.message"
+      [code]="error.code"
+      [requestId]="error.requestId"
+    />
+  }
+
+  <!--
+    The message is the live region rather than a copy of one, so a screen
+    reader announces the result once. The state above is the record; this only
+    says which operation produced it.
+  -->
+  <p class="outcome" role="status" aria-live="polite" [class.outcome--empty]="!outcome()">
+    {{ outcome() ?? '' }}
+  </p>
+
+  <dp-tab-bar class="tabs" [tabs]="tabs" label="Container sections" />
+
+  <div class="tab-content">
+    <router-outlet />
+  </div>
+
+  <dp-confirm-dialog
+    [heading]="heading()"
+    [description]="description()"
+    [confirmLabel]="confirmLabel()"
+    [details]="details()"
+    [pending]="running()"
+    (confirmed)="confirm()"
+    (dismissed)="dismiss()"
+  />
+} @else {
+  <dp-panel flush>
+    <dp-empty-state
+      icon="containers"
+      title="Container not found"
+      detail="This container is no longer reported by any connected host. It may have been removed."
+    />
+  </dp-panel>
+}

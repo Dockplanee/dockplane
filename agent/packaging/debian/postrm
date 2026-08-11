@@ -1,0 +1,50 @@
+#!/bin/sh
+#
+# What survives a removal, and what does not.
+#
+# Removing the package leaves the agent's identity in place, so reinstalling
+# brings the host back without enrolling it again. Purging removes it, because
+# a private key that nobody meant to keep should not be left behind on a
+# decommissioned machine — and that is not reversible.
+
+set -e
+
+STATE=/var/lib/dockplane-agent
+CONFIG=/etc/dockplane-agent
+USER=dockplane-agent
+
+case "$1" in
+	remove)
+		if [ -d /run/systemd/system ]; then
+			systemctl daemon-reload || true
+		fi
+		;;
+
+	purge)
+		if [ -d "$STATE" ]; then
+			echo "dockplane-agent: removing $STATE, including this host's identity." >&2
+			echo "  Revoke this agent in Dockplane; its certificate stays valid" >&2
+			echo "  until you do. Bringing the host back needs a new enrollment." >&2
+			rm -rf "$STATE"
+		fi
+
+		rm -rf "$CONFIG"
+
+		if getent passwd "$USER" > /dev/null; then
+			deluser --system "$USER" > /dev/null 2>&1 || true
+		fi
+
+		if [ -d /run/systemd/system ]; then
+			systemctl daemon-reload || true
+		fi
+		;;
+
+	upgrade | failed-upgrade | abort-install | abort-upgrade | disappear) ;;
+
+	*)
+		echo "postrm called with unknown argument \`$1'" >&2
+		exit 1
+		;;
+esac
+
+exit 0

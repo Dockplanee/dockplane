@@ -1,0 +1,79 @@
+<div class="dp-shell header__bar">
+  <a routerLink="/" class="header__brand" (click)="closeMenu()">
+    <dp-logo />
+    <span class="header__brand-sr">— home</span>
+  </a>
+
+  <nav class="header__nav" aria-label="Primary">
+    <ul class="header__nav-list">
+      @for (link of navigation; track link.path) {
+        <li>
+          <a
+            class="header__nav-link"
+            [routerLink]="link.path"
+            routerLinkActive="header__nav-link--active"
+            #active="routerLinkActive"
+            [attr.aria-current]="active.isActive ? 'page' : null"
+            >{{ link.label }}</a
+          >
+        </li>
+      }
+    </ul>
+  </nav>
+
+  <div class="header__actions">
+    <dp-theme-toggle />
+    <a class="header__cta" dpButton variant="primary" [routerLink]="getStarted.path">{{
+      getStarted.label
+    }}</a>
+
+    <button
+      #menuButton
+      type="button"
+      class="header__menu-button"
+      aria-controls="site-menu"
+      [attr.aria-expanded]="menuOpen()"
+      (click)="toggleMenu()"
+    >
+      <span class="header__menu-label">Menu</span>
+      <span
+        class="header__menu-icon"
+        [class.header__menu-icon--open]="menuOpen()"
+        aria-hidden="true"
+      >
+        <span></span>
+        <span></span>
+      </span>
+    </button>
+  </div>
+</div>
+
+<div id="site-menu" class="header__panel" [hidden]="!menuOpen()">
+  <nav class="dp-shell header__panel-inner" aria-label="Primary, mobile">
+    <ul>
+      @for (link of navigation; track link.path) {
+        <li>
+          <a
+            class="header__panel-link"
+            [routerLink]="link.path"
+            routerLinkActive="header__panel-link--active"
+            #panelActive="routerLinkActive"
+            [attr.aria-current]="panelActive.isActive ? 'page' : null"
+            (click)="closeMenu()"
+            >{{ link.label }}</a
+          >
+        </li>
+      }
+    </ul>
+
+    <a
+      class="header__panel-cta"
+      dpButton
+      variant="primary"
+      size="lg"
+      [routerLink]="getStarted.path"
+      (click)="closeMenu()"
+      >{{ getStarted.label }}</a
+    >
+  </nav>
+</div>

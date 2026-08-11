@@ -1,0 +1,24 @@
+Package: dockplane-agent
+Version: @VERSION@
+Architecture: @ARCH@
+Maintainer: Dockplane <info@dockplane.de>
+Section: admin
+Priority: optional
+Homepage: https://github.com/Dockplanee/dockplane
+Depends: adduser, systemd
+Installed-Size: @SIZE@
+Description: Dockplane agent for a managed Docker host
+ Connects one Docker host to a Dockplane control server. It reports host
+ facts, container state and Compose projects, streams a container's output,
+ and starts, stops or restarts a container the control server asks it to.
+ .
+ The set of operations is fixed at build time. There is no remove, exec,
+ attach or shell, and no request from the control server carries a command
+ to run on the host.
+ .
+ The agent holds its own certificate, obtained once by enrolling with a
+ short-lived token, and connects outward: nothing needs to reach into the
+ managed host. This package installs no identity and enables no service.
+ .
+ The agent needs access to the Docker socket, which is equivalent to root
+ on this host. See /usr/share/doc/dockplane-agent/README.Debian.

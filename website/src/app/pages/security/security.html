@@ -1,0 +1,142 @@
+<dp-page-hero
+  eyebrow="Security"
+  headingId="security-heading"
+  heading="Security is part of the control plane."
+  lede="Dockplane manages privileged Docker operations, so identity, authorization, constrained agent capabilities and auditability are architectural requirements rather than optional add-ons."
+/>
+
+<section dpSection aria-labelledby="identity-heading">
+  <div class="dp-shell split">
+    <div>
+      <dp-section-header
+        index="01"
+        eyebrow="Agent identity"
+        headingId="identity-heading"
+        heading="Every agent has its own identity."
+        lede="Enrollment is designed around short-lived enrollment material and device-specific credentials. An individual agent can be revoked without replacing one global fleet key."
+      />
+    </div>
+
+    <div class="steps" dpPanel>
+      <p class="dp-mono-label steps__title">Enrollment lifecycle</p>
+      <ol class="steps__list">
+        @for (step of enrollmentSteps; track step) {
+          <li class="steps__item">{{ step }}</li>
+        }
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section dpSection tone="alt" divided aria-labelledby="capability-heading">
+  <div class="dp-shell split split--reverse">
+    <div>
+      <dp-section-header
+        index="02"
+        eyebrow="Capability model"
+        headingId="capability-heading"
+        heading="Defined operations instead of arbitrary commands."
+        lede="The Dockplane agent accepts explicit capabilities with validated payloads. The control protocol is not designed as an unrestricted remote shell."
+      />
+    </div>
+
+    <div>
+      <dp-capability-flow />
+    </div>
+  </div>
+</section>
+
+<section dpSection aria-labelledby="authorization-heading">
+  <div class="dp-shell stack">
+    <div class="stack__heading">
+      <p class="dp-mono-label stack__index">03 — Authorization</p>
+      <h2 class="stack__title" id="authorization-heading">
+        The backend is the authorization boundary.
+      </h2>
+    </div>
+    <div class="dp-prose stack__body">
+      <p>
+        Hiding a button is not access control. Sensitive API operations and dispatched agent actions
+        require backend authorization.
+      </p>
+      <p>
+        Permissions are designed to be scoped to resources, so operational access can be granted for
+        a single host or workload group instead of the whole environment.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section dpSection tone="alt" divided aria-labelledby="audit-heading">
+  <div class="dp-shell stack">
+    <div class="stack__heading">
+      <p class="dp-mono-label stack__index">04 — Audit</p>
+      <h2 class="stack__title" id="audit-heading">Operational changes leave a trail.</h2>
+    </div>
+    <div class="dp-prose stack__body">
+      <p>
+        Security-relevant and infrastructure-mutating actions are designed to carry actor, target,
+        result and correlation context without turning the audit log into a secret store.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section dpSection aria-labelledby="docker-access-heading">
+  <div class="dp-shell stack">
+    <div class="stack__heading">
+      <p class="dp-mono-label stack__index">05 — Docker access</p>
+      <h2 class="stack__title" id="docker-access-heading">Docker access is privileged.</h2>
+    </div>
+    <div class="dp-prose stack__body">
+      <p>
+        Access to the Docker daemon can be equivalent to privileged host control depending on
+        configuration. Dockplane documents that trust boundary rather than presenting Docker socket
+        access as harmless.
+      </p>
+      <p>
+        An unauthenticated Docker TCP endpoint is not an acceptable way to simplify agent
+        deployment.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section dpSection tone="alt" divided aria-labelledby="secrets-heading">
+  <div class="dp-shell stack">
+    <div class="stack__heading">
+      <p class="dp-mono-label stack__index">06 — Secrets</p>
+      <h2 class="stack__title" id="secrets-heading">Secrets do not belong in logs.</h2>
+    </div>
+    <div class="dp-prose stack__body">
+      <p>
+        Passwords, enrollment material, private keys, session credentials and unrestricted
+        environment values must be excluded or redacted from normal logging and telemetry.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section dpSection aria-labelledby="reporting-heading" id="reporting">
+  <div class="dp-shell">
+    <div class="reporting" dpPanel>
+      <h2 class="reporting__heading" id="reporting-heading">Found a security issue?</h2>
+      <p class="reporting__body">
+        Report it privately rather than in a public issue. A report is most useful when it names the
+        affected version and component, describes the impact and includes a reproduction with
+        sanitized logs.
+      </p>
+
+      @if (advisoryUrl; as href) {
+        <p class="reporting__action">
+          <a dpButton variant="primary" [href]="href" rel="noopener">Report a vulnerability</a>
+        </p>
+      }
+
+      <p class="reporting__note">
+        Please do not disclose an exploitable issue publicly before the maintainers have had a
+        chance to investigate and prepare a fix.
+      </p>
+    </div>
+  </div>
+</section>

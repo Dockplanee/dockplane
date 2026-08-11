@@ -1,0 +1,131 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  width: var(--dp-sidebar-width);
+  height: 100%;
+  border-right: 1px solid var(--dp-line);
+  background-color: var(--dp-surface);
+  transition: width 150ms ease;
+}
+
+:host(.collapsed) {
+  width: var(--dp-sidebar-width-collapsed);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  height: var(--dp-topbar-height);
+  padding-inline: 1rem;
+  border-bottom: 1px solid var(--dp-line);
+}
+
+:host(.collapsed) .brand {
+  padding-inline: 0;
+  justify-content: center;
+}
+
+.brand-link {
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--dp-radius-sm);
+  font-size: 1rem;
+}
+
+.nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem 0.5rem;
+}
+
+.group + .group {
+  margin-top: 1.125rem;
+}
+
+.group-title {
+  padding: 0 0.5rem 0.375rem;
+  min-height: 1rem;
+}
+
+:host(.collapsed) .group + .group {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--dp-line);
+}
+
+:host(.collapsed) .group-title {
+  display: none;
+}
+
+.nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.nav a {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  height: 2.25rem;
+  padding-inline: 0.5rem;
+  border-radius: var(--dp-radius-sm);
+  color: var(--dp-fg-muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+:host(.collapsed) .nav a {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.nav a:hover {
+  color: var(--dp-fg);
+  background-color: var(--dp-surface-alt);
+}
+
+.nav a.active {
+  color: var(--dp-accent-text);
+  background-color: var(--dp-accent-soft);
+}
+
+.foot {
+  padding: 0.5rem;
+  border-top: 1px solid var(--dp-line);
+}
+
+.collapse-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  height: 2.25rem;
+  padding-inline: 0.5rem;
+  border: 0;
+  border-radius: var(--dp-radius-sm);
+  background: none;
+  color: var(--dp-fg-muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+:host(.collapsed) .collapse-toggle {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.collapse-toggle:hover {
+  color: var(--dp-fg);
+  background-color: var(--dp-surface-alt);
+}

@@ -1,0 +1,44 @@
+@if (resolving()) {
+  <p class="bootstrap" role="status">Checking your session…</p>
+} @else if (!signedIn()) {
+  <router-outlet />
+} @else {
+  <a class="skip-link" href="#view" (click)="$event.preventDefault(); main.focus()"
+    >Skip to content</a
+  >
+
+  <div class="shell">
+    <dp-sidebar
+      class="sidebar"
+      [collapsed]="collapsed()"
+      (collapseToggled)="toggleCollapsed()"
+      (navigated)="closeDrawer()"
+    />
+
+    @if (drawerOpen()) {
+      <div class="drawer" role="dialog" aria-label="Navigation" (keydown.escape)="closeDrawer()">
+        <dp-sidebar
+          class="drawer-nav"
+          (navigated)="closeDrawer()"
+          (collapseToggled)="closeDrawer()"
+        />
+        <button
+          type="button"
+          class="scrim"
+          aria-label="Close navigation"
+          (click)="closeDrawer()"
+        ></button>
+      </div>
+    }
+
+    <div class="content">
+      <dp-topbar (menuOpened)="openDrawer()" (searchOpened)="palette.open()" />
+
+      <main #main id="view" tabindex="-1">
+        <router-outlet />
+      </main>
+    </div>
+  </div>
+
+  <dp-search-palette #palette />
+}

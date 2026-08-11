@@ -1,0 +1,77 @@
+[Unit]
+Description=Dockplane Agent
+Documentation=https://github.com/Dockplanee/dockplane
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/dockplane-agent run
+
+# Operator settings, if any. The leading dash means a deployment that has not
+# created the file starts anyway; nothing in it is required. No secret belongs
+# here: the enrollment token is handed to `enroll` once and the private key
+# never leaves the state directory.
+EnvironmentFile=-/etc/dockplane-agent/agent.env
+
+# The agent runs as its own account, not as root. It needs read access to the
+# Docker socket and nothing else on the host.
+User=dockplane-agent
+Group=dockplane-agent
+
+# Docker socket access is effectively root on this host: anything able to talk
+# to the daemon can start a privileged container that mounts the filesystem.
+# Adding this account to the docker group is a deliberate decision, and it is
+# why the agent exposes no way to run a command.
+SupplementaryGroups=docker
+
+# /var/lib/dockplane-agent, created and owned by this unit. It holds the
+# private key and must not be readable by anyone else.
+StateDirectory=dockplane-agent
+StateDirectoryMode=0700
+Environment=DOCKPLANE_AGENT_STATE_DIR=/var/lib/dockplane-agent
+
+# No enrollment token and no key material here. A token belongs in a
+# short-lived file passed to `dockplane-agent enroll --token-file`, and the
+# private key never leaves the state directory.
+
+Restart=on-failure
+RestartSec=10s
+
+# Two failures an operator has to clear, and which retrying cannot:
+#
+#   3  the control server revoked this credential
+#   4  this host has never been enrolled
+#
+# Restarting on either would achieve nothing but a journal full of the same
+# line, so the service stops and waits.
+RestartPreventExitStatus=3 4
+
+# The agent closes its connection, finishes work in flight and exits.
+KillSignal=SIGTERM
+TimeoutStopSec=30s
+
+# Anything the agent writes — its key above all — is owner-only from the
+# moment it is created, whatever umask the invoking shell happened to carry.
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+# The Docker socket is AF_UNIX, the control server AF_INET/AF_INET6, and host
+# inventory reads network interfaces over AF_NETLINK. Nothing else is needed.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

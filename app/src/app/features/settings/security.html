@@ -1,0 +1,188 @@
+@if (failure(); as error) {
+  <dp-error-state
+    class="failure"
+    [message]="error.message"
+    [code]="error.code"
+    [requestId]="error.requestId ?? ''"
+  />
+}
+
+<dp-panel heading="Two-factor authentication" icon="config" headingId="mfa-heading">
+  @if (step() === 'codes') {
+    <p class="lead">
+      Save these recovery codes now. They will not be shown again, and each one works once.
+    </p>
+
+    <dp-one-time-secret
+      [values]="recoveryCodes()"
+      label="Recovery codes"
+      warning="Save these recovery codes now. They will not be shown again."
+      downloadName="dockplane-recovery-codes.txt"
+    />
+
+    <div class="actions">
+      <button dpButton variant="primary" type="button" (click)="done()">
+        <dp-icon name="check" />
+        I have saved them
+      </button>
+    </div>
+  } @else if (step() === 'setup') {
+    <p class="lead">
+      Scan the code with your authenticator app, or enter the secret by hand, then confirm with a
+      generated code. Nothing changes until the code is accepted.
+    </p>
+
+    @if (setup(); as material) {
+      <dl class="meta">
+        <div>
+          <dt>Secret</dt>
+          <dd class="dp-mono">{{ material.secret }}</dd>
+        </div>
+        <div>
+          <dt>Setup URL</dt>
+          <dd class="dp-mono break">{{ material.otpauthUrl }}</dd>
+        </div>
+      </dl>
+    }
+
+    <form class="form" (ngSubmit)="confirmSetup()">
+      <label class="field">
+        <span class="field-label">Code from your app</span>
+        <input
+          class="field-input"
+          type="text"
+          name="code"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          [ngModel]="code()"
+          (ngModelChange)="code.set($event)"
+          [disabled]="busy()"
+        />
+      </label>
+
+      <div class="actions">
+        <button dpButton variant="primary" type="submit" [disabled]="busy()">
+          {{ busy() ? 'Confirming…' : 'Confirm and enable' }}
+        </button>
+        <button dpButton variant="ghost" type="button" (click)="cancel()">Cancel</button>
+      </div>
+    </form>
+  } @else if (step() === 'disabling' || step() === 'regenerating') {
+    <p class="lead">
+      @if (step() === 'disabling') {
+        Removing the second factor also signs you out everywhere. Confirm with a current code or a
+        recovery code.
+      } @else {
+        Generating new recovery codes invalidates all existing recovery codes. Confirm with a
+        current code or a recovery code.
+      }
+    </p>
+
+    <form class="form" (ngSubmit)="step() === 'disabling' ? confirmDisable() : confirmRegenerate()">
+      <label class="field">
+        <span class="field-label">Code</span>
+        <input
+          class="field-input"
+          type="text"
+          name="code"
+          autocomplete="one-time-code"
+          [ngModel]="code()"
+          (ngModelChange)="code.set($event)"
+          [disabled]="busy()"
+        />
+      </label>
+
+      <div class="actions">
+        <button
+          dpButton
+          [variant]="step() === 'disabling' ? 'danger' : 'primary'"
+          type="submit"
+          [disabled]="busy()"
+        >
+          {{ step() === 'disabling' ? 'Disable two-factor' : 'Generate new codes' }}
+        </button>
+        <button dpButton variant="ghost" type="button" (click)="cancel()">Cancel</button>
+      </div>
+    </form>
+  } @else {
+    <p class="state">
+      <dp-status-badge
+        [tone]="session.user()?.mfaEnabled ? 'ok' : 'warn'"
+        [label]="session.user()?.mfaEnabled ? 'Enabled' : 'Not enabled'"
+        plated
+      />
+      @if (session.user()?.mfaEnabled) {
+        <span>{{ session.user()?.recoveryCodesRemaining }} recovery codes remaining</span>
+      } @else {
+        <span>A password alone protects this account.</span>
+      }
+    </p>
+
+    <div class="actions">
+      @if (session.user()?.mfaEnabled) {
+        <button dpButton variant="secondary" type="button" (click)="askToRegenerate()">
+          Regenerate recovery codes
+        </button>
+        <button dpButton variant="danger" type="button" (click)="askToDisable()">
+          Disable two-factor
+        </button>
+      } @else {
+        <button dpButton variant="primary" type="button" (click)="beginSetup()" [disabled]="busy()">
+          Set up two-factor authentication
+        </button>
+      }
+    </div>
+  }
+</dp-panel>
+
+<dp-panel heading="Sessions" icon="user" headingId="sessions-heading" class="stacked" flush>
+  @if (sessions().length > 0) {
+    <dp-table-shell [count]="sessions().length" noun="session">
+      <table aria-labelledby="sessions-heading">
+        <caption class="dp-sr-only">
+          Sessions signed in to this account
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Client</th>
+            <th scope="col">Signed in</th>
+            <th scope="col">Last seen</th>
+            <th scope="col">Expires</th>
+            <th scope="col"><span class="dp-sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of sessions(); track item.id) {
+            <tr>
+              <th scope="row">
+                {{ item.userAgent ?? 'Unknown client' }}
+                @if (item.current) {
+                  <span class="secondary">Current session</span>
+                }
+                @if (item.sourceIp) {
+                  <span class="secondary dp-mono">{{ item.sourceIp }}</span>
+                }
+              </th>
+              <td class="dp-unknown">{{ age(item.createdAt) }}</td>
+              <td class="dp-unknown">{{ age(item.lastSeenAt) }}</td>
+              <td class="dp-unknown">{{ at(item.expiresAt) }}</td>
+              <td class="shrink">
+                <button
+                  dpButton
+                  variant="ghost"
+                  type="button"
+                  [disabled]="revoking() === item.id"
+                  (click)="revoke(item.id, item.current)"
+                >
+                  {{ item.current ? 'Sign out here' : 'Revoke' }}
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </dp-table-shell>
+  } @else {
+    <dp-empty-state icon="user" title="No sessions" detail="No active session was returned." />
+  }
+</dp-panel>

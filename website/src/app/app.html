@@ -1,0 +1,9 @@
+<a class="skip-link" [href]="skipHref()" (click)="skipToContent($event)">Skip to content</a>
+
+<dp-site-header />
+
+<main #main [id]="mainId" tabindex="-1">
+  <router-outlet />
+</main>
+
+<dp-site-footer />

@@ -1,0 +1,129 @@
+@if (failure(); as error) {
+  <dp-error-state
+    class="failure"
+    [message]="error.message"
+    [code]="error.code"
+    [requestId]="error.requestId"
+  />
+}
+
+<dp-panel flush>
+  <div class="dp-controls">
+    @if (canEnroll) {
+      <button
+        #enrollTrigger
+        type="button"
+        dpButton
+        variant="primary"
+        class="dp-controls__action"
+        (click)="openEnrollment()"
+      >
+        <dp-icon name="plus" />
+        Create enrollment token
+      </button>
+    }
+
+    <div class="dp-controls__search">
+      <label class="dp-sr-only" for="agent-search">Search agents</label>
+      <dp-icon name="search" class="dp-controls__search-icon" />
+      <input
+        id="agent-search"
+        class="dp-field"
+        type="search"
+        placeholder="Search agents"
+        [value]="query()"
+        (input)="query.set($any($event.target).value)"
+      />
+    </div>
+
+    <dp-select-filter
+      id="agent-status"
+      label="Filter by status"
+      [options]="statusOptions"
+      [value]="statusFilter()"
+      (valueChange)="statusFilter.set($event)"
+    />
+  </div>
+
+  @if (filtered().length > 0) {
+    <dp-table-shell
+      [count]="filtered().length"
+      [total]="agents().length"
+      noun="agent"
+      nounPlural="agents"
+      minWidth="52rem"
+    >
+      <table class="dp-table">
+        <caption>
+          Enrolled Dockplane agents
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Host</th>
+            <th scope="col">Agent ID</th>
+            <th scope="col">Version</th>
+            <th scope="col">Protocol</th>
+            <th scope="col">Status</th>
+            <th scope="col">Last seen</th>
+            <th scope="col"><span class="dp-sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (agent of filtered(); track agent.id) {
+            <tr>
+              <th scope="row">{{ agent.hostname }}</th>
+              <td class="dp-mono dp-unknown">{{ agent.id }}</td>
+              <td class="dp-mono dp-unknown">{{ agent.version }}</td>
+              <td class="dp-mono dp-unknown">v{{ agent.protocolVersion }}</td>
+              <td>
+                <dp-status-badge
+                  [tone]="status(agent.status).tone"
+                  [label]="status(agent.status).label"
+                />
+              </td>
+              <td class="shrink dp-unknown">{{ agent.lastSeen ? age(agent.lastSeen) : '—' }}</td>
+              <td class="shrink">
+                <dp-row-menu
+                  [subject]="'agent ' + agent.id"
+                  [actions]="actionsFor(agent)"
+                  (selected)="onAction(agent, $event)"
+                />
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </dp-table-shell>
+  } @else {
+    <dp-empty-state
+      icon="agents"
+      title="No agents enrolled yet"
+      detail="Install the Dockplane Agent on a Docker host and enroll it with a short-lived token to bring the host under management."
+    />
+  }
+</dp-panel>
+
+<dp-confirm-dialog
+  #revokeDialog
+  heading="Revoke this agent?"
+  description="The agent credential stops being trusted immediately. The host can no longer be inspected or operated from Dockplane until a new agent is enrolled."
+  confirmLabel="Revoke agent"
+  destructive
+  consequence="Revocation cannot be undone. Bringing the host back requires a new enrollment."
+  [details]="revokeDetails()"
+  [pending]="revoking()"
+  (confirmed)="confirmRevoke()"
+  (dismissed)="cancelRevoke()"
+/>
+
+<dp-confirm-dialog
+  #inspectDialog
+  heading="Agent details"
+  description="Identity and protocol information reported by this agent. Credentials are never shown."
+  confirmLabel="Close"
+  [details]="inspectDetails()"
+  (confirmed)="closeInspect()"
+  (dismissed)="closeInspect()"
+/>
+
+<dp-enrollment-dialog />

@@ -1,0 +1,92 @@
+#!/bin/sh
+#
+# Creates the account the agent runs as and makes systemd aware of the unit.
+# It deliberately does not enable or start the service: a host that has not
+# been enrolled yet has no identity to connect with, and starting it would
+# produce a failure the operator did not cause.
+
+set -e
+
+USER=dockplane-agent
+GROUP=dockplane-agent
+
+case "$1" in
+	configure)
+		if ! getent group "$GROUP" > /dev/null; then
+			addgroup --system "$GROUP"
+		fi
+
+		if ! getent passwd "$USER" > /dev/null; then
+			# No login, no home. The agent's only state is its state
+			# directory, which systemd creates and owns.
+			adduser --system --ingroup "$GROUP" --no-create-home \
+				--home /nonexistent --shell /usr/sbin/nologin \
+				--gecos "Dockplane agent" "$USER"
+
+			# adduser records its default home even when told not to create
+			# one, which leaves the account pointing at a directory that does
+			# not exist. Said plainly instead.
+			usermod --home /nonexistent "$USER" 2> /dev/null || true
+		fi
+
+		# Read by the unit if it exists; owned by root and readable by the
+		# service account, because it is configuration and not a secret.
+		if [ -d /etc/dockplane-agent ]; then
+			chown root:"$GROUP" /etc/dockplane-agent
+			chmod 0750 /etc/dockplane-agent
+
+			if [ -f /etc/dockplane-agent/agent.env ]; then
+				chown root:"$GROUP" /etc/dockplane-agent/agent.env
+				chmod 0640 /etc/dockplane-agent/agent.env
+			fi
+		fi
+
+		if [ -d /run/systemd/system ]; then
+			systemctl daemon-reload || true
+		fi
+
+		# The unit grants the account membership of the docker group. That
+		# group is how the agent reaches the Engine API, and it is equivalent
+		# to root on this host — which is why the agent has no way to run a
+		# command. Said out loud here rather than assumed.
+		if ! getent group docker > /dev/null; then
+			echo "dockplane-agent: no 'docker' group on this host." >&2
+			echo "  Install Docker Engine before starting the service; the agent" >&2
+			echo "  reaches the daemon through that group and will not start" >&2
+			echo "  without it." >&2
+		fi
+
+		# An upgrade restarts a service that was already running. A first
+		# installation starts nothing.
+		if [ -n "$2" ] && [ -d /run/systemd/system ]; then
+			if systemctl is-enabled dockplane-agent.service > /dev/null 2>&1; then
+				systemctl try-restart dockplane-agent.service || true
+			fi
+		fi
+
+		if [ -z "$2" ]; then
+			cat <<-'EOF'
+
+				Dockplane agent installed. It is not enrolled and not running.
+
+				  1. Create an enrollment token in Dockplane.
+				  2. dockplane-agent enroll --server https://dockplane.example.com --token-stdin
+				  3. systemctl enable --now dockplane-agent
+
+				The agent needs access to the Docker socket, which is equivalent
+				to root on this host. See
+				/usr/share/doc/dockplane-agent/README.Debian.
+
+			EOF
+		fi
+		;;
+
+	abort-upgrade | abort-remove | abort-deconfigure) ;;
+
+	*)
+		echo "postinst called with unknown argument \`$1'" >&2
+		exit 1
+		;;
+esac
+
+exit 0

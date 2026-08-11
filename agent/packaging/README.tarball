@@ -1,0 +1,84 @@
+Dockplane agent
+===============
+
+A statically linked Linux binary and the systemd unit it is meant to run
+under. On Debian and Ubuntu, prefer the .deb: it creates the service account,
+installs the unit in the right place and preserves your identity across
+upgrades. This tarball is the manual route for everything else.
+
+Contents
+--------
+
+  dockplane-agent           the binary
+  dockplane-agent.service   the systemd unit
+  agent.env                 optional settings, referenced by the unit
+  README                    this file
+
+Nothing here is host-specific. There is no identity, no certificate, no
+enrollment token and no server address: the agent is given those once, when it
+enrolls.
+
+Installing
+----------
+
+  sudo install -m 0755 dockplane-agent /usr/bin/dockplane-agent
+  sudo install -m 0644 dockplane-agent.service /usr/lib/systemd/system/
+  sudo install -d -m 0750 /etc/dockplane-agent
+  sudo install -m 0640 agent.env /etc/dockplane-agent/agent.env
+
+The unit expects the binary at /usr/bin/dockplane-agent. Create the account it
+runs as:
+
+  sudo groupadd --system dockplane-agent
+  sudo useradd --system --gid dockplane-agent --no-create-home \
+    --home-dir /nonexistent --shell /usr/sbin/nologin dockplane-agent
+
+  sudo systemctl daemon-reload
+
+Enrolling
+---------
+
+  1. Create an enrollment token in Dockplane. It is single-use and short-lived.
+
+  2. sudo -u dockplane-agent \
+       DOCKPLANE_AGENT_STATE_DIR=/var/lib/dockplane-agent \
+       dockplane-agent enroll --server https://dockplane.example.com --token-stdin
+
+     There is no --token flag on purpose: a token on a command line is visible
+     to every user on the machine and is kept in the shell history.
+
+  3. sudo systemctl enable --now dockplane-agent
+
+Docker socket access
+--------------------
+
+The unit gives the service account membership of the `docker` group.
+
+**That is equivalent to root on this host.** Anything able to talk to the
+Docker daemon can start a privileged container that mounts the filesystem. It
+is unavoidable for managing Docker, and it is why the agent has no way to run
+a command: its operations are fixed at build time, and the three that change
+anything take a container identifier and nothing else.
+
+Files
+-----
+
+  /usr/bin/dockplane-agent                        the binary
+  /usr/lib/systemd/system/dockplane-agent.service the unit
+  /etc/dockplane-agent/agent.env                  optional settings
+  /var/lib/dockplane-agent/                       identity and private key, 0700
+
+The state directory is created by systemd on first start. Back it up if you
+would rather not enroll the host again; whoever has it can act as this host.
+
+Verify what you downloaded
+--------------------------
+
+  sha256sum -c SHA256SUMS
+
+Removing
+--------
+
+Stop and disable the service, delete the files above. Deleting
+/var/lib/dockplane-agent destroys this host's identity: revoke the agent in
+Dockplane as well, because its certificate stays valid until you do.

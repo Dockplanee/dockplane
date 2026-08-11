@@ -1,0 +1,369 @@
+name: Release
+
+# Publishes a release, and only ever from a tag somebody pushed deliberately.
+#
+# This is the only workflow in the repository that writes to a registry or
+# creates a release. A branch build cannot reach it: the trigger is a tag, the
+# tag has to parse as a release version, and every gate in quality.yml has to
+# pass before anything is pushed anywhere.
+#
+# The tag is the only untrusted input a release build receives. It is read into
+# an environment variable, validated against one expression by
+# deploy/release-version.sh, and never expanded by a shell.
+
+on:
+  push:
+    tags:
+      # A glob, because that is all GitHub accepts here. The real gate is
+      # deploy/release-version.sh, which refuses anything that is not a release
+      # version — and it runs before any job that could publish.
+      - 'v*'
+
+# Nothing by default. Each job asks for what it writes and no more.
+permissions: {}
+
+# A release is never cancelled by a later one.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CONTROL_SERVER_IMAGE: ghcr.io/dockplanee/dockplane-control-server
+  WEB_IMAGE: ghcr.io/dockplanee/dockplane-web
+  TRIVY_IMAGE: 'aquasec/trivy:0.73.0'
+  PLATFORMS: linux/amd64,linux/arm64
+
+jobs:
+  tag:
+    name: Tag
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+      prerelease: ${{ steps.parse.outputs.prerelease }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read the version from the tag
+        id: parse
+        env:
+          TAG: ${{ github.ref_name }}
+        # Not piped into tee: the default shell has no pipefail, so a refused
+        # tag would be swallowed and the release would continue without a
+        # version.
+        run: |
+          values="$(deploy/release-version.sh "$TAG")"
+          echo "$values"
+          echo "$values" >> "$GITHUB_OUTPUT"
+
+      - name: Require release notes
+        env:
+          VERSION: ${{ steps.parse.outputs.version }}
+        run: |
+          notes="docs/releases/$VERSION.md"
+
+          if [[ ! -f "$notes" ]]; then
+            echo "no release notes at $notes" >&2
+            echo "A release describes itself, and this one has nothing to say." >&2
+            exit 1
+          fi
+
+          echo "release notes: $notes"
+
+  quality:
+    name: Quality
+    needs: tag
+    uses: ./.github/workflows/quality.yml
+    permissions:
+      contents: read
+
+  agent:
+    name: Agent artefacts
+    needs: [tag, quality]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Tools the release checks need
+        # The runner image has these; a stripped-down one might not, and the
+        # place to find that out is here rather than after the packages exist.
+        run: |
+          missing=()
+          command -v file > /dev/null || missing+=(file)
+          command -v strings > /dev/null || missing+=(binutils)
+
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends "${missing[@]}"
+          fi
+
+      - name: Build packages and tarballs
+        env:
+          VERSION: ${{ needs.tag.outputs.version }}
+        run: deploy/build-agent.sh "$VERSION"
+
+      - name: Check what was built
+        env:
+          VERSION: ${{ needs.tag.outputs.version }}
+        run: deploy/check-agent-release.sh "$VERSION"
+
+      - name: Keep the artefacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: agent
+          path: dist/agent
+          if-no-files-found: error
+          retention-days: 7
+
+  images:
+    name: Control plane images
+    needs: [tag, quality, agent]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      # The only write in this workflow that is not the release itself.
+      packages: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Take the agent artefacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: agent
+          path: dist/agent
+
+      - name: Set up emulation
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Sign in to the registry
+        env:
+          # The workflow's own short-lived token. No password and no personal
+          # access token is stored in this repository.
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: echo "$REGISTRY_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin
+
+      - name: Build, push and bundle
+        env:
+          VERSION: ${{ needs.tag.outputs.version }}
+          DOCKPLANE_API_IMAGE: ${{ env.CONTROL_SERVER_IMAGE }}
+          DOCKPLANE_WEB_IMAGE: ${{ env.WEB_IMAGE }}
+          # Pushed to the registry and exported as archives in one build: the
+          # bundle installs offline from the same bytes the registry serves.
+          PUSH: '1'
+          SBOM: '1'
+          OCI_ARCHIVES: '1'
+          AGENT_MANIFEST: dist/agent/release-manifest.json
+        run: deploy/build-images.sh "$VERSION"
+
+      - name: Collect the attestations
+        env:
+          VERSION: ${{ needs.tag.outputs.version }}
+        run: |
+          for image in control-server web; do
+            case "$image" in
+              control-server) reference="$CONTROL_SERVER_IMAGE:$VERSION" ;;
+              web) reference="$WEB_IMAGE:$VERSION" ;;
+            esac
+
+            docker buildx imagetools inspect "$reference" --format '{{ json .SBOM }}' \
+              > "dist/release/sbom-$image-$VERSION.json"
+            docker buildx imagetools inspect "$reference" --format '{{ json .Provenance }}' \
+              > "dist/release/provenance-$image-$VERSION.json"
+          done
+
+          ls -l dist/release/sbom-* dist/release/provenance-*
+
+      - name: Report the package visibility
+        # Visibility is a property of the package, not of the push, and this
+        # workflow does not change it. It is read and reported so that a test
+        # distribution that quietly became public is noticed here rather than
+        # by whoever finds it.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          {
+            echo "### GHCR packages"
+            echo
+
+            for package in dockplane-control-server dockplane-web; do
+              visibility="$(gh api "/orgs/$OWNER/packages/container/$package" \
+                --jq .visibility 2> /dev/null ||
+                gh api "/users/$OWNER/packages/container/$package" \
+                  --jq .visibility 2> /dev/null || echo 'could not be read')"
+
+              echo "- \`$package\`: $visibility"
+            done
+
+            echo
+            echo "This workflow never changes package visibility."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the artefacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: control-plane
+          path: |
+            dist/release/dockplane-*.tar.gz
+            dist/release/release-manifest.json
+            dist/release/sbom-*.json
+            dist/release/provenance-*.json
+          if-no-files-found: error
+          retention-days: 7
+
+  scan:
+    name: Vulnerability scan
+    needs: [tag, images]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Scan what was published
+        env:
+          VERSION: ${{ needs.tag.outputs.version }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          mkdir -p dist/scan
+
+          for image in control-server web; do
+            case "$image" in
+              control-server) reference="$CONTROL_SERVER_IMAGE:$VERSION" ;;
+              web) reference="$WEB_IMAGE:$VERSION" ;;
+            esac
+
+            for platform in ${PLATFORMS//,/ }; do
+              echo "==> $reference ($platform)"
+
+              docker run --rm \
+                --volume "$PWD/dist/scan:/out" \
+                --volume "$HOME/.cache/trivy:/root/.cache" \
+                --env TRIVY_USERNAME="$REGISTRY_USER" \
+                --env TRIVY_PASSWORD="$REGISTRY_TOKEN" \
+                "$TRIVY_IMAGE" image \
+                --platform "$platform" \
+                --severity CRITICAL,HIGH \
+                --ignore-unfixed=false \
+                --format json \
+                --output "/out/$image-${platform//\//-}.json" \
+                --quiet \
+                "$reference"
+            done
+          done
+
+      - name: Apply the release policy
+        run: |
+          # The exit status of the policy is the gate. Without pipefail the
+          # pipeline would report tee's status and a blocking finding would
+          # pass unnoticed.
+          set -o pipefail
+
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          deploy/check-vulnerabilities.sh dist/scan/*.json | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: vulnerability-reports
+          path: dist/scan
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: GitHub release
+    needs: [tag, quality, agent, images, scan]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Take the agent artefacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: agent
+          path: dist/agent
+
+      - name: Take the control plane artefacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: control-plane
+          path: dist/release
+
+      - name: Take the vulnerability reports
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: vulnerability-reports
+          path: dist/scan
+
+      - name: Assemble the assets
+        env:
+          VERSION: ${{ needs.tag.outputs.version }}
+        run: |
+          # tr rather than a pattern substitution: bash 5.2 and later
+          # tilde-expand the replacement, and the runner's bash is 5.2.
+          debian_version="$(printf '%s' "$VERSION" | tr '-' '~')"
+
+          mkdir -p dist/assets
+          cp "dist/release/dockplane-$VERSION.tar.gz" dist/assets/
+          cp dist/release/release-manifest.json dist/assets/
+          cp dist/release/sbom-*.json dist/release/provenance-*.json dist/assets/
+          cp "dist/agent/dockplane-agent_${debian_version}_amd64.deb" dist/assets/
+          cp "dist/agent/dockplane-agent_${debian_version}_arm64.deb" dist/assets/
+          cp "dist/agent/dockplane-agent_${VERSION}_linux_amd64.tar.gz" dist/assets/
+          cp "dist/agent/dockplane-agent_${VERSION}_linux_arm64.tar.gz" dist/assets/
+
+          for report in dist/scan/*.json; do
+            cp "$report" "dist/assets/vulnerabilities-$(basename "$report")"
+          done
+
+          # One checksum file over every asset, written last and verified before
+          # anything is uploaded.
+          (cd dist/assets && sha256sum ./* > SHA256SUMS && sha256sum -c SHA256SUMS)
+
+          ls -l dist/assets
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.tag.outputs.version }}
+          PRERELEASE: ${{ needs.tag.outputs.prerelease }}
+        run: |
+          flags=()
+          [[ "$PRERELEASE" == "true" ]] && flags+=(--prerelease)
+
+          gh release create "$TAG" \
+            --title "Dockplane $VERSION" \
+            --notes-file "docs/releases/$VERSION.md" \
+            --verify-tag \
+            "${flags[@]}" \
+            dist/assets/*

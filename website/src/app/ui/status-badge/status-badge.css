@@ -1,0 +1,62 @@
+:host {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.badge__glyph {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  background-color: currentcolor;
+}
+
+/* Glyph geometry differs per tone so state survives greyscale and colour-blind viewing. */
+:host(.badge--ok) {
+  color: var(--dp-status-ok);
+}
+
+:host(.badge--ok) .badge__glyph {
+  border-radius: 50%;
+}
+
+:host(.badge--warn) {
+  color: var(--dp-status-warn);
+}
+
+:host(.badge--warn) .badge__glyph {
+  width: 0.5625rem;
+  height: 0.5rem;
+  clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+}
+
+:host(.badge--critical) {
+  color: var(--dp-status-critical);
+}
+
+:host(.badge--critical) .badge__glyph {
+  border-radius: 1px;
+}
+
+:host(.badge--info) {
+  color: var(--dp-status-info);
+}
+
+:host(.badge--info) .badge__glyph {
+  transform: rotate(45deg);
+  border-radius: 1px;
+}
+
+:host(.badge--neutral) {
+  color: var(--dp-status-neutral);
+}
+
+:host(.badge--neutral) .badge__glyph {
+  background-color: transparent;
+  border: 1.5px solid currentcolor;
+  border-radius: 50%;
+}

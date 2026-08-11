@@ -1,0 +1,106 @@
+.dialog {
+  inline-size: min(34rem, calc(100vw - 2rem));
+  padding: 1.25rem;
+  color: var(--dp-fg);
+  background: var(--dp-surface);
+  border: 1px solid var(--dp-line);
+  border-radius: var(--dp-radius-lg);
+}
+
+.dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.heading {
+  margin: 0 0 0.5rem;
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+.lead {
+  margin: 0 0 1rem;
+  color: var(--dp-fg-muted);
+  font-size: var(--dp-text-body);
+}
+
+.form,
+.meta,
+.command {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.meta {
+  margin: 1rem 0 0;
+}
+
+.meta dt {
+  color: var(--dp-fg-muted);
+  font-size: var(--dp-text-label);
+}
+
+.meta dd {
+  margin: 0.125rem 0 0;
+}
+
+.field {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.field-label {
+  font-size: var(--dp-text-label);
+  color: var(--dp-fg-muted);
+}
+
+.field-input {
+  padding: 0.5rem 0.625rem;
+  color: var(--dp-fg);
+  background: var(--dp-surface-inset);
+  border: 1px solid var(--dp-line);
+  border-radius: var(--dp-radius-md);
+  font: inherit;
+}
+
+.field-hint {
+  color: var(--dp-fg-muted);
+  font-size: var(--dp-text-label);
+}
+
+.command h3 {
+  margin: 1rem 0 0;
+  font-size: var(--dp-text-body);
+  font-weight: 600;
+}
+
+.command pre {
+  margin: 0;
+  padding: 0.625rem;
+  overflow-x: auto;
+  background: var(--dp-surface-console);
+  border: 1px solid var(--dp-line);
+  border-radius: var(--dp-radius-sm);
+  font-size: var(--dp-text-label);
+}
+
+.error {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  color: var(--dp-status-critical);
+  background: var(--dp-status-critical-soft);
+  border-radius: var(--dp-radius-md);
+  font-size: var(--dp-text-body);
+}
+
+.request {
+  color: var(--dp-fg-muted);
+  font-size: var(--dp-text-label);
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}

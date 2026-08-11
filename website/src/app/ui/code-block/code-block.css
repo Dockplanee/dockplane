@@ -1,0 +1,25 @@
+:host {
+  display: block;
+}
+
+.code__label {
+  color: var(--dp-fg-muted);
+  margin-bottom: 0.625rem;
+}
+
+.code__body {
+  overflow-x: auto;
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--dp-line);
+  border-radius: var(--dp-radius-md);
+  background-color: var(--dp-surface-inset);
+  color: var(--dp-fg);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.75;
+}
+
+.code__line {
+  display: block;
+  white-space: pre;
+}

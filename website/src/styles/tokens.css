@@ -1,0 +1,136 @@
+/*
+ * Dockplane design tokens.
+ *
+ * Raw palette values come from docs/design/BRAND_SPEC.md. Semantic tokens map
+ * those values onto the roles the interface actually uses, so components never
+ * reference a raw brand colour directly and both themes stay first-class.
+ */
+
+:root {
+  color-scheme: light;
+
+  --dp-radius-sm: 6px;
+  --dp-radius-md: 10px;
+  --dp-radius-lg: 12px;
+
+  --dp-canvas: #f7f9fa;
+  --dp-canvas-alt: #eef2f4;
+  --dp-surface: #ffffff;
+  --dp-surface-alt: #f7f9fa;
+  --dp-surface-inset: #eef2f4;
+
+  --dp-line: #d8e0e5;
+  --dp-line-strong: #bcc8d0;
+
+  --dp-fg: #10171c;
+  --dp-fg-muted: #5f6e78;
+
+  /* Brand mint is a graphic colour. On light surfaces it cannot carry text at
+     an accessible contrast ratio, so text-bearing accents use a deeper tint. */
+  --dp-accent: #22d3a6;
+  --dp-accent-hover: #1dbd95;
+  --dp-accent-fg: #06231c;
+  --dp-accent-text: #0b7a5e;
+  --dp-accent-soft: #e1f7f0;
+  --dp-accent-border: #9fe4ce;
+
+  --dp-focus: #0b7a5e;
+
+  --dp-status-ok: #04785a;
+  --dp-status-warn: #92600b;
+  --dp-status-critical: #b42318;
+  --dp-status-info: #1a5fb4;
+  --dp-status-neutral: #5f6e78;
+
+  --dp-status-ok-soft: #e1f7f0;
+  --dp-status-warn-soft: #fdf3dd;
+  --dp-status-critical-soft: #fdeceb;
+  --dp-status-info-soft: #e8f0fc;
+  --dp-status-neutral-soft: #eef2f4;
+
+  /* Logo blocks read as muted hardware against either background. */
+  --dp-mark-block: #9fa5af;
+
+  --dp-grid-line: rgb(16 23 28 / 0.05);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --dp-canvas: #0f1216;
+  --dp-canvas-alt: #12171d;
+  --dp-surface: #1b212a;
+  --dp-surface-alt: #161b22;
+  --dp-surface-inset: #12171d;
+
+  --dp-line: #303945;
+  --dp-line-strong: #3e4855;
+
+  --dp-fg: #f4f7f8;
+  --dp-fg-muted: #93a1ab;
+
+  --dp-accent: #22d3a6;
+  --dp-accent-hover: #1dbd95;
+  --dp-accent-fg: #06231c;
+  --dp-accent-text: #22d3a6;
+  --dp-accent-soft: #123b32;
+  --dp-accent-border: #1e6b57;
+
+  --dp-focus: #22d3a6;
+
+  --dp-status-ok: #34d399;
+  --dp-status-warn: #fbbf24;
+  --dp-status-critical: #f87171;
+  --dp-status-info: #60a5fa;
+  --dp-status-neutral: #7f8a93;
+
+  --dp-status-ok-soft: #10352b;
+  --dp-status-warn-soft: #382a0e;
+  --dp-status-critical-soft: #3a1d1d;
+  --dp-status-info-soft: #17273d;
+  --dp-status-neutral-soft: #232a33;
+
+  --dp-mark-block: #6b7280;
+
+  --dp-grid-line: rgb(244 247 248 / 0.045);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+
+    --dp-canvas: #0f1216;
+    --dp-canvas-alt: #12171d;
+    --dp-surface: #1b212a;
+    --dp-surface-alt: #161b22;
+    --dp-surface-inset: #12171d;
+
+    --dp-line: #303945;
+    --dp-line-strong: #3e4855;
+
+    --dp-fg: #f4f7f8;
+    --dp-fg-muted: #93a1ab;
+
+    --dp-accent-text: #22d3a6;
+    --dp-accent-soft: #123b32;
+    --dp-accent-border: #1e6b57;
+
+    --dp-focus: #22d3a6;
+
+    --dp-status-ok: #34d399;
+    --dp-status-warn: #fbbf24;
+    --dp-status-critical: #f87171;
+    --dp-status-info: #60a5fa;
+    --dp-status-neutral: #7f8a93;
+
+    --dp-status-ok-soft: #10352b;
+    --dp-status-warn-soft: #382a0e;
+    --dp-status-critical-soft: #3a1d1d;
+    --dp-status-info-soft: #17273d;
+    --dp-status-neutral-soft: #232a33;
+
+    --dp-mark-block: #6b7280;
+
+    --dp-grid-line: rgb(244 247 248 / 0.045);
+  }
+}

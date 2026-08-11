@@ -1,0 +1,149 @@
+<!doctype html>
+<!--
+  Source for public/social-card.png (1200x630).
+  Render with a headless browser at that viewport; see README.md.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Dockplane social card</title>
+    <style>
+      @font-face {
+        font-family: 'Inter Variable';
+        font-weight: 100 900;
+        src: url('../public/fonts/inter-latin-wght-normal.woff2') format('woff2-variations');
+      }
+      @font-face {
+        font-family: 'JetBrains Mono Variable';
+        font-weight: 100 800;
+        src: url('../public/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2-variations');
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 1200px;
+        height: 630px;
+        background-color: #0f1216;
+        background-image:
+          linear-gradient(to right, rgb(244 247 248 / 0.045) 1px, transparent 1px),
+          linear-gradient(to bottom, rgb(244 247 248 / 0.045) 1px, transparent 1px);
+        background-size: 60px 60px;
+        color: #f4f7f8;
+        font-family: 'Inter Variable', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 76px 84px;
+        overflow: hidden;
+      }
+
+      .lockup {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
+
+      .lockup svg {
+        height: 34px;
+        width: auto;
+      }
+
+      .lockup span {
+        font-size: 34px;
+        font-weight: 600;
+        letter-spacing: -0.025em;
+      }
+
+      .accent {
+        color: #22d3a6;
+      }
+
+      h1 {
+        font-size: 78px;
+        line-height: 1.06;
+        font-weight: 600;
+        letter-spacing: -0.035em;
+        max-width: 15ch;
+      }
+
+      p {
+        margin-top: 26px;
+        font-size: 26px;
+        line-height: 1.45;
+        color: #93a1ab;
+        max-width: 34ch;
+      }
+
+      .footer {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        font-family: 'JetBrains Mono Variable', monospace;
+        font-size: 15px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: #93a1ab;
+      }
+
+      .rule {
+        flex: 1;
+        height: 1px;
+        background: #303945;
+      }
+
+      .endpoint {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #22d3a6;
+        flex: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="lockup">
+      <svg viewBox="0 0 160 78" fill="none">
+        <g fill="#6b7280">
+          <rect x="40" y="0" width="24" height="16" rx="3" />
+          <rect x="96" y="0" width="24" height="16" rx="3" />
+          <rect x="40" y="62" width="24" height="16" rx="3" />
+          <rect x="96" y="62" width="24" height="16" rx="3" />
+        </g>
+        <g stroke="#6b7280" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M52 16V27H64" />
+          <path d="M108 16V27H96" />
+          <path d="M52 62V51H64" />
+          <path d="M108 62V51H96" />
+        </g>
+        <g fill="#22d3a6">
+          <path d="M8 39H152" stroke="#22d3a6" stroke-width="4" stroke-linecap="round" />
+          <circle cx="8" cy="39" r="7" />
+          <circle cx="152" cy="39" r="7" />
+          <rect x="67" y="31" width="26" height="16" rx="5" />
+        </g>
+      </svg>
+      <span>Dock<span class="accent">plane</span></span>
+    </div>
+
+    <div>
+      <h1>Your Docker hosts.<br />One control plane.</h1>
+      <p>A self-hosted control plane for managing Docker across multiple hosts.</p>
+    </div>
+
+    <div class="footer">
+      <span class="endpoint"></span>
+      <span>Self-hosted</span>
+      <span class="rule"></span>
+      <span>Multi-host</span>
+      <span class="rule"></span>
+      <span>Security-first</span>
+      <span class="endpoint"></span>
+    </div>
+  </body>
+</html>

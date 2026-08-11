@@ -1,0 +1,57 @@
+:host {
+  display: inline-flex;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.375rem;
+  height: 2.375rem;
+  border: 1px solid transparent;
+  border-radius: var(--dp-radius-sm);
+  background: none;
+  color: var(--dp-fg-muted);
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+.toggle:hover {
+  color: var(--dp-fg);
+  background-color: var(--dp-surface-alt);
+  border-color: var(--dp-line);
+}
+
+.toggle__icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/*
+ * Icon visibility follows the document theme in CSS rather than component
+ * state, so a prerendered page never shows the wrong icon before hydration.
+ */
+.toggle__icon--sun {
+  display: none;
+}
+
+:host-context(:root[data-theme='dark']) .toggle__icon--sun {
+  display: block;
+}
+
+:host-context(:root[data-theme='dark']) .toggle__icon--moon {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :host-context(:root:not([data-theme])) .toggle__icon--sun {
+    display: block;
+  }
+
+  :host-context(:root:not([data-theme])) .toggle__icon--moon {
+    display: none;
+  }
+}

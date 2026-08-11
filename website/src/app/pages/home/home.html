@@ -1,0 +1,199 @@
+<section class="hero" aria-labelledby="hero-heading">
+  <div class="hero__field dp-grid-field" aria-hidden="true"></div>
+
+  <div class="dp-shell hero__inner">
+    <div class="hero__copy">
+      <p class="dp-mono-label hero__eyebrow">Self-hosted Docker management</p>
+
+      <h1 class="hero__heading" id="hero-heading">
+        <span class="hero__line">Your Docker hosts.</span>
+        <span class="hero__line">One control plane.</span>
+      </h1>
+
+      <p class="hero__body">
+        Manage containers, Compose stacks, logs, health and operations across your Docker hosts from
+        one secure, self-hosted interface.
+      </p>
+
+      <div class="hero__actions">
+        <a dpButton variant="primary" size="lg" [routerLink]="getStarted.path">{{
+          getStarted.label
+        }}</a>
+
+        @if (sourceUrl; as href) {
+          <a dpButton variant="secondary" size="lg" [href]="href" rel="noopener">View Source</a>
+        }
+      </div>
+
+      <ul class="hero__pillars">
+        <li>Self-hosted</li>
+        <li>Multi-host</li>
+        <li>Security-first</li>
+      </ul>
+    </div>
+
+    <div class="hero__visual">
+      <dp-overview-preview />
+    </div>
+  </div>
+</section>
+
+<section dpSection tone="alt" divided aria-labelledby="operations-heading">
+  <div class="dp-shell">
+    <dp-section-header
+      index="01"
+      eyebrow="Operations"
+      headingId="operations-heading"
+      heading="Docker operations without host hopping."
+      lede="Stop jumping between SSH sessions and separate Docker endpoints. Dockplane gives connected hosts one consistent operational interface while keeping execution local to each machine through its agent."
+    />
+
+    <div class="grid-three">
+      <dp-feature title="All hosts in one place">
+        See workloads, health and resource state across every connected Docker host.
+      </dp-feature>
+      <dp-feature title="Operate safely">
+        Start, stop and restart workloads through defined agent capabilities with backend-enforced
+        permissions and audit history.
+      </dp-feature>
+      <dp-feature title="Stay self-hosted">
+        Run Dockplane on infrastructure you control. Your operational control plane does not need to
+        depend on an external management SaaS.
+      </dp-feature>
+    </div>
+  </div>
+</section>
+
+<section dpSection aria-labelledby="multi-host-heading">
+  <div class="dp-shell split">
+    <div class="split__copy">
+      <dp-section-header
+        index="02"
+        eyebrow="Multi-host"
+        headingId="multi-host-heading"
+        heading="Built for more than one Docker host."
+        lede="Dockplane treats distributed Docker environments as the default. See host state, workload counts, agent status and health signals without opening a separate management session for every machine."
+      />
+    </div>
+
+    <div class="split__visual">
+      <dp-host-fleet />
+    </div>
+  </div>
+</section>
+
+<section dpSection tone="alt" divided aria-labelledby="compose-heading">
+  <div class="dp-shell split split--reverse">
+    <div class="split__copy">
+      <dp-section-header
+        index="03"
+        eyebrow="Compose"
+        headingId="compose-heading"
+        heading="Your Compose stacks, wherever they run."
+        lede="Understand which containers belong together, inspect their current state and manage Compose workloads without reducing every application to an unrelated list of containers."
+      />
+    </div>
+
+    <div class="split__visual">
+      <dp-compose-project />
+    </div>
+  </div>
+</section>
+
+<section dpSection aria-labelledby="context-heading">
+  <div class="dp-shell split">
+    <div class="split__copy">
+      <dp-section-header
+        index="04"
+        eyebrow="Operational context"
+        headingId="context-heading"
+        heading="Know what is happening before you touch it."
+        lede="Inspect logs, resource usage, health state and recent events before performing an operational action. Dockplane keeps the context close to the workload you are managing."
+      />
+    </div>
+
+    <div class="split__visual">
+      <dp-operational-context />
+    </div>
+  </div>
+</section>
+
+<section dpSection tone="alt" divided aria-labelledby="security-heading">
+  <div class="dp-shell split split--reverse">
+    <div class="split__copy">
+      <dp-section-header
+        index="05"
+        eyebrow="Security"
+        headingId="security-heading"
+        heading="Remote control without a remote shell."
+        lede="Dockplane agents expose defined operational capabilities instead of an unrestricted command interface. Device identity, encrypted communication, authorization and audit history are part of the architecture from the start."
+      />
+
+      <div class="grid-two security__principles">
+        <dp-feature title="Unique agent identity">
+          Each enrolled host uses its own agent identity and can be revoked independently.
+        </dp-feature>
+        <dp-feature title="Explicit capabilities">
+          Operations such as restarting a container or reading logs use defined and validated
+          actions.
+        </dp-feature>
+        <dp-feature title="Resource permissions">
+          Backend-enforced permissions decide who can perform which operations on which resources.
+        </dp-feature>
+        <dp-feature title="Auditable changes">
+          Infrastructure mutations and security-relevant actions are recorded with actor, target and
+          result context.
+        </dp-feature>
+      </div>
+
+      <p class="security__cta">
+        <a class="dp-link-arrow" routerLink="/security">Read the security model</a>
+      </p>
+    </div>
+
+    <div class="split__visual">
+      <dp-capability-flow />
+    </div>
+  </div>
+</section>
+
+<section dpSection aria-labelledby="self-hosted-heading">
+  <div class="dp-shell">
+    <dp-section-header
+      index="06"
+      eyebrow="Self-hosted"
+      headingId="self-hosted-heading"
+      heading="Your control plane belongs on your infrastructure."
+      lede="Dockplane is designed to run on systems you control and to operate without a mandatory external management service."
+    />
+
+    <div class="grid-three">
+      <dp-feature title="Self-hosted"> Deploy and operate the control plane yourself. </dp-feature>
+      <dp-feature title="Understandable">
+        The architecture, permissions and agent trust model are documented instead of being hidden
+        behind a remote service.
+      </dp-feature>
+      <dp-feature title="Docker-focused">
+        Dockplane focuses on Docker operations instead of becoming a generic datacenter control
+        panel.
+      </dp-feature>
+    </div>
+  </div>
+</section>
+
+<section class="closing" aria-labelledby="closing-heading">
+  <div class="dp-shell closing__inner">
+    <dp-control-rule label="Get started" />
+
+    <h2 class="closing__heading" id="closing-heading">Bring your Docker hosts together.</h2>
+    <p class="closing__body">
+      Deploy Dockplane and manage your Docker environment from one self-hosted control plane.
+    </p>
+
+    <div class="closing__actions">
+      <a dpButton variant="primary" size="lg" [routerLink]="getStarted.path">{{
+        getStarted.label
+      }}</a>
+    </div>
+  </div>
+</section>

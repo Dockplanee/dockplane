@@ -1,0 +1,76 @@
+.failure {
+  margin-bottom: 1rem;
+}
+
+.stacked {
+  margin-top: 1rem;
+}
+
+.lead,
+.state {
+  margin: 0 0 1rem;
+  color: var(--dp-fg-muted);
+  font-size: var(--dp-text-body);
+}
+
+.state {
+  display: flex;
+  gap: 0.625rem;
+  align-items: center;
+}
+
+.form {
+  display: grid;
+  gap: 0.875rem;
+  max-inline-size: 22rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.field-label {
+  color: var(--dp-fg-muted);
+  font-size: var(--dp-text-label);
+}
+
+.field-input {
+  padding: 0.5rem 0.625rem;
+  color: var(--dp-fg);
+  background: var(--dp-surface-inset);
+  border: 1px solid var(--dp-line);
+  border-radius: var(--dp-radius-md);
+  font: inherit;
+}
+
+.meta {
+  display: grid;
+  gap: 0.625rem;
+  margin: 0 0 1rem;
+}
+
+.meta dt {
+  color: var(--dp-fg-muted);
+  font-size: var(--dp-text-label);
+}
+
+.meta dd {
+  margin: 0.125rem 0 0;
+}
+
+.break {
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.secondary {
+  display: block;
+  color: var(--dp-fg-muted);
+  font-size: var(--dp-text-label);
+}

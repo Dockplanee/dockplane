@@ -1,0 +1,36 @@
+<div class="dp-shell footer__inner">
+  <dp-control-rule />
+
+  <div class="footer__grid">
+    <div class="footer__brand">
+      <dp-logo />
+      <p class="footer__summary">
+        A self-hosted control plane for managing Docker across multiple hosts.
+      </p>
+    </div>
+
+    @for (group of groups; track group.title) {
+      <div class="footer__group">
+        <h2 class="dp-mono-label footer__group-title">{{ group.title }}</h2>
+        <ul>
+          @for (link of group.links; track link.label) {
+            <li>
+              @if (link.path) {
+                <a class="footer__link" [routerLink]="link.path">{{ link.label }}</a>
+              } @else {
+                <a class="footer__link" [href]="link.href" rel="noopener">{{ link.label }}</a>
+              }
+            </li>
+          }
+        </ul>
+      </div>
+    }
+  </div>
+
+  <div class="footer__base">
+    <p class="footer__status">
+      {{ siteName }} is in active development. Deployable releases are not published yet.
+    </p>
+    <p class="footer__legal">{{ siteName }}</p>
+  </div>
+</div>

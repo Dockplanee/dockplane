@@ -1,0 +1,50 @@
+<figure class="preview">
+  <figcaption class="preview__caption">
+    Interface preview of the Dockplane overview: connected Docker hosts, workload counts and the
+    workload that currently needs attention.
+  </figcaption>
+
+  <dp-app-frame view="Overview" context="4 hosts">
+    <div class="preview__summary">
+      @for (metric of summary; track metric.label) {
+        <dp-metric-tile
+          class="tile--aligned"
+          [label]="metric.label"
+          [value]="metric.value"
+          [detail]="metric.detail"
+        />
+      }
+    </div>
+
+    <table class="preview__table">
+      <caption class="preview__table-caption">
+        Connected Docker hosts
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">Host</th>
+          <th scope="col">State</th>
+          <th scope="col" class="preview__numeric">Containers</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (host of hosts; track host.name) {
+          <tr>
+            <th scope="row" class="preview__host">{{ host.name }}</th>
+            <td><dp-status-badge [tone]="host.tone" [label]="host.status" /></td>
+            <td class="preview__numeric">{{ host.containers }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <div class="preview__attention">
+      <p class="dp-mono-label preview__attention-title">Needs attention</p>
+      <div class="preview__attention-body">
+        <p class="preview__attention-workload">{{ attention.workload }}</p>
+        <p class="preview__attention-reason">{{ attention.reason }}</p>
+        <p class="preview__attention-host">{{ attention.host }}</p>
+      </div>
+    </div>
+  </dp-app-frame>
+</figure>

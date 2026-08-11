@@ -1,0 +1,115 @@
+@import 'tailwindcss';
+
+@import './styles/fonts.css';
+@import './styles/tokens.css';
+@import './styles/components.css';
+
+@theme inline {
+  --font-sans:
+    'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+  --font-mono:
+    'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
+    Consolas, monospace;
+
+  --color-canvas: var(--dp-canvas);
+  --color-surface: var(--dp-surface);
+  --color-surface-alt: var(--dp-surface-alt);
+  --color-surface-inset: var(--dp-surface-inset);
+
+  --color-line: var(--dp-line);
+  --color-line-strong: var(--dp-line-strong);
+
+  --color-fg: var(--dp-fg);
+  --color-fg-muted: var(--dp-fg-muted);
+
+  --color-accent: var(--dp-accent);
+  --color-accent-hover: var(--dp-accent-hover);
+  --color-accent-fg: var(--dp-accent-fg);
+  --color-accent-text: var(--dp-accent-text);
+  --color-accent-soft: var(--dp-accent-soft);
+  --color-accent-border: var(--dp-accent-border);
+
+  --color-focus: var(--dp-focus);
+
+  --color-ok: var(--dp-status-ok);
+  --color-warn: var(--dp-status-warn);
+  --color-critical: var(--dp-status-critical);
+  --color-info: var(--dp-status-info);
+  --color-neutral: var(--dp-status-neutral);
+
+  --radius-sm: var(--dp-radius-sm);
+  --radius-md: var(--dp-radius-md);
+  --radius-lg: var(--dp-radius-lg);
+}
+
+@layer base {
+  * {
+    border-color: var(--dp-line);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--dp-canvas);
+    color: var(--dp-fg);
+    font-family: var(--font-sans);
+    font-size: var(--dp-text-body);
+    font-synthesis-weight: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    color: var(--dp-fg);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--dp-focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  ::selection {
+    background-color: var(--dp-accent);
+    color: var(--dp-accent-fg);
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+
+  /*
+   * A modal dialog centres itself through the user-agent's `margin: auto`,
+   * which the preflight reset removes. Without this, every confirmation opens
+   * against the top-left corner instead of over the work it interrupts.
+   */
+  dialog:modal {
+    margin: auto;
+  }
+
+  dialog::backdrop {
+    background-color: rgb(4 6 9 / 0.62);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

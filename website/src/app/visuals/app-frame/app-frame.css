@@ -1,0 +1,45 @@
+:host {
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--dp-line);
+  border-radius: var(--dp-radius-lg);
+  background-color: var(--dp-surface);
+}
+
+.frame__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--dp-line);
+  background-color: var(--dp-surface-alt);
+}
+
+.frame__mark {
+  font-size: 0.9rem;
+}
+
+.frame__view {
+  font-size: 0.875rem;
+  font-weight: 550;
+  letter-spacing: -0.005em;
+}
+
+.frame__context {
+  margin-left: auto;
+  color: var(--dp-fg-muted);
+}
+
+.frame__body {
+  padding: 1rem;
+}
+
+@media (min-width: 640px) {
+  .frame__bar {
+    padding-inline: 1.25rem;
+  }
+
+  .frame__body {
+    padding: 1.25rem;
+  }
+}

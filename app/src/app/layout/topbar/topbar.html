@@ -1,0 +1,80 @@
+<button type="button" class="menu-button" aria-label="Open navigation" (click)="menuOpened.emit()">
+  <dp-icon name="menu" />
+</button>
+
+<div class="heading">
+  @if (page().breadcrumb; as trail) {
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol>
+        @for (entry of trail; track entry.label) {
+          <li>
+            @if (entry.path) {
+              <a [routerLink]="entry.path">{{ entry.label }}</a>
+            } @else {
+              <span>{{ entry.label }}</span>
+            }
+          </li>
+        }
+      </ol>
+    </nav>
+  }
+
+  <h1>{{ page().title }}</h1>
+  @if (page().subtitle; as subtitle) {
+    <p class="subtitle">{{ subtitle }}</p>
+  }
+</div>
+
+<div class="controls">
+  <button type="button" class="search-trigger" (click)="searchOpened.emit()">
+    <dp-icon name="search" />
+    <span class="search-text">Search</span>
+    <kbd>&#8984;K</kbd>
+  </button>
+
+  <p class="connection" [class.degraded]="!allReporting()">
+    <span class="dot" aria-hidden="true"></span>
+    <span class="connection-label">
+      @if (allReporting()) {
+        All hosts reporting
+      } @else {
+        {{ connection().hostsReporting }} of {{ connection().hostsTotal }} hosts reporting
+      }
+    </span>
+  </p>
+
+  <button type="button" class="control" [attr.aria-label]="themeAction()" (click)="toggleTheme()">
+    <dp-icon name="sun" class="icon-sun" />
+    <dp-icon name="moon" class="icon-moon" />
+  </button>
+
+  <div class="user">
+    <button
+      type="button"
+      class="control user-trigger"
+      aria-haspopup="menu"
+      [attr.aria-expanded]="userMenuOpen()"
+      (click)="toggleUserMenu()"
+    >
+      <dp-icon name="user" />
+      <span class="user-name">{{ user()?.displayName ?? 'Account' }}</span>
+      <dp-icon name="chevronDown" class="chevron" />
+    </button>
+
+    @if (userMenuOpen()) {
+      <div class="user-menu" role="menu" aria-label="Account">
+        <p class="user-menu-head">
+          <span class="user-menu-name">{{ user()?.displayName }}</span>
+          <span class="user-menu-mail">{{ user()?.email }}</span>
+          @if (roles().length) {
+            <span class="user-menu-roles">{{ roles().join(', ') }}</span>
+          }
+        </p>
+        <a role="menuitem" routerLink="/settings" (click)="closeUserMenu()">Settings</a>
+        <button type="button" role="menuitem" class="user-menu-signout" (click)="signOut()">
+          Sign out
+        </button>
+      </div>
+    }
+  </div>
+</div>

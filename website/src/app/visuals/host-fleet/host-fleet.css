@@ -1,0 +1,78 @@
+.fleet {
+  margin: 0;
+}
+
+.fleet__caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Narrow viewports scroll the table rather than collapsing technical columns. */
+.fleet__scroll {
+  overflow-x: auto;
+}
+
+.fleet__table {
+  width: 100%;
+  min-width: 34rem;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.fleet__table th,
+.fleet__table td {
+  padding: 0.75rem 0.75rem;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.fleet__table th:first-child,
+.fleet__table td:first-child {
+  padding-left: 0;
+}
+
+.fleet__table th:last-child,
+.fleet__table td:last-child {
+  padding-right: 0;
+}
+
+.fleet__table thead th {
+  padding-block: 0 0.5rem;
+  color: var(--dp-fg-muted);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.fleet__table tbody tr {
+  border-top: 1px solid var(--dp-line);
+}
+
+.fleet__host {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.fleet__mono {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--dp-fg-muted);
+}
+
+.fleet__numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--dp-fg-muted);
+}
+
+.fleet__muted {
+  color: var(--dp-fg-muted);
+}

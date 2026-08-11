@@ -1,0 +1,48 @@
+<dp-page-hero
+  eyebrow="Changelog"
+  headingId="changelog-heading"
+  heading="What changed in Dockplane."
+  lede="Entries describe changes from an operator perspective. Released versions appear here once Dockplane publishes deployable builds."
+>
+  @if (releasesUrl; as href) {
+    <p><a class="dp-link-arrow" [href]="href" rel="noopener">Release downloads</a></p>
+  }
+</dp-page-hero>
+
+<section dpSection aria-labelledby="releases-heading">
+  <div class="dp-shell">
+    <h2 class="sr-only" id="releases-heading">Releases</h2>
+
+    <ol class="releases">
+      @for (release of releases; track release.version) {
+        <li class="release">
+          <span class="release__node" aria-hidden="true"></span>
+
+          <div class="release__meta">
+            <h3 class="release__version">{{ release.version }}</h3>
+            @if (release.date; as date) {
+              <p class="release__date">
+                <time [attr.datetime]="date">{{ date | date: 'longDate' : 'UTC' : 'en' }}</time>
+              </p>
+            } @else {
+              <p class="dp-mono-label release__pending">Not released</p>
+            }
+          </div>
+
+          <div class="release__body" dpPanel>
+            @for (group of release.changes; track group.type) {
+              <div class="group">
+                <h4 class="dp-mono-label group__type">{{ group.type }}</h4>
+                <ul class="group__items">
+                  @for (item of group.items; track item) {
+                    <li>{{ item }}</li>
+                  }
+                </ul>
+              </div>
+            }
+          </div>
+        </li>
+      }
+    </ol>
+  </div>
+</section>

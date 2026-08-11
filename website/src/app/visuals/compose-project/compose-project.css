@@ -1,0 +1,76 @@
+.compose {
+  margin: 0;
+}
+
+.compose__caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.compose__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--dp-line);
+}
+
+.compose__project {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.compose__services {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.compose__service {
+  display: grid;
+  grid-template-columns: 1rem 1fr auto;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  padding-block: 0.75rem;
+}
+
+.compose__service + .compose__service {
+  border-top: 1px solid var(--dp-line);
+}
+
+/* Short bracket echoing the connector geometry of the brand mark. */
+.compose__connector {
+  grid-row: span 2;
+  align-self: stretch;
+  width: 0.5rem;
+  margin-left: 0.25rem;
+  border-left: 1.5px solid var(--dp-line-strong);
+  border-bottom: 1.5px solid var(--dp-line-strong);
+  border-bottom-left-radius: 4px;
+  margin-bottom: 0.55rem;
+  margin-top: -0.55rem;
+}
+
+.compose__service-name {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.compose__service-image {
+  grid-column: 2;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--dp-fg-muted);
+}
+
+.compose__service dp-status-badge {
+  grid-column: 3;
+  grid-row: span 2;
+}

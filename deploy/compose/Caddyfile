@@ -1,0 +1,69 @@
+# Public entry point for the Dockplane control plane.
+#
+# Caddy serves the browser application, obtains and renews the certificate for
+# it, and puts the API behind the same origin so the session cookie belongs to
+# one site.
+#
+# The agent gateway is not here. It speaks mutual TLS on its own port and
+# authenticates each host by the certificate it presents; a proxy that
+# terminated that TLS would replace every agent's identity with its own.
+
+{
+	# Reachable from inside the container only, which is where the health
+	# check asks whether Caddy has loaded a configuration.
+	admin 127.0.0.1:2019
+}
+
+{$DOCKPLANE_DOMAIN} {
+	encode zstd gzip
+
+	# Sent over HTTPS only, and Caddy will not serve this site over anything
+	# else, so a downgrade is not something a browser can be talked into.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy api:3000 {
+			# Live log streams are server-sent events. Buffering them would
+			# deliver a stream in one lump when it ends, which is the opposite
+			# of what it is for.
+			flush_interval -1
+
+			# A stream may be quiet for minutes at a time; it is kept alive by
+			# its own keepalive comment, and the proxy must not decide
+			# otherwise. Reads therefore have no deadline.
+			#
+			# The header timeout has to outlast the slowest operation the
+			# control server will wait for: stopping a container gives it its
+			# full grace period first, and the server allows 90 seconds for
+			# that. A shorter deadline here answers the browser with a gateway
+			# error while the operation is still running and then succeeds —
+			# the worst of both, since the operator is told it failed.
+			transport http {
+				read_timeout 0
+				write_timeout 0
+				response_header_timeout 120s
+				dial_timeout 5s
+			}
+		}
+	}
+
+	# Liveness and readiness answer outside the versioned API, so that a probe
+	# does not break when the API takes a new version.
+	handle /health/* {
+		reverse_proxy api:3000
+	}
+
+	handle {
+		root * /srv/dockplane
+
+		# The application is a single page. A deep link that is reloaded has to
+		# be answered with the document rather than with 404.
+		try_files {path} /index.html
+		file_server
+	}
+}

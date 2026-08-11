@@ -1,0 +1,265 @@
+/*
+ * Classes shared by more than one feature. Anything used by a single component
+ * stays in that component's stylesheet.
+ */
+
+@layer components {
+  .dp-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4375rem;
+    min-height: 2.125rem;
+    padding-inline: 0.75rem;
+    border: 1px solid transparent;
+    border-radius: var(--dp-radius-sm);
+    font-size: 0.8125rem;
+    font-weight: 550;
+    line-height: 1.2;
+    white-space: nowrap;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .dp-button:disabled,
+  .dp-button[aria-disabled='true'] {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .dp-button--primary {
+    background-color: var(--dp-accent);
+    color: var(--dp-accent-fg);
+  }
+
+  .dp-button--primary:hover:not(:disabled) {
+    background-color: var(--dp-accent-hover);
+  }
+
+  .dp-button--secondary {
+    background-color: var(--dp-surface-alt);
+    border-color: var(--dp-line-strong);
+    color: var(--dp-fg);
+  }
+
+  .dp-button--secondary:hover:not(:disabled) {
+    border-color: var(--dp-fg-muted);
+  }
+
+  .dp-button--ghost {
+    color: var(--dp-fg-muted);
+  }
+
+  .dp-button--ghost:hover:not(:disabled) {
+    color: var(--dp-fg);
+    background-color: var(--dp-surface-alt);
+  }
+
+  /* Destructive actions never share the mint primary styling. */
+  .dp-button--danger {
+    background-color: var(--dp-status-critical);
+    color: #fff;
+  }
+
+  :root[data-theme='dark'] .dp-button--danger {
+    color: #2a0d0b;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) .dp-button--danger {
+      color: #2a0d0b;
+    }
+  }
+
+  .dp-button--icon {
+    width: 2.125rem;
+    padding-inline: 0;
+  }
+
+  .dp-panel {
+    border: 1px solid var(--dp-line);
+    border-radius: var(--dp-radius-lg);
+    background-color: var(--dp-surface);
+  }
+
+  .dp-mono {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+  }
+
+  .dp-label {
+    font-family: var(--font-mono);
+    font-size: var(--dp-text-label);
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--dp-fg-muted);
+  }
+
+  .dp-field {
+    width: 100%;
+    min-height: 2.125rem;
+    padding: 0.25rem 0.625rem;
+    border: 1px solid var(--dp-line-strong);
+    border-radius: var(--dp-radius-sm);
+    background-color: var(--dp-surface-alt);
+    color: var(--dp-fg);
+    font: inherit;
+    font-size: 0.8125rem;
+  }
+
+  .dp-field::placeholder {
+    color: var(--dp-fg-muted);
+  }
+
+  .dp-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* Values that are unknown because a host is offline or its data is stale. */
+  .dp-unknown {
+    color: var(--dp-fg-muted);
+  }
+}
+
+@layer components {
+  /*
+   * Table pattern shared by every list view. Features write real table markup
+   * so headers, scopes and captions stay correct; this only supplies density
+   * and rhythm.
+   */
+  .dp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--dp-text-table);
+  }
+
+  .dp-table caption {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .dp-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--dp-line);
+    background-color: var(--dp-surface-alt);
+    color: var(--dp-fg-muted);
+    font-family: var(--font-mono);
+    font-size: var(--dp-text-label);
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .dp-table tbody td,
+  .dp-table tbody th {
+    padding: 0.625rem 0.75rem;
+    border-bottom: 1px solid var(--dp-line);
+    text-align: left;
+    font-weight: 400;
+    vertical-align: middle;
+  }
+
+  .dp-table tbody tr:last-child td,
+  .dp-table tbody tr:last-child th {
+    border-bottom: 0;
+  }
+
+  .dp-table tbody tr:hover {
+    background-color: var(--dp-surface-alt);
+  }
+
+  .dp-table tbody tr:focus-within {
+    background-color: var(--dp-surface-alt);
+  }
+
+  .dp-table .numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dp-table .shrink {
+    width: 1%;
+    white-space: nowrap;
+  }
+
+  /* Primary identifier in a row: monospace, and the row's navigation target. */
+  .dp-table .identifier {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--dp-fg);
+    text-decoration: none;
+  }
+
+  .dp-table .identifier:hover {
+    color: var(--dp-accent-text);
+    text-decoration: underline;
+  }
+
+  .dp-table .secondary {
+    display: block;
+    margin-top: 0.125rem;
+    color: var(--dp-fg-muted);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+  }
+}
+
+@layer components {
+  /* Search and filter strip above a list view. */
+  .dp-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--dp-line);
+  }
+
+  .dp-controls__search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1 1 13rem;
+    min-width: 0;
+  }
+
+  .dp-controls__search-icon {
+    position: absolute;
+    left: 0.5rem;
+    width: 1rem;
+    height: 1rem;
+    color: var(--dp-fg-muted);
+    pointer-events: none;
+  }
+
+  .dp-controls__search input {
+    padding-left: 1.875rem;
+  }
+
+  .dp-controls__spacer {
+    flex: 1;
+  }
+}

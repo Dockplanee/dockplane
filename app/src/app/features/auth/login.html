@@ -1,0 +1,91 @@
+<div class="dp-login">
+  <main class="dp-login__panel" aria-labelledby="login-title">
+    <dp-logo class="dp-login__logo" />
+
+    @if (step() === 'credentials') {
+      <h1 id="login-title" class="dp-login__title">Sign in to Dockplane</h1>
+
+      <form class="dp-login__form" (ngSubmit)="submit()">
+        <label class="dp-field">
+          <span class="dp-field__label">Email</span>
+          <input
+            class="dp-field__input"
+            type="email"
+            name="email"
+            autocomplete="username"
+            required
+            [ngModel]="email()"
+            (ngModelChange)="email.set($event)"
+            [disabled]="busy()"
+          />
+        </label>
+
+        <label class="dp-field">
+          <span class="dp-field__label">Password</span>
+          <input
+            class="dp-field__input"
+            type="password"
+            name="password"
+            autocomplete="current-password"
+            required
+            [ngModel]="password()"
+            (ngModelChange)="password.set($event)"
+            [disabled]="busy()"
+          />
+        </label>
+
+        @if (error()) {
+          <p class="dp-login__error" role="alert">
+            {{ error() }}
+            @if (requestId()) {
+              <span class="dp-login__request">Request {{ requestId() }}</span>
+            }
+          </p>
+        }
+
+        <button dpButton variant="primary" type="submit" [disabled]="busy()">
+          {{ busy() ? 'Signing in…' : 'Sign in' }}
+        </button>
+      </form>
+    } @else {
+      <h1 id="login-title" class="dp-login__title">Two-factor authentication</h1>
+      <p class="dp-login__hint">
+        Enter the code from your authenticator app, or one of your recovery codes.
+      </p>
+
+      <form class="dp-login__form" (ngSubmit)="verify()">
+        <label class="dp-field">
+          <span class="dp-field__label">Code</span>
+          <input
+            class="dp-field__input"
+            type="text"
+            name="code"
+            inputmode="text"
+            autocomplete="one-time-code"
+            spellcheck="false"
+            required
+            [ngModel]="code()"
+            (ngModelChange)="code.set($event)"
+            [disabled]="busy()"
+          />
+        </label>
+
+        @if (error()) {
+          <p class="dp-login__error" role="alert">
+            {{ error() }}
+            @if (requestId()) {
+              <span class="dp-login__request">Request {{ requestId() }}</span>
+            }
+          </p>
+        }
+
+        <button dpButton variant="primary" type="submit" [disabled]="busy()">
+          {{ busy() ? 'Verifying…' : 'Verify' }}
+        </button>
+        <button dpButton variant="ghost" type="button" (click)="restart()" [disabled]="busy()">
+          Use a different account
+        </button>
+      </form>
+    }
+  </main>
+</div>

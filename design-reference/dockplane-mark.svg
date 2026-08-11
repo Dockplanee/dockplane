@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 260" role="img" aria-labelledby="title desc">
+  <title id="title">Dockplane mark</title>
+  <desc id="desc">A central control line with a controller and four connected workload blocks.</desc>
+
+  <defs>
+    <style>
+      .mint { fill: #22D3A6; stroke: #22D3A6; }
+      .steel { fill: #6B7280; stroke: #6B7280; }
+      .connector { fill: none; stroke: #6B7280; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+
+  <!-- Central control line -->
+  <line x1="52" y1="130" x2="428" y2="130" stroke="#22D3A6" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="52" cy="130" r="16" fill="#22D3A6"/>
+  <circle cx="428" cy="130" r="16" fill="#22D3A6"/>
+
+  <!-- Central controller -->
+  <rect x="197" y="108" width="86" height="44" rx="10" fill="#22D3A6"/>
+
+  <!-- Outer workload blocks -->
+  <rect x="118" y="26" width="58" height="46" rx="8" fill="#6B7280"/>
+  <rect x="304" y="26" width="58" height="46" rx="8" fill="#6B7280"/>
+  <rect x="118" y="188" width="58" height="46" rx="8" fill="#6B7280"/>
+  <rect x="304" y="188" width="58" height="46" rx="8" fill="#6B7280"/>
+
+  <!-- Restrained right-angle connectors -->
+  <path d="M147 72 V92 H184" class="connector"/>
+  <path d="M333 72 V92 H296" class="connector"/>
+  <path d="M147 188 V168 H184" class="connector"/>
+  <path d="M333 188 V168 H296" class="connector"/>
+</svg>

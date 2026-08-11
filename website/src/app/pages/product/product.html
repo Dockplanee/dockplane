@@ -1,0 +1,161 @@
+<dp-page-hero
+  eyebrow="Product"
+  headingId="product-heading"
+  heading="Docker management built around multiple hosts."
+  lede="Dockplane brings Docker hosts, containers, Compose workloads and operational context into one self-hosted management experience."
+/>
+
+<section dpSection aria-labelledby="hosts-heading">
+  <div class="dp-shell split">
+    <div>
+      <dp-section-header
+        index="01"
+        eyebrow="Hosts"
+        headingId="hosts-heading"
+        heading="One view of every connected host."
+        lede="See host connectivity, Docker version, agent state, workload counts and key resource signals without switching between machines."
+      />
+    </div>
+    <div>
+      <dp-host-fleet />
+    </div>
+  </div>
+</section>
+
+<section dpSection tone="alt" divided aria-labelledby="containers-heading">
+  <div class="dp-shell">
+    <dp-section-header
+      index="02"
+      eyebrow="Containers"
+      headingId="containers-heading"
+      heading="Operate containers with context."
+      lede="Inspect container state, image, health, resource usage and logs before using controlled lifecycle actions such as start, stop or restart."
+    />
+
+    <div class="grid-three">
+      <dp-feature title="State and health">
+        Current state, health check result and the image a container is running.
+      </dp-feature>
+      <dp-feature title="Resource signals">
+        CPU, memory and network usage next to the workload they belong to.
+      </dp-feature>
+      <dp-feature title="Controlled actions">
+        Start, stop and restart map to defined agent capabilities rather than free-form commands.
+      </dp-feature>
+    </div>
+  </div>
+</section>
+
+<section dpSection aria-labelledby="compose-heading">
+  <div class="dp-shell split split--reverse">
+    <div>
+      <dp-section-header
+        index="03"
+        eyebrow="Compose"
+        headingId="compose-heading"
+        heading="Keep application context intact."
+        lede="Dockplane treats Compose projects as grouped workloads so you can understand which containers belong together while keeping container-level detail available."
+      />
+    </div>
+    <div>
+      <dp-compose-project />
+    </div>
+  </div>
+</section>
+
+<section dpSection tone="alt" divided aria-labelledby="logs-heading">
+  <div class="dp-shell split">
+    <div>
+      <dp-section-header
+        index="04"
+        eyebrow="Logs and events"
+        headingId="logs-heading"
+        heading="Follow what changed."
+        lede="Use workload logs, normalized events and action history to understand what happened and verify the result of an operation."
+      />
+    </div>
+    <div>
+      <dp-operational-context />
+    </div>
+  </div>
+</section>
+
+<section dpSection aria-labelledby="permissions-heading">
+  <div class="dp-shell split">
+    <div>
+      <dp-section-header
+        index="05"
+        eyebrow="Permissions and audit"
+        headingId="permissions-heading"
+        heading="Operational access without all-or-nothing permissions."
+        lede="Dockplane is designed around backend-enforced permissions and auditable actions so operational access can be controlled more precisely than sharing a privileged host login."
+      />
+    </div>
+    <div>
+      <dp-code-block [lines]="permissions" label="Example permissions" />
+    </div>
+  </div>
+</section>
+
+<section dpSection tone="alt" divided aria-labelledby="resources-heading">
+  <div class="dp-shell">
+    <dp-section-header
+      index="06"
+      eyebrow="Docker resources"
+      headingId="resources-heading"
+      heading="Understand the resources behind your workloads."
+      lede="Inspect Docker images, networks and volumes across connected hosts. High-risk mutations remain deliberately constrained rather than being exposed just because the Docker API supports them."
+    />
+
+    <div class="grid-three">
+      <dp-feature title="Images"> The images your workloads run, resolved per host. </dp-feature>
+      <dp-feature title="Networks">
+        Docker networks and the workloads attached to them.
+      </dp-feature>
+      <dp-feature title="Volumes">
+        Volume metadata, with destructive operations kept outside the safe foundation.
+      </dp-feature>
+    </div>
+  </div>
+</section>
+
+<section dpSection aria-labelledby="scope-heading">
+  <div class="dp-shell scope">
+    <div>
+      <dp-section-header
+        index="07"
+        eyebrow="Scope"
+        headingId="scope-heading"
+        heading="A Docker control plane, not a datacenter suite."
+        lede="Dockplane stays inside the Docker operating model. The full capability list, the planned direction and the parts that stay outside the product are set out on the features page."
+      />
+
+      <p class="scope__cta">
+        <a class="dp-link-arrow" routerLink="/features">See all features</a>
+      </p>
+    </div>
+
+    <div class="scope__panel" dpPanel tone="inset">
+      <h3 class="scope__title">In scope</h3>
+      <ul class="scope__list">
+        @for (item of inScope; track item) {
+          <li>{{ item }}</li>
+        }
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section dpSection tone="alt" divided aria-labelledby="product-closing-heading">
+  <div class="dp-shell">
+    <h2 class="closing__heading" id="product-closing-heading">Bring your Docker hosts together.</h2>
+    <p class="closing__body">
+      Deploy Dockplane and manage your Docker environment from one self-hosted control plane.
+    </p>
+    <div class="closing__actions">
+      <a dpButton variant="primary" size="lg" [routerLink]="getStarted.path">{{
+        getStarted.label
+      }}</a>
+    </div>
+  </div>
+</section>

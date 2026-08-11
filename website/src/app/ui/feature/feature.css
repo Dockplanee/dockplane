@@ -1,0 +1,28 @@
+:host {
+  display: block;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--dp-line);
+}
+
+/* Short mint segment echoing the control line in the brand mark. */
+.feature__tick {
+  display: block;
+  width: 1.75rem;
+  height: 2px;
+  border-radius: 1px;
+  background-color: var(--dp-accent);
+}
+
+.feature__title {
+  margin-top: 1.125rem;
+  font-size: 1.0625rem;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.feature__body {
+  margin-top: 0.625rem;
+  color: var(--dp-fg-muted);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}

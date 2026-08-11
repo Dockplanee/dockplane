@@ -1,0 +1,16 @@
+<div class="flow" dpPanel>
+  <ol class="flow__stages">
+    @for (stage of stages; track stage.title) {
+      <li class="flow__stage">
+        <span class="flow__node" aria-hidden="true"></span>
+        <p class="dp-mono-label flow__boundary">{{ stage.boundary }}</p>
+        <p class="flow__title">{{ stage.title }}</p>
+        <p class="flow__detail">{{ stage.detail }}</p>
+      </li>
+    }
+  </ol>
+
+  <div class="flow__capabilities">
+    <dp-code-block [lines]="capabilities" label="Example capabilities" />
+  </div>
+</div>

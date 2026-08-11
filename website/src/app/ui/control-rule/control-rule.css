@@ -1,0 +1,25 @@
+:host {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  width: 100%;
+}
+
+.rule__endpoint {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background-color: var(--dp-accent);
+}
+
+.rule__line {
+  flex: 1;
+  height: 1px;
+  background-color: var(--dp-line);
+}
+
+.rule__label {
+  color: var(--dp-fg-muted);
+  white-space: nowrap;
+}

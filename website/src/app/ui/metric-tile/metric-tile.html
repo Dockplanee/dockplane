@@ -1,0 +1,5 @@
+<p class="dp-mono-label tile__label">{{ label() }}</p>
+<p class="tile__value">{{ value() }}</p>
+@if (detail(); as text) {
+  <p class="tile__detail">{{ text }}</p>
+}

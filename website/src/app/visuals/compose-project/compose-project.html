@@ -1,0 +1,24 @@
+<figure class="compose">
+  <figcaption class="compose__caption">
+    Interface preview of a Compose project in Dockplane, listing the containers that belong to the
+    project and their current state.
+  </figcaption>
+
+  <dp-app-frame view="Compose project" [context]="project.host">
+    <div class="compose__head">
+      <p class="compose__project">{{ project.project }}</p>
+      <dp-status-badge tone="ok" [label]="project.summary" />
+    </div>
+
+    <ul class="compose__services">
+      @for (service of project.services; track service.name) {
+        <li class="compose__service">
+          <span class="compose__connector" aria-hidden="true"></span>
+          <span class="compose__service-name">{{ service.name }}</span>
+          <span class="compose__service-image">{{ service.image }}</span>
+          <dp-status-badge [tone]="service.tone" [label]="service.status" />
+        </li>
+      }
+    </ul>
+  </dp-app-frame>
+</figure>

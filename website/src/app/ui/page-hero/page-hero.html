@@ -1,0 +1,14 @@
+<div class="hero__field dp-grid-field" aria-hidden="true"></div>
+
+<div class="dp-shell hero__inner">
+  <p class="dp-mono-label hero__eyebrow">{{ eyebrow() }}</p>
+  <h1 class="hero__heading" [id]="headingId()">{{ heading() }}</h1>
+
+  @if (lede(); as text) {
+    <p class="hero__lede">{{ text }}</p>
+  }
+
+  <div class="hero__extra">
+    <ng-content />
+  </div>
+</div>

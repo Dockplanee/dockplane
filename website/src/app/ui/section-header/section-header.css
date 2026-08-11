@@ -1,0 +1,41 @@
+:host {
+  display: block;
+  max-width: 46rem;
+}
+
+.header__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  color: var(--dp-fg-muted);
+}
+
+.header__index {
+  color: var(--dp-accent-text);
+}
+
+.header__tick {
+  width: 1.75rem;
+  height: 1px;
+  background-color: var(--dp-line-strong);
+}
+
+.header__heading {
+  margin-top: 1rem;
+  font-size: clamp(1.75rem, 1.25rem + 1.8vw, 2.5rem);
+  line-height: 1.15;
+}
+
+.header__lede {
+  margin-top: 1.125rem;
+  max-width: 44rem;
+  color: var(--dp-fg-muted);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+}
+
+@media (min-width: 768px) {
+  .header__lede {
+    font-size: 1.125rem;
+  }
+}

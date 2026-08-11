@@ -1,0 +1,11 @@
+<div class="frame__bar">
+  <dp-logo variant="mark" class="frame__mark" />
+  <span class="frame__view">{{ view() }}</span>
+  @if (context(); as text) {
+    <span class="dp-mono-label frame__context">{{ text }}</span>
+  }
+</div>
+
+<div class="frame__body">
+  <ng-content />
+</div>

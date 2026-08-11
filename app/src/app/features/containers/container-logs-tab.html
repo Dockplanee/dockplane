@@ -1,0 +1,156 @@
+@if (!permitted) {
+  <dp-panel flush>
+    <dp-empty-state
+      icon="logs"
+      title="You may not read this container's logs"
+      detail="Reading container output requires the containers.logs permission. A container decides what it prints, so it is granted separately from seeing that the container exists."
+    />
+  </dp-panel>
+} @else {
+  <dp-panel flush>
+    <div class="toolbar">
+      <div class="state">
+        <span class="indicator" [class]="'indicator--' + status().tone" aria-hidden="true"></span>
+        <span class="dp-label" role="status" aria-live="polite">
+          {{ status().label }} · {{ store.container()?.name }} on {{ store.container()?.hostname }}
+        </span>
+      </div>
+
+      <div class="controls">
+        <div class="search">
+          <label class="dp-sr-only" for="log-search">Filter the lines shown</label>
+          <dp-icon name="search" class="search__icon" />
+          <input
+            id="log-search"
+            class="dp-field"
+            type="search"
+            placeholder="Filter shown lines"
+            [value]="query()"
+            (input)="query.set($any($event.target).value)"
+          />
+        </div>
+
+        <button
+          type="button"
+          dpButton
+          variant="secondary"
+          [attr.aria-pressed]="paused()"
+          [disabled]="!connected()"
+          (click)="togglePause()"
+        >
+          <dp-icon [name]="paused() ? 'play' : 'pause'" />
+          {{ paused() ? 'Resume' : 'Pause' }}
+        </button>
+
+        <button
+          type="button"
+          dpButton
+          variant="secondary"
+          [attr.aria-pressed]="wrap()"
+          (click)="toggleWrap()"
+        >
+          <dp-icon name="wrap" />
+          Wrap
+        </button>
+
+        <button
+          type="button"
+          dpButton
+          variant="secondary"
+          [attr.aria-pressed]="autoscroll()"
+          (click)="toggleAutoscroll()"
+        >
+          <dp-icon name="chevronDown" />
+          Follow
+        </button>
+
+        <button type="button" dpButton variant="secondary" (click)="copy()">
+          <dp-icon name="copy" />
+          {{ copied() ? 'Copied' : 'Copy' }}
+        </button>
+
+        <button type="button" dpButton variant="secondary" (click)="clear()">
+          <dp-icon name="close" />
+          Clear view
+        </button>
+
+        @if (connected() || connecting()) {
+          <button type="button" dpButton variant="secondary" (click)="disconnect()">
+            <dp-icon name="stop" />
+            Stop
+          </button>
+        } @else {
+          <button type="button" dpButton variant="primary" (click)="connect()">
+            <dp-icon name="refresh" />
+            Reconnect
+          </button>
+        }
+      </div>
+    </div>
+
+    @if (failure(); as error) {
+      <dp-error-state class="notice" [message]="error.message" [code]="error.code" requestId="" />
+    }
+
+    @if (!reachable() && !connected()) {
+      <p class="notice notice--warn">
+        The host is not reporting, so there is nothing to follow. Reconnect once the agent is back.
+      </p>
+    }
+
+    @if (lost() > 0) {
+      <p class="notice notice--warn" role="status">
+        {{ lost() }} lines were not delivered because output arrived faster than it could be sent.
+        The log below is incomplete.
+      </p>
+    }
+
+    @if (discarded() > 0) {
+      <p class="notice" role="status">
+        {{ discarded() }} older lines were removed from this view. Nothing is stored on the server;
+        the view keeps a window rather than a history.
+      </p>
+    }
+
+    @if (hidden() > 0) {
+      <p class="notice" role="status">{{ hidden() }} lines are hidden by the filter.</p>
+    }
+
+    <div
+      class="viewport"
+      #viewport
+      [class.viewport--wrap]="wrap()"
+      tabindex="0"
+      role="log"
+      aria-label="Container output"
+    >
+      @if (lines().length === 0) {
+        <p class="empty">
+          @if (connected()) {
+            Waiting for output.
+          } @else {
+            No output to show.
+          }
+        </p>
+      } @else {
+        @for (line of lines(); track line.seq) {
+          <p class="line" [class.line--stderr]="line.stream === 'stderr'">
+            @if (line.timestamp) {
+              <time class="line__time" [attr.datetime]="line.timestamp">{{
+                time(line.timestamp)
+              }}</time>
+            }
+            <span class="line__stream" aria-hidden="true">{{
+              line.stream === 'stderr' ? 'err' : 'out'
+            }}</span>
+            <span class="dp-sr-only">{{ line.stream }}</span>
+            <span class="line__text">{{ line.message }}</span>
+            @if (line.truncated) {
+              <span class="line__mark" title="This line was longer than the agent forwards">…</span>
+            }
+          </p>
+        }
+      }
+    </div>
+  </dp-panel>
+}

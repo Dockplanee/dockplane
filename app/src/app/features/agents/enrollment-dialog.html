@@ -1,0 +1,77 @@
+<dialog #dialog class="dialog" aria-labelledby="enrollment-heading" (close)="close()">
+  <h2 id="enrollment-heading" class="heading">Connect a Docker host</h2>
+
+  @if (!token()) {
+    <p class="lead">
+      A host joins Dockplane by enrolling its agent. The token below is single-use and short-lived;
+      the agent exchanges it once for its own credential, which can be revoked independently of
+      every other host.
+    </p>
+
+    <form class="form" (ngSubmit)="create()">
+      <label class="field">
+        <span class="field-label">Host label (optional)</span>
+        <input
+          class="field-input"
+          type="text"
+          name="hostname"
+          autocomplete="off"
+          placeholder="docker-01"
+          [ngModel]="hostname()"
+          (ngModelChange)="hostname.set($event)"
+          [disabled]="busy()"
+        />
+        <span class="field-hint"
+          >Helps you recognise the token later. It is never an identity.</span
+        >
+      </label>
+
+      @if (error()) {
+        <p class="error" role="alert">
+          {{ error() }}
+          @if (requestId()) {
+            <span class="request">Request {{ requestId() }}</span>
+          }
+        </p>
+      }
+
+      <div class="actions">
+        <button dpButton variant="primary" type="submit" [disabled]="busy()">
+          {{ busy() ? 'Creating…' : 'Create enrollment token' }}
+        </button>
+        <button dpButton variant="ghost" type="button" (click)="close()">Cancel</button>
+      </div>
+    </form>
+  } @else {
+    <dp-one-time-secret
+      [values]="[token()!.token]"
+      label="Enrollment token"
+      warning="Copy this token now. It will not be shown again."
+      downloadName="dockplane-enrollment-token.txt"
+    />
+
+    <dl class="meta">
+      <div>
+        <dt>Expires</dt>
+        <dd>{{ expiresAt() }}</dd>
+      </div>
+    </dl>
+
+    <section class="command" aria-labelledby="command-heading">
+      <h3 id="command-heading">On the host</h3>
+      <p class="lead">
+        The agent reads the token from standard input. It has no
+        <code>--token</code> flag: a token on the command line is visible in the process list and is
+        written to the shell history.
+      </p>
+      <pre class="dp-mono"><code>{{ command() }}</code></pre>
+    </section>
+
+    <div class="actions">
+      <button dpButton variant="primary" type="button" (click)="close()">
+        <dp-icon name="check" />
+        I have saved the token
+      </button>
+    </div>
+  }
+</dialog>

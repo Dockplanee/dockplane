@@ -1,0 +1,112 @@
+<dp-page-hero
+  eyebrow="Documentation"
+  headingId="docs-heading"
+  heading="Set up Dockplane and connect your Docker hosts."
+  lede="This page describes the intended deployment model and the documentation that ships with Dockplane."
+>
+  <div class="status" dpPanel tone="inset">
+    <p class="dp-mono-label status__label">Current status</p>
+    <p class="status__body">
+      Dockplane is in active development. The product definition, architecture, security model and
+      design system are in place; deployable builds are not published yet. Installation commands are
+      published here once a release exists, so that this page never documents a setup that cannot be
+      reproduced.
+    </p>
+    @if (releasesUrl; as href) {
+      <p class="status__link"><a class="dp-link-arrow" [href]="href" rel="noopener">Releases</a></p>
+    }
+  </div>
+</dp-page-hero>
+
+<section dpSection aria-labelledby="topology-heading">
+  <div class="dp-shell split">
+    <div>
+      <dp-section-header
+        index="01"
+        eyebrow="Deployment"
+        headingId="topology-heading"
+        heading="One control plane, one agent per Docker host."
+        lede="The control server holds identity, authorization, inventory and audit history. Each managed Docker host runs an agent that performs the host-local work."
+      />
+
+      <ul class="notes">
+        <li>
+          Agents connect outbound to the control server, so no inbound management port is required
+          on every Docker host.
+        </li>
+        <li>Production deployments require TLS.</li>
+        <li>
+          The public website is deployed separately and does not depend on a running control server.
+        </li>
+      </ul>
+    </div>
+
+    <div>
+      <dp-code-block [lines]="topology" label="Deployment topology" />
+    </div>
+  </div>
+</section>
+
+<section dpSection tone="alt" divided aria-labelledby="first-host-heading">
+  <div class="dp-shell split split--reverse">
+    <div>
+      <dp-section-header
+        index="02"
+        eyebrow="First host"
+        headingId="first-host-heading"
+        heading="Enrollment uses a short-lived token."
+        lede="An enrollment token is not a permanent agent credential. It is exchanged once for a device-specific identity that can be revoked on its own."
+      />
+    </div>
+
+    <div class="steps" dpPanel>
+      <p class="dp-mono-label steps__title">Connect a Docker host</p>
+      <ol class="steps__list">
+        @for (step of connectSteps; track step) {
+          <li class="steps__item">{{ step }}</li>
+        }
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section dpSection aria-labelledby="areas-heading">
+  <div class="dp-shell">
+    <dp-section-header
+      index="03"
+      eyebrow="Reference"
+      headingId="areas-heading"
+      heading="What the documentation covers."
+      lede="The documentation set is maintained alongside the source and describes behaviour that exists rather than planned functionality."
+    />
+
+    <div class="areas">
+      @for (area of areas; track area.title) {
+        <div class="area" dpPanel>
+          <h3 class="area__title">{{ area.title }}</h3>
+          <p class="area__summary">{{ area.summary }}</p>
+          <ul class="area__topics">
+            @for (topic of area.topics; track topic) {
+              <li>{{ topic }}</li>
+            }
+          </ul>
+        </div>
+      }
+    </div>
+  </div>
+</section>
+
+<section dpSection tone="alt" divided aria-labelledby="docs-security-heading">
+  <div class="dp-shell">
+    <h2 class="closing__heading" id="docs-security-heading">
+      Read the security model before connecting a host.
+    </h2>
+    <p class="closing__body">
+      Docker daemon access is privileged. The security model describes the trust boundaries, the
+      enrollment lifecycle and what the agent is allowed to do.
+    </p>
+    <p class="closing__actions">
+      <a class="dp-link-arrow" routerLink="/security">Read the security model</a>
+    </p>
+  </div>
+</section>

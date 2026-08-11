@@ -1,0 +1,227 @@
+#!/usr/bin/env bash
+#
+# Everyday operations on an installed Dockplane control plane.
+#
+#   dockplane-control status | start | stop | restart | logs | version | doctor
+#
+# A thin wrapper. `docker compose` remains the authority; this exists so the
+# common commands do not need the project directory typed out every time, and
+# so `doctor` can look at the whole deployment at once.
+
+set -euo pipefail
+
+INSTALL_DIR="${DOCKPLANE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+
+[[ -f "$INSTALL_DIR/compose.yaml" ]] || {
+	echo "no Dockplane installation in $INSTALL_DIR" >&2
+	echo "Set DOCKPLANE_DIR, or run this from the installation directory." >&2
+	exit 1
+}
+
+if [[ -t 1 ]]; then
+	BOLD=$'\033[1m' DIM=$'\033[2m' RED=$'\033[31m' GREEN=$'\033[32m' YELLOW=$'\033[33m' RESET=$'\033[0m'
+else
+	BOLD='' DIM='' RED='' GREEN='' YELLOW='' RESET=''
+fi
+
+compose() { docker compose --project-directory "$INSTALL_DIR" "$@"; }
+
+# Backup and restore live in their own file: restore is the most destructive
+# thing this project does and is worth reading on its own.
+# shellcheck source=backup-restore.sh
+. "$(dirname "${BASH_SOURCE[0]}")/backup-restore.sh"
+
+# Tolerant of a missing or unreadable .env: doctor exists to report that, and
+# cannot do so if reading it is what ends the script.
+setting() { awk -F= -v key="$1" '$1 == key {print $2}' "$INSTALL_DIR/.env" 2> /dev/null || true; }
+
+DOMAIN="$(setting DOCKPLANE_DOMAIN)"
+
+ok() { printf '  %s✓%s %s\n' "$GREEN" "$RESET" "$*"; }
+bad() { printf '  %s✗%s %s\n' "$RED" "$RESET" "$*"; PROBLEMS=$((PROBLEMS + 1)); }
+meh() { printf '  %s!%s %s\n' "$YELLOW" "$RESET" "$*"; }
+
+usage() {
+	cat >&2 <<-EOF
+		Usage: $(basename "$0") <command>
+
+		  status     what is running
+		  start      start the stack
+		  stop       stop it, keeping all data
+		  restart    stop and start
+		  logs       follow the logs (optionally of one service)
+		  version    what this deployment is running
+		  doctor     check the deployment and say what is wrong
+
+		  backup <directory>          database, secrets and certificate authority
+		  restore <directory> [--yes] replace this deployment with a backup
+
+		Data is never removed by any of these. To remove the stack but keep the
+		database, the certificate authority and the certificates:
+
+		  docker compose --project-directory $INSTALL_DIR down
+
+		The volumes survive that. Only "down --volumes" deletes them, and it
+		deletes the database with them.
+	EOF
+	exit 2
+}
+
+case "${1:-}" in
+	status)
+		compose ps
+		;;
+
+	start)
+		compose up -d
+		;;
+
+	stop)
+		# Without --volumes: the database, the certificates and the authority
+		# all stay exactly where they are.
+		compose stop
+		;;
+
+	restart)
+		compose restart
+		;;
+
+	logs)
+		shift
+		compose logs --follow --tail 100 "$@"
+		;;
+
+	backup)
+		shift
+		do_backup "$@"
+		;;
+
+	restore)
+		shift
+		do_restore "$@"
+		;;
+
+	version)
+		printf '%sDockplane%s %s\n' "$BOLD" "$RESET" "$(setting DOCKPLANE_VERSION)"
+		printf '  domain     %s\n' "$DOMAIN"
+		printf '  directory  %s\n' "$INSTALL_DIR"
+
+		if reported="$(compose exec -T api node -e \
+			"require('http').get('http://127.0.0.1:3000/api/v1/version',r=>{let b='';r.on('data',c=>b+=c);r.on('end',()=>console.log(b))})" \
+			< /dev/null 2> /dev/null)"; then
+			printf '  running    %s\n' "$reported"
+		else
+			printf '  running    %s(the control server is not answering)%s\n' "$DIM" "$RESET"
+		fi
+		;;
+
+	doctor)
+		PROBLEMS=0
+		printf '%sDockplane%s in %s\n\n' "$BOLD" "$RESET" "$INSTALL_DIR"
+
+		docker info > /dev/null 2>&1 && ok "the Docker daemon is running" || bad "the Docker daemon is not reachable"
+		docker compose version > /dev/null 2>&1 && ok "the Compose plugin is available" || bad "the Compose plugin is missing"
+		compose config --quiet 2> /dev/null && ok "the Compose configuration is valid" || bad "the Compose configuration is not valid"
+
+		printf '\n'
+
+		for file in .env compose.yaml Caddyfile; do
+			[[ -f "$INSTALL_DIR/$file" ]] && ok "$file" || bad "$file is missing"
+		done
+
+		[[ "$(stat -c '%a' "$INSTALL_DIR/.env" 2> /dev/null)" == "600" ]] &&
+			ok ".env is readable only by its owner" || bad ".env should be mode 600"
+
+		[[ "$(stat -c '%a' "$INSTALL_DIR/secrets" 2> /dev/null)" == "700" ]] &&
+			ok "secrets/ is readable only by its owner" || bad "secrets/ should be mode 700"
+
+		if [[ -s "$INSTALL_DIR/pki/agent-ca.crt" ]]; then
+			expiry="$(openssl x509 -in "$INSTALL_DIR/pki/agent-ca.crt" -noout -enddate 2> /dev/null | cut -d= -f2)"
+			ok "the agent certificate authority is present (valid until ${expiry:-unknown})"
+		else
+			bad "no agent certificate authority in pki/"
+		fi
+
+		printf '\n'
+
+		for service in postgres api caddy; do
+			id="$(compose ps -q "$service" 2> /dev/null)"
+
+			if [[ -z "$id" ]]; then
+				bad "$service is not running"
+				continue
+			fi
+
+			health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$id")"
+			[[ "$health" == "healthy" || "$health" == "running" ]] && ok "$service is $health" || bad "$service is $health"
+		done
+
+		printf '\n'
+
+		compose exec -T api node -e \
+			"require('http').get('http://127.0.0.1:3000/health/ready',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))" \
+			< /dev/null > /dev/null 2>&1 &&
+			ok "the control server reports itself ready" || bad "the control server is not ready"
+
+		if [[ -n "$DOMAIN" ]]; then
+			curl -fsS --max-time 8 "https://$DOMAIN/health/ready" > /dev/null 2>&1 &&
+				ok "https://$DOMAIN answers with a valid certificate" ||
+				meh "https://$DOMAIN did not answer — check DNS, the firewall, and: $(basename "$0") logs caddy"
+		fi
+
+		gateway_port="$(setting AGENT_GATEWAY_PORT)"
+		gateway_port="${gateway_port:-9443}"
+
+		if command -v ss > /dev/null; then
+			ss -tlnH "sport = :$gateway_port" 2> /dev/null | grep -q . &&
+				ok "the agent gateway is listening on $gateway_port" ||
+				bad "nothing is listening on $gateway_port; agents cannot connect"
+		fi
+
+		for port in 3000 5432; do
+			if command -v ss > /dev/null && ss -tlnH "sport = :$port" 2> /dev/null | grep -q .; then
+				bad "port $port is published; it should not be reachable from outside"
+			else
+				ok "port $port is not published"
+			fi
+		done
+
+		printf '\n'
+
+		# What a backup would need, without reading or printing any of it.
+		backup_ready=1
+
+		for file in secrets/application-encryption-key secrets/postgres-password \
+			secrets/database-url pki/agent-ca.key pki/agent-ca.crt; do
+			[[ -r "$INSTALL_DIR/$file" ]] || backup_ready=0
+		done
+
+		[[ $backup_ready -eq 1 ]] && ok "everything a backup needs is readable" ||
+			bad "a backup would be incomplete: a secret or key cannot be read"
+
+		if compose exec -T postgres sh -c 'command -v pg_dump' < /dev/null > /dev/null 2>&1; then
+			ok "the database can be dumped"
+		else
+			bad "pg_dump is not available in the database container"
+		fi
+
+		latest="$(find "$INSTALL_DIR" -maxdepth 1 -name 'pre-restore-*' -type d 2> /dev/null | sort | tail -1)"
+
+		if [[ -n "$latest" ]]; then
+			meh "a pre-restore snapshot is still here: $latest"
+		fi
+
+		printf '\n'
+
+		if [[ $PROBLEMS -eq 0 ]]; then
+			printf '%sNothing wrong found.%s\n' "$GREEN" "$RESET"
+		else
+			printf '%s%d problem(s).%s Logs: %s logs\n' "$RED" "$PROBLEMS" "$RESET" "$(basename "$0")"
+			exit 1
+		fi
+		;;
+
+	*)
+		usage
+		;;
+esac

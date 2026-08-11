@@ -1,0 +1,18 @@
+# Critical vulnerabilities carried by a release, and why.
+#
+# Only CRITICAL findings need an entry. A critical that is not listed here, or
+# one that has become fixable, stops the release: see deploy/check-vulnerabilities.sh.
+# Nothing is listed here to make a build pass. Each line records a decision
+# somebody made and can be asked about.
+#
+# Format:  <CVE>  <package>  # why it is carried
+#
+# Assessed for 0.1.0-rc.1 against Trivy 0.73.0. When Debian publishes a fix,
+# the finding becomes fixable, the release stops, and the line is removed
+# rather than updated.
+
+CVE-2026-13221  perl-base  # no fixed version in Debian; perl is never executed in this image
+CVE-2026-42496  perl-base  # no fixed version in Debian; perl is never executed in this image
+CVE-2026-57433  perl-base  # no fixed version in Debian; perl is never executed in this image
+CVE-2026-8376   perl-base  # no fixed version in Debian; perl is never executed in this image
+CVE-2023-45853  zlib1g     # MiniZip, which Debian does not build into zlib1g; Node uses its own zlib

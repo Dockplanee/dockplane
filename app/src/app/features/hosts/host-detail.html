@@ -1,0 +1,44 @@
+@if (store.host(); as host) {
+  <header class="head">
+    <div class="identity">
+      <h2>{{ host.name }}</h2>
+      <dp-status-badge
+        [tone]="status(host.status).tone"
+        [label]="status(host.status).label"
+        plated
+      />
+    </div>
+
+    <p class="meta">
+      @for (entry of meta(); track entry) {
+        <span>{{ entry }}</span>
+      }
+    </p>
+  </header>
+
+  @if (host.stale) {
+    <dp-stale-notice
+      class="stale"
+      [lastSeen]="host.observedAt ?? host.lastSeen ?? ''"
+      [reason]="
+        host.status === 'offline'
+          ? 'The agent is not connected, so nothing on this host is being refreshed.'
+          : 'This host has not reported recently, so what is shown is the last observation.'
+      "
+    />
+  }
+
+  <dp-tab-bar class="tabs" [tabs]="tabs" label="Host sections" />
+
+  <div class="tab-content">
+    <router-outlet />
+  </div>
+} @else {
+  <dp-panel flush>
+    <dp-empty-state
+      icon="hosts"
+      title="Host not found"
+      detail="This host is not managed by Dockplane, or it was removed from the inventory."
+    />
+  </dp-panel>
+}

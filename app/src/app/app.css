@@ -1,0 +1,98 @@
+:host {
+  display: block;
+  height: 100dvh;
+}
+
+.shell {
+  display: flex;
+  height: 100%;
+}
+
+.sidebar {
+  display: none;
+  flex: none;
+}
+
+.drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+}
+
+.drawer-nav {
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 0 40px rgb(0 0 0 / 0.4);
+}
+
+.scrim {
+  flex: 1;
+  border: 0;
+  padding: 0;
+  background-color: rgb(4 6 9 / 0.62);
+  cursor: pointer;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem 1rem 3rem;
+}
+
+main:focus {
+  outline: none;
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: 0.75rem;
+  z-index: 100;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--dp-accent-border);
+  border-radius: var(--dp-radius-sm);
+  background-color: var(--dp-surface);
+  color: var(--dp-fg);
+  font-size: 0.8125rem;
+  font-weight: 550;
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+@media (min-width: 768px) {
+  main {
+    padding-inline: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .sidebar {
+    display: flex;
+  }
+
+  .drawer {
+    display: none;
+  }
+}
+
+/* Shown while the control server is asked who is signed in. */
+.bootstrap {
+  display: grid;
+  place-items: center;
+  min-block-size: 100dvh;
+  margin: 0;
+  color: var(--dp-fg-muted);
+  font-size: var(--dp-text-body);
+}

@@ -1,0 +1,13 @@
+<p class="dp-mono-label header__eyebrow">
+  @if (index(); as position) {
+    <span class="header__index">{{ position }}</span>
+    <span class="header__tick" aria-hidden="true"></span>
+  }
+  <span>{{ eyebrow() }}</span>
+</p>
+
+<h2 class="header__heading" [id]="headingId()">{{ heading() }}</h2>
+
+@if (lede(); as text) {
+  <p class="header__lede">{{ text }}</p>
+}

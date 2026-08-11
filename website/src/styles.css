@@ -1,0 +1,163 @@
+@import 'tailwindcss';
+
+@import './styles/fonts.css';
+@import './styles/tokens.css';
+@import './styles/components.css';
+
+@theme inline {
+  --font-sans:
+    'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+  --font-mono:
+    'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
+    Consolas, monospace;
+
+  --color-canvas: var(--dp-canvas);
+  --color-canvas-alt: var(--dp-canvas-alt);
+  --color-surface: var(--dp-surface);
+  --color-surface-alt: var(--dp-surface-alt);
+  --color-surface-inset: var(--dp-surface-inset);
+
+  --color-line: var(--dp-line);
+  --color-line-strong: var(--dp-line-strong);
+
+  --color-fg: var(--dp-fg);
+  --color-fg-muted: var(--dp-fg-muted);
+
+  --color-accent: var(--dp-accent);
+  --color-accent-hover: var(--dp-accent-hover);
+  --color-accent-fg: var(--dp-accent-fg);
+  --color-accent-text: var(--dp-accent-text);
+  --color-accent-soft: var(--dp-accent-soft);
+  --color-accent-border: var(--dp-accent-border);
+
+  --color-focus: var(--dp-focus);
+
+  --color-ok: var(--dp-status-ok);
+  --color-warn: var(--dp-status-warn);
+  --color-critical: var(--dp-status-critical);
+  --color-info: var(--dp-status-info);
+  --color-neutral: var(--dp-status-neutral);
+
+  --color-ok-soft: var(--dp-status-ok-soft);
+  --color-warn-soft: var(--dp-status-warn-soft);
+  --color-critical-soft: var(--dp-status-critical-soft);
+  --color-info-soft: var(--dp-status-info-soft);
+  --color-neutral-soft: var(--dp-status-neutral-soft);
+
+  --color-mark-block: var(--dp-mark-block);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+
+  --container-shell: 1320px;
+  --container-measure: 68ch;
+}
+
+@layer base {
+  * {
+    border-color: var(--dp-line);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--dp-canvas);
+    color: var(--dp-fg);
+    font-family: var(--font-sans);
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    color: var(--dp-fg);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--dp-focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* The platform default is removed only where an explicit ring is provided. */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  ::selection {
+    background-color: var(--dp-accent);
+    color: var(--dp-accent-fg);
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+}
+
+@layer components {
+  .dp-shell {
+    margin-inline: auto;
+    width: 100%;
+    max-width: var(--container-shell);
+    padding-inline: 1.25rem;
+  }
+
+  @media (min-width: 640px) {
+    .dp-shell {
+      padding-inline: 2rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .dp-shell {
+      padding-inline: 2.5rem;
+    }
+  }
+
+  /* Faint blueprint grid. Structural texture only, never carries meaning. */
+  .dp-grid-field {
+    background-image:
+      linear-gradient(to right, var(--dp-grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--dp-grid-line) 1px, transparent 1px);
+    background-size: 64px 64px;
+    background-position: center top;
+  }
+
+  .dp-mono-label {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

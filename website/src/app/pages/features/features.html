@@ -1,0 +1,111 @@
+<dp-page-hero
+  eyebrow="Features"
+  headingId="features-heading"
+  heading="Everything Dockplane manages, area by area."
+  lede="Dockplane is deliberately scoped to Docker and its direct operational environment. This page lists what belongs to the product, what is planned and what stays outside it."
+>
+  <nav class="jump" aria-label="Feature areas">
+    <ul class="jump__list">
+      @for (area of areas; track area.id) {
+        <li>
+          <a class="jump__link" [routerLink]="[]" [fragment]="area.id">
+            <span class="jump__index">{{ area.index }}</span>
+            {{ area.title }}
+          </a>
+        </li>
+      }
+    </ul>
+  </nav>
+</dp-page-hero>
+
+@for (area of areas; track area.id; let odd = $odd) {
+  <section
+    dpSection
+    [tone]="odd ? 'alt' : 'canvas'"
+    [divided]="odd"
+    [id]="area.id"
+    [attr.aria-labelledby]="area.id + '-heading'"
+  >
+    <div class="dp-shell area">
+      <div class="area__intro">
+        <dp-section-header
+          [index]="area.index"
+          eyebrow="Capabilities"
+          [headingId]="area.id + '-heading'"
+          [heading]="area.title"
+          [lede]="area.summary"
+        />
+      </div>
+
+      <ul class="entries">
+        @for (entry of area.entries; track entry.name) {
+          <li class="entry">
+            <h3 class="entry__name">{{ entry.name }}</h3>
+            <p class="entry__detail">{{ entry.detail }}</p>
+          </li>
+        }
+      </ul>
+    </div>
+  </section>
+}
+
+<section dpSection divided aria-labelledby="planned-heading">
+  <div class="dp-shell">
+    <dp-section-header
+      index="07"
+      eyebrow="Direction"
+      headingId="planned-heading"
+      heading="Planned, not available."
+      lede="These capabilities are part of the product direction. They are listed separately so the current boundary stays unambiguous."
+    />
+
+    <ul class="planned">
+      @for (item of planned; track item.name) {
+        <li class="planned__item">
+          <h3 class="planned__name">{{ item.name }}</h3>
+          <p class="planned__detail">{{ item.detail }}</p>
+        </li>
+      }
+    </ul>
+  </div>
+</section>
+
+<section dpSection tone="alt" divided aria-labelledby="boundary-heading">
+  <div class="dp-shell boundary">
+    <div>
+      <dp-section-header
+        index="08"
+        eyebrow="Boundary"
+        headingId="boundary-heading"
+        heading="What Dockplane does not do."
+        lede="Dockplane manages Docker across hosts. Broadening it into a general infrastructure suite would weaken both the security model and the product."
+      />
+    </div>
+
+    <div class="boundary__panel" dpPanel tone="inset">
+      <ul class="boundary__list">
+        @for (item of outOfScope; track item) {
+          <li>{{ item }}</li>
+        }
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section dpSection aria-labelledby="features-closing-heading">
+  <div class="dp-shell">
+    <dp-control-rule label="Get started" />
+
+    <h2 class="closing__heading" id="features-closing-heading">
+      Bring your Docker hosts together.
+    </h2>
+    <p class="closing__body">
+      Deploy Dockplane and manage your Docker environment from one self-hosted control plane.
+    </p>
+    <div class="closing__actions">
+      <a dpButton variant="primary" size="lg" [routerLink]="getStarted.path">{{
+        getStarted.label
+      }}</a>
+    </div>
+  </div>
+</section>
