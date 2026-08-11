@@ -13,7 +13,15 @@ import {
   MfaSetup,
 } from '../app/data/dockplane-api';
 import { ComposeProject, Container, ContainerDetail, Host } from '../app/domain/inventory';
-import { Agent, AuditPage, EnrollmentToken, Role, User } from '../app/domain/operations';
+import {
+  Agent,
+  AuditPage,
+  CreatedHostSetup,
+  EnrollmentToken,
+  HostSetup,
+  Role,
+  User,
+} from '../app/domain/operations';
 import { OperatorSession } from '../app/domain/sessions';
 
 /** What a test wants the control server to answer with. */
@@ -39,6 +47,10 @@ export interface TestData {
   /** Narrows `failure` to one call, so a flow can fail at a chosen step. */
   failOnly?: string;
   enrollmentToken?: EnrollmentToken;
+  hostSetup?: CreatedHostSetup;
+  regeneratedHostSetup?: CreatedHostSetup;
+  /** What a later read of the setup reports, so a flow can advance. */
+  hostSetupState?: HostSetup;
 }
 
 /**
@@ -159,6 +171,43 @@ export class TestApi extends DockplaneApi {
 
   agents(): Observable<readonly Agent[]> {
     return of(this.data.agents ?? []);
+  }
+
+  createHostSetup(displayName?: string): Observable<CreatedHostSetup> {
+    this.calls.push(`createHostSetup:${displayName ?? ''}`);
+
+    if (this.data.failure) {
+      return throwError(() => this.data.failure);
+    }
+
+    return this.data.hostSetup
+      ? of(this.data.hostSetup)
+      : throwError(() => new ApiError('PERMISSION_DENIED', 'Not permitted.', 403));
+  }
+
+  hostSetup(id: string): Observable<HostSetup> {
+    this.calls.push(`hostSetup:${id}`);
+
+    return this.data.hostSetupState
+      ? of(this.data.hostSetupState)
+      : throwError(() => new ApiError('HOST_SETUP_NOT_FOUND', 'No such setup.', 404));
+  }
+
+  regenerateHostSetup(id: string): Observable<CreatedHostSetup> {
+    this.calls.push(`regenerateHostSetup:${id}`);
+
+    return this.data.regeneratedHostSetup
+      ? of(this.data.regeneratedHostSetup)
+      : throwError(() => new ApiError('HOST_SETUP_NOT_PENDING', 'Already used.', 404));
+  }
+
+  cancelHostSetup(id: string): Observable<HostSetup> {
+    this.calls.push(`cancelHostSetup:${id}`);
+
+    return of({
+      ...(this.data.hostSetupState ?? this.data.hostSetup!),
+      status: 'cancelled' as const,
+    });
   }
 
   createEnrollmentToken(): Observable<EnrollmentToken> {

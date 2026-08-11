@@ -91,6 +91,34 @@ const schema = z
     AGENT_CERT_RENEW_BEFORE: duration('7d'),
     AGENT_ENROLLMENT_TTL: duration('10m'),
 
+    /*
+     * How long a host bootstrap ticket lives.
+     *
+     * Short on purpose. The ticket reaches the target machine inside a command
+     * an operator pastes into a shell, so it can survive in that shell's
+     * history; a short life and single use are what keep that from mattering.
+     */
+    HOST_SETUP_TICKET_TTL: duration('10m'),
+
+    /*
+     * Where the agent packages come from.
+     *
+     * The default is the project's own releases, over HTTPS. It is overridable
+     * so a release can be rehearsed against a local server before it exists on
+     * GitHub — and the override is checked in production below, because a test
+     * source that survives into a deployment would install unreviewed software
+     * on every host somebody adds.
+     */
+    AGENT_RELEASE_BASE_URL: z.url().default('https://github.com/Dockplanee/dockplane/releases/download'),
+
+    /*
+     * The agent version a new host is given. Empty means "the version this
+     * control plane is", which is the only pairing this project tests. It is
+     * never "latest": an agent that arrives newer than the server it reports to
+     * is a protocol mismatch nobody chose.
+     */
+    AGENT_RELEASE_VERSION: z.string().trim().default(''),
+
     /** Largest accepted agent protocol message. */
     AGENT_MAX_MESSAGE_BYTES: z.coerce.number().int().min(1024).default(1_048_576),
 
@@ -172,6 +200,19 @@ const schema = z
         code: 'custom',
         path: ['AGENT_GATEWAY_ADVERTISED_URL'],
         message: 'AGENT_GATEWAY_ADVERTISED_URL must use https in production',
+      });
+    }
+
+    /*
+     * Every host added through Dockplane installs whatever this address serves.
+     * A local rehearsal source left behind in a deployment would be a supply
+     * chain nobody reviewed, so it does not survive into production.
+     */
+    if (!config.AGENT_RELEASE_BASE_URL.startsWith('https://')) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['AGENT_RELEASE_BASE_URL'],
+        message: 'AGENT_RELEASE_BASE_URL must use https in production',
       });
     }
   });

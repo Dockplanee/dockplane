@@ -1,0 +1,125 @@
+<dialog #dialog class="dialog" aria-labelledby="add-host-heading" (close)="close()">
+  <h2 id="add-host-heading" class="heading">Add a Docker host</h2>
+
+  @switch (step()) {
+    @case ('name') {
+      <p class="lead">
+        Dockplane installs its agent on the host and enrolls it. Docker Engine has to be there
+        already; nothing else is installed and nothing else is changed.
+      </p>
+
+      <form class="form" (ngSubmit)="create()">
+        <label class="field">
+          <span class="field-label">Name (optional)</span>
+          <input
+            class="field-input"
+            type="text"
+            name="displayName"
+            autocomplete="off"
+            placeholder="web-01"
+            [ngModel]="displayName()"
+            (ngModelChange)="displayName.set($event)"
+            [disabled]="busy()"
+          />
+          <span class="field-hint">
+            What you want to call this machine. The host reports its own hostname regardless.
+          </span>
+        </label>
+
+        @if (error()) {
+          <p class="error" role="alert">
+            {{ error() }}
+            @if (requestId()) {
+              <span class="request">Request {{ requestId() }}</span>
+            }
+          </p>
+        }
+
+        <div class="actions">
+          <button dpButton variant="primary" type="submit" [disabled]="busy()">
+            {{ busy() ? 'Preparing…' : 'Create install command' }}
+          </button>
+          <button dpButton variant="ghost" type="button" (click)="close()">Cancel</button>
+        </div>
+      </form>
+    }
+
+    @case ('install') {
+      <section class="command" aria-labelledby="command-heading">
+        <h3 id="command-heading" class="step-heading">Run this on the host</h3>
+
+        <p class="warning" role="note">
+          <dp-icon name="info" />
+          <span>
+            <strong>One command, once.</strong> It stops working after it is used and after the
+            countdown below. Treat it as a password until then: anyone who runs it can enroll a
+            machine into Dockplane.
+          </span>
+        </p>
+
+        <pre class="dp-mono" data-testid="install-command"><code>{{ command() }}</code></pre>
+
+        <div class="actions">
+          <button dpButton variant="secondary" type="button" (click)="copy()">
+            {{ copied() ? 'Copied' : 'Copy command' }}
+          </button>
+          <button dpButton variant="ghost" type="button" [disabled]="busy()" (click)="regenerate()">
+            {{ busy() ? 'Working…' : 'New command' }}
+          </button>
+        </div>
+
+        <p class="status" role="status" data-testid="expiry">
+          @if (expired()) {
+            This command has expired. Create a new one.
+          } @else {
+            Expires in {{ expiresIn() }}
+          }
+        </p>
+
+        @if (error()) {
+          <p class="error" role="alert">{{ error() }}</p>
+        }
+      </section>
+
+      <section class="progress" aria-labelledby="progress-heading">
+        <h3 id="progress-heading" class="step-heading">Waiting for the host</h3>
+
+        <ol class="steps">
+          @for (item of steps(); track item.label) {
+            <li [class.done]="item.done">
+              <dp-icon [name]="item.done ? 'check' : 'clock'" />
+              <span>{{ item.label }}</span>
+            </li>
+          }
+        </ol>
+
+        <p class="hint">
+          Each line appears when the control plane has seen it happen. Nothing here runs on a
+          timer.
+        </p>
+      </section>
+
+      <div class="actions">
+        <button dpButton variant="ghost" type="button" (click)="cancel()">
+          Cancel this setup
+        </button>
+        <button dpButton variant="ghost" type="button" (click)="close()">Close</button>
+      </div>
+    }
+
+    @case ('connected') {
+      <p class="connected" role="status">
+        <dp-icon name="check" />
+        <span>
+          <strong>{{ state()?.displayName || 'The host' }} is connected.</strong>
+          Its containers and Compose projects are being discovered now.
+        </span>
+      </p>
+
+      <div class="actions">
+        <button dpButton variant="primary" type="button" (click)="openHost()">Open host</button>
+        <button dpButton variant="ghost" type="button" (click)="close()">Close</button>
+      </div>
+    }
+  }
+</dialog>

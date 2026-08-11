@@ -1,7 +1,15 @@
 import { Observable } from 'rxjs';
 
 import { ComposeProject, Container, ContainerDetail, Host } from '../domain/inventory';
-import { Agent, AuditPage, EnrollmentToken, Role, User } from '../domain/operations';
+import {
+  Agent,
+  AuditPage,
+  CreatedHostSetup,
+  EnrollmentToken,
+  HostSetup,
+  Role,
+  User,
+} from '../domain/operations';
 import { OperatorSession } from '../domain/sessions';
 
 /**
@@ -66,6 +74,11 @@ export abstract class DockplaneApi {
   abstract agents(): Observable<readonly Agent[]>;
   abstract createEnrollmentToken(intendedHostname?: string): Observable<EnrollmentToken>;
   abstract revokeAgent(id: string, reason: string): Observable<void>;
+
+  abstract createHostSetup(displayName?: string): Observable<CreatedHostSetup>;
+  abstract hostSetup(id: string): Observable<HostSetup>;
+  abstract regenerateHostSetup(id: string): Observable<CreatedHostSetup>;
+  abstract cancelHostSetup(id: string): Observable<HostSetup>;
 
   abstract auditEntries(options?: AuditQuery): Observable<AuditPage>;
 

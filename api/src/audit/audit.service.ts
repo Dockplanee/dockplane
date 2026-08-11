@@ -19,6 +19,17 @@ export type AuditAction =
   | 'mfa.recovery_code.used'
   | 'mfa.recovery_codes.regenerated'
   | 'role.assigned'
+  /*
+   * A host setup records what an operator did, never the material it produced.
+   * The bootstrap ticket, the enrollment token and the script that carries them
+   * are all absent from these entries by construction: the service only ever
+   * passes an identifier.
+   */
+  | 'host.setup.created'
+  | 'host.setup.regenerated'
+  | 'host.setup.cancelled'
+  | 'host.setup.bootstrapped'
+  | 'host.setup.completed'
   | 'agent.enrollment_token.created'
   | 'agent.enrollment_token.revoked'
   | 'agent.enrollment_token.consumed'

@@ -15,7 +15,16 @@ import {
   ResourceUsage,
 } from '../domain/inventory';
 import { OperatorSession } from '../domain/sessions';
-import { Agent, AuditEntry, AuditPage, EnrollmentToken, Role, User } from '../domain/operations';
+import {
+  Agent,
+  AuditEntry,
+  AuditPage,
+  CreatedHostSetup,
+  EnrollmentToken,
+  HostSetup,
+  Role,
+  User,
+} from '../domain/operations';
 import {
   AgentStatus,
   ComposeState,
@@ -188,6 +197,32 @@ export class RealDockplaneApi extends DockplaneApi {
    * once; it is never stored, and asking again produces a different token
    * rather than the same one.
    */
+  /**
+   * Creates a host setup and returns its one-time bootstrap ticket.
+   *
+   * The ticket is in this response and nowhere else. It is never put in a URL:
+   * the installer sends it in a request body, so it does not end up in a proxy
+   * or server access log on the way.
+   */
+  createHostSetup(displayName?: string): Observable<CreatedHostSetup> {
+    return this.api.post<CreatedHostSetup>('/api/v1/host-setups', { displayName });
+  }
+
+  hostSetup(id: string): Observable<HostSetup> {
+    return this.api.get<HostSetup>(`/api/v1/host-setups/${encodeURIComponent(id)}`);
+  }
+
+  regenerateHostSetup(id: string): Observable<CreatedHostSetup> {
+    return this.api.post<CreatedHostSetup>(
+      `/api/v1/host-setups/${encodeURIComponent(id)}/regenerate`,
+      {},
+    );
+  }
+
+  cancelHostSetup(id: string): Observable<HostSetup> {
+    return this.api.post<HostSetup>(`/api/v1/host-setups/${encodeURIComponent(id)}/cancel`, {});
+  }
+
   createEnrollmentToken(intendedHostname?: string): Observable<EnrollmentToken> {
     return this.api
       .post<EnrollmentTokenResponse>('/api/v1/agents/enrollment-tokens', { intendedHostname })

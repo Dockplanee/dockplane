@@ -57,6 +57,37 @@ export interface EnrollmentToken {
   readonly expiresAt: string;
 }
 
+/**
+ * Adding a host.
+ *
+ * The status and the four steps are what the control plane has observed, not a
+ * script the interface plays out. `installing` means the command was run; it
+ * does not mean the installation is going well, because nothing reports that.
+ */
+export type HostSetupStatus = 'waiting' | 'installing' | 'connected' | 'expired' | 'cancelled';
+
+export interface HostSetupProgress {
+  readonly bootstrapped: boolean;
+  readonly enrolled: boolean;
+  readonly connected: boolean;
+  readonly inventoryReported: boolean;
+}
+
+export interface HostSetup {
+  readonly id: string;
+  readonly displayName: string | null;
+  readonly status: HostSetupStatus;
+  readonly progress: HostSetupProgress;
+  readonly createdAt: string;
+  readonly expiresAt: string;
+  readonly hostId: string | null;
+}
+
+/** A setup and the bootstrap ticket that exists for this one moment. */
+export interface CreatedHostSetup extends HostSetup {
+  readonly ticket: string;
+}
+
 export interface AuditEntry {
   readonly id: string;
   readonly time: string;

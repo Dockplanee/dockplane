@@ -115,6 +115,12 @@ services:
       AGENT_CLIENT_CA_CERT_PATH: /var/lib/dockplane/pki/agent-ca.crt
       AGENT_CA_CERT_PATH: /var/lib/dockplane/pki/agent-ca.crt
       AGENT_CA_KEY_PATH: /var/lib/dockplane/pki/agent-ca.key
+      # Where "Add host" downloads the agent from, and which version it pins.
+      # Both default to the project's own releases and to this deployment's own
+      # version; a rehearsal against an unpublished release overrides them.
+      AGENT_RELEASE_BASE_URL:
+        ${AGENT_RELEASE_BASE_URL:-https://github.com/Dockplanee/dockplane/releases/download}
+      AGENT_RELEASE_VERSION: ${AGENT_RELEASE_VERSION:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     secrets:
       - application-encryption-key
