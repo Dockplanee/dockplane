@@ -193,6 +193,73 @@ blocks "the backup is readable by others" world-readable "$(complete_backup)
 chmod 755 \"\$2\""
 
 echo
+echo "==> and which agent a new host is given after an upgrade"
+
+# Unset means "the version this control plane is", so an ordinary upgrade moves
+# the agent with it. A pin is the operator's, and an upgrade neither changes it
+# nor passes over it in silence.
+pin_harness() {
+	local pinned="$1" target="$2"
+	local dir="$work/pin-$RANDOM"
+
+	mkdir -p "$dir"
+	{
+		echo "DOCKPLANE_DOMAIN=dockplane.example.com"
+		echo "DOCKPLANE_VERSION=0.1.0-rc.3"
+		[[ -n "$pinned" ]] && echo "$pinned"
+		echo "LOG_LEVEL=info"
+	} > "$dir/.env"
+
+	cp "$dir/.env" "$dir/.env.before"
+
+	{
+		echo 'set -uo pipefail'
+		echo "INSTALL_DIR='$dir'"
+		echo "TARGET_VERSION='$target'"
+		echo 'YELLOW="" RESET="" DIM=""'
+		echo 'note() { printf "note: %s\n" "$*"; }'
+		echo 'warn() { printf "warn: %s\n" "$*"; }'
+		sed -n '/^report_agent_version_pin()/,/^}/p' "$INSTALLER"
+		echo 'report_agent_version_pin'
+	} > "$dir/run.sh"
+
+	bash "$dir/run.sh" 2>&1
+
+	# Reported separately so a scenario can assert the file was left alone.
+	if ! diff -q "$dir/.env.before" "$dir/.env" > /dev/null; then
+		printf 'ENV CHANGED\n'
+	fi
+}
+
+output="$(pin_harness "" 0.1.0-rc.4)"
+check "no pin: nothing to warn about" \
+	"$(grep -q '^warn:' <<< "$output" && echo fail || echo ok)"
+
+output="$(pin_harness "AGENT_RELEASE_VERSION=0.1.0-rc.3" 0.1.0-rc.4)"
+check "a pin left at the old version is reported" \
+	"$(grep -q 'warn:.*0\.1\.0-rc\.3' <<< "$output" && echo ok || echo fail)"
+check "  ... and it names the version being installed" \
+	"$(grep -q 'warn:.*0\.1\.0-rc\.4' <<< "$output" && echo ok || echo fail)"
+check "  ... and says how to stop pinning" \
+	"$(grep -q 'remove the line' <<< "$output" && echo ok || echo fail)"
+check "  ... and the operator's file is left alone" \
+	"$(grep -q 'ENV CHANGED' <<< "$output" && echo fail || echo ok)"
+
+output="$(pin_harness "AGENT_RELEASE_VERSION=0.1.0-rc.4" 0.1.0-rc.4)"
+check "a pin at this release is stated, not warned about" \
+	"$(grep -q '^warn:' <<< "$output" && echo fail || echo ok)"
+check "  ... and is still mentioned" \
+	"$(grep -q 'note:.*0\.1\.0-rc\.4' <<< "$output" && echo ok || echo fail)"
+
+output="$(pin_harness "#AGENT_RELEASE_VERSION=0.1.0-rc.2" 0.1.0-rc.4)"
+check "a commented-out pin is not a pin" \
+	"$(grep -qE '^(warn|note):' <<< "$output" && echo fail || echo ok)"
+
+output="$(pin_harness "AGENT_RELEASE_VERSION=" 0.1.0-rc.4)"
+check "an empty pin is not a pin" \
+	"$(grep -qE '^(warn|note):' <<< "$output" && echo fail || echo ok)"
+
+echo
 if [[ "$failed" -eq 0 ]]; then
 	printf '%s%d passed, 0 failed%s\n' "$GREEN" "$passed" "$RESET"
 else

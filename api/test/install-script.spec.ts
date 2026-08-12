@@ -166,6 +166,20 @@ describe('the install script', () => {
       expect(resolveAgentVersion('0.1.0-rc.2', '0.0.0-dev')).toBe('0.1.0-rc.2');
     });
 
+    it('follows the control plane across an upgrade unless somebody pinned it', () => {
+      // The version an upgraded control plane hands out is its own. Nothing
+      // carries the old one forward, so adding a host after an upgrade installs
+      // the agent that was built and tested with the server now running.
+      expect(resolveAgentVersion('', '0.1.0-rc.3')).toBe('0.1.0-rc.3');
+      expect(resolveAgentVersion('', '0.1.0-rc.4')).toBe('0.1.0-rc.4');
+      expect(resolveAgentVersion('', '0.1.0')).toBe('0.1.0');
+
+      // A pin is a deliberate setting and outranks the server's own version,
+      // including when that leaves the two apart. The installer says so on
+      // every upgrade rather than resolving it here.
+      expect(resolveAgentVersion('0.1.0-rc.3', '0.1.0-rc.4')).toBe('0.1.0-rc.3');
+    });
+
     it('rejects a token that could close a quote', () => {
       expect(() => renderInstallScript({ ...OPTIONS, enrollmentToken: "abc'; id; '" })).toThrow();
       expect(() => renderInstallScript({ ...OPTIONS, enrollmentToken: 'abc def' })).toThrow();

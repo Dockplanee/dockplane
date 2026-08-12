@@ -822,6 +822,32 @@ ensure_setting() {
 	note "added $key"
 }
 
+# The agent version a new host is given follows this control plane, unless an
+# operator pinned one. A pin is theirs to keep, so this never changes it — but
+# an upgrade must not leave it silently handing out the version before last.
+#
+# Nothing here guesses at intent. The installer has never written this setting,
+# so anything found in .env was put there deliberately; what it could not do
+# before is say so.
+report_agent_version_pin() {
+	local pinned
+	pinned="$(awk -F= '/^[[:space:]]*AGENT_RELEASE_VERSION=/{print $2; exit}' \
+		"$INSTALL_DIR/.env" 2> /dev/null | tr -d '[:space:]')"
+
+	[[ -n "$pinned" ]] || return 0
+
+	if [[ "$pinned" == "$TARGET_VERSION" ]]; then
+		note "AGENT_RELEASE_VERSION is pinned to $pinned, which is this release"
+		return 0
+	fi
+
+	warn "AGENT_RELEASE_VERSION is pinned to $pinned, not $TARGET_VERSION"
+	note "Add host will keep installing the $pinned agent on new machines."
+	note "This is your setting and has been left alone. To follow this control"
+	note "plane again, remove the line from $INSTALL_DIR/.env and run:"
+	note "  $INSTALL_DIR/dockplane-control restart"
+}
+
 write_configuration() {
 	step "Configuration"
 
@@ -848,6 +874,8 @@ write_configuration() {
 
 		ensure_setting DOCKPLANE_API_IMAGE "$API_IMAGE"
 		ensure_setting DOCKPLANE_WEB_IMAGE "$WEB_IMAGE"
+
+		report_agent_version_pin
 	else
 		umask 077
 		cat > "$INSTALL_DIR/.env" <<-EOF
