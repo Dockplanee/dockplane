@@ -531,6 +531,66 @@ export const stackEnvironmentVariables = pgTable(
   ],
 );
 
+/**
+ * What a Dockplane-managed container is supposed to be.
+ *
+ * Discovery records what a container *is*; this records what it was asked to
+ * be. The two are deliberately separate: an inspect is an observation of a host
+ * and cannot be the place a configuration lives, because a host can be changed
+ * by something that is not Dockplane.
+ *
+ * A row here is also what makes a container managed. A container found by
+ * discovery has none, stays observed-only, and is not editable — Dockplane has
+ * never been told what it is supposed to be, and inventing an answer from an
+ * inspect would be claiming an intent nobody expressed.
+ *
+ * No environment values live here. They are variables, in a table of their own,
+ * so that a secret has exactly one home and it is an encrypted one.
+ */
+export const containerDesiredConfigs = pgTable('container_desired_configs', {
+  containerId: uuid('container_id')
+    .primaryKey()
+    .references(() => containers.id, { onDelete: 'cascade' }),
+  image: text('image').notNull(),
+  hostname: text('hostname'),
+  command: jsonb('command').$type<string[]>(),
+  entrypoint: jsonb('entrypoint').$type<string[]>(),
+  ports: jsonb('ports').$type<unknown[]>().notNull().default([]),
+  mounts: jsonb('mounts').$type<unknown[]>().notNull().default([]),
+  networks: jsonb('networks').$type<string[]>().notNull().default([]),
+  restartPolicy: text('restart_policy').notNull().default('no'),
+  labels: jsonb('labels').$type<Record<string, string>>().notNull().default({}),
+  healthcheck: jsonb('healthcheck').$type<unknown>(),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  ...timestamps,
+});
+
+/**
+ * A managed container's environment, as variables rather than as a blob.
+ *
+ * The same shape and the same database constraint as a stack's, because a
+ * secret is a secret wherever it is configured: a secret row carries an
+ * envelope and no plain value, and an ordinary row carries no envelope.
+ */
+export const containerEnvironmentVariables = pgTable(
+  'container_environment_variables',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    containerId: uuid('container_id')
+      .notNull()
+      .references(() => containers.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    value: text('value'),
+    valueEncrypted: text('value_encrypted'),
+    isSecret: boolean('is_secret').notNull().default(false),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('container_environment_container_key_unique').on(table.containerId, table.key),
+    index('container_environment_container_idx').on(table.containerId),
+  ],
+);
+
 export const rolesRelations = relations(roles, ({ many }) => ({
   permissions: many(rolePermissions),
   users: many(userRoles),
@@ -571,6 +631,25 @@ export const stackEnvironmentVariablesRelations = relations(
   }),
 );
 
+export const containerDesiredConfigsRelations = relations(containerDesiredConfigs, ({ one }) => ({
+  container: one(containers, {
+    fields: [containerDesiredConfigs.containerId],
+    references: [containers.id],
+  }),
+}));
+
+export const containerEnvironmentVariablesRelations = relations(
+  containerEnvironmentVariables,
+  ({ one }) => ({
+    container: one(containers, {
+      fields: [containerEnvironmentVariables.containerId],
+      references: [containers.id],
+    }),
+  }),
+);
+
+export type ContainerDesiredConfig = typeof containerDesiredConfigs.$inferSelect;
+export type ContainerEnvironmentVariable = typeof containerEnvironmentVariables.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type Agent = typeof agents.$inferSelect;

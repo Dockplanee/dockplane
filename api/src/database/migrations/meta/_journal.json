@@ -57,6 +57,13 @@
       "when": 1786656281825,
       "tag": "0007_container_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786742681825,
+      "tag": "0008_container_desired_state",
+      "breakpoints": true
     }
   ]
 }
