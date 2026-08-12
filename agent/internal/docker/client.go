@@ -5,9 +5,11 @@
 // into a string an operator's environment gets to interpret, which is exactly
 // the arbitrary-command surface this product refuses to have.
 //
-// The write surface is three named container operations and nothing else. There
-// is no remove, exec, attach, pull or prune, and none is reachable through the
-// capability registry.
+// The write surface is named operations and nothing else: starting, stopping and
+// restarting a container, and — from v0.2 — creating, replacing and removing
+// one from a typed specification. There is no exec and no attach. Attach is the
+// API that carries standard input, and its absence from every interface in this
+// package is what makes a console unreachable whatever a request asks for.
 package docker
 
 import (
@@ -34,10 +36,13 @@ var ErrUnavailable = errors.New("the Docker Engine is unavailable")
 Client is the subset of the Engine API this agent uses.
 
 Narrow on purpose. Beyond reading, it can start, stop and restart a container by
-identifier, and read its log output. There is no create, no remove, no exec and
-above all no attach — attach is the API that carries stdin, and its absence here
-is what makes it unreachable from anywhere in the agent, whatever a request asks
-for.
+identifier, and read its log output. Creating and removing containers needs more
+than this, and asks for it separately through ManagementClient, so the reading
+path cannot reach them by accident.
+
+There is no exec and above all no attach — attach is the API that carries stdin,
+and its absence here is what makes it unreachable from anywhere in the agent,
+whatever a request asks for.
 */
 type Client interface {
 	ContainerList(ctx context.Context, options container.ListOptions) ([]container.Summary, error)
