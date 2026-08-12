@@ -31,6 +31,18 @@ dialog {
   background-color: var(--dp-surface);
   color: var(--dp-fg);
   overflow: hidden;
+}
+
+/*
+ * Layout applies only while the dialog is open.
+ *
+ * A browser hides a closed dialog with `dialog:not([open]) { display: none }`.
+ * Setting `display` unconditionally overrides that, and the palette is then laid
+ * out on every page whether or not anybody opened it — closed, so not modal, so
+ * out of the top layer, with no backdrop, sitting in the document flow below the
+ * content. Opening it promotes it to the top layer and it appears to jump.
+ */
+dialog[open] {
   display: flex;
   flex-direction: column;
 }
