@@ -19,15 +19,12 @@ if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.~+-][0-9A-Za-z.~+]+)?$ ]]; then
 	exit 2
 fi
 
-# Debian and SemVer disagree about pre-releases. In SemVer, 0.1.0-rc.1 comes
-# before 0.1.0; to dpkg, a hyphen starts a package revision, so 0.1.0-rc.1
-# would sort *after* 0.1.0 and the final release would look like a downgrade.
-# A tilde is what dpkg reads as "earlier than", so the package carries that and
-# everything else carries the version the product calls itself.
-# Written with tr rather than as a pattern substitution: bash 5.2 and later
-# perform tilde expansion on the replacement, which turns the tilde into a home
-# directory and the package version into a path.
-DEBIAN_VERSION="$(printf '%s' "$VERSION" | tr '-' '~')"
+# shellcheck source=deploy/release-assets.sh
+source "$(dirname "${BASH_SOURCE[0]}")/release-assets.sh"
+
+# The tilde goes in the package's Version field and nowhere else. See
+# deploy/release-assets.sh for why the file name must not carry it.
+DEBIAN_VERSION="$(debian_version "$VERSION")"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
@@ -134,7 +131,7 @@ for arch in $ARCHITECTURES; do
 	sed -i.bak "s|^Maintainer:.*|Maintainer: $MAINTAINER|" "$root/DEBIAN/control"
 	rm -f "$root/DEBIAN/control.bak"
 
-	deb="dockplane-agent_${DEBIAN_VERSION}_${arch}.deb"
+	deb="$(agent_package_name "$VERSION" "$arch")"
 
 	docker run --rm \
 		-v "$OUT:/work" \
@@ -147,7 +144,7 @@ for arch in $ARCHITECTURES; do
 	echo "    $deb  $(du -h "$OUT/$deb" | cut -f1)"
 
 	# --- the tarball ------------------------------------------------------
-	stage="$OUT/tar/dockplane-agent_${VERSION}_linux_${arch}"
+	stage="$OUT/tar/$(basename "$(agent_tarball_name "$VERSION" "$arch")" .tar.gz)"
 	rm -rf "$stage"
 	install -d -m 0755 "$stage"
 	install -m 0755 "$binary" "$stage/dockplane-agent"
@@ -156,7 +153,7 @@ for arch in $ARCHITECTURES; do
 	install -m 0644 agent/packaging/README.tarball "$stage/README"
 	install -m 0644 LICENSE "$stage/LICENSE"
 
-	tarball="dockplane-agent_${VERSION}_linux_${arch}.tar.gz"
+	tarball="$(agent_tarball_name "$VERSION" "$arch")"
 
 	# Packed in the same image that builds the package, for the same reason:
 	# GNU tar sorts and stamps deterministically, and gzip -n leaves its own
@@ -187,7 +184,7 @@ done
 artefacts=""
 
 for arch in $ARCHITECTURES; do
-	for file in "dockplane-agent_${DEBIAN_VERSION}_${arch}.deb" "dockplane-agent_${VERSION}_linux_${arch}.tar.gz"; do
+	for file in "$(agent_package_name "$VERSION" "$arch")" "$(agent_tarball_name "$VERSION" "$arch")"; do
 		sum="$(grep -F "  $file" "$OUT/SHA256SUMS" | cut -d' ' -f1)"
 		artefacts+="
     {

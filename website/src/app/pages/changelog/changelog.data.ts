@@ -3,6 +3,25 @@ import { ChangelogRelease } from './changelog-entries';
 
 export const CHANGELOG: readonly ChangelogRelease[] = [
   {
+    version: '0.1.0-rc.3',
+    date: '2026-08-12',
+    changes: [
+      {
+        type: 'Fixed',
+        items: [
+          'The agent package can be downloaded from the release. It was published under a name the installer never asks for, because a tilde is rewritten in a release asset name, and adding a host failed on a missing file. The tilde belongs in the package\'s version field, which is not a file name.',
+          'Multi-architecture images build reliably. The JavaScript build now runs on the machine doing the building rather than under emulation, where the toolchain wrote binaries and ran them in the same moment.',
+        ],
+      },
+      {
+        type: 'Changed',
+        items: [
+          'A release is created as a draft and published only after its assets have been fetched back from the release and checked against what was built, including the published checksum file and the version each package declares.',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.1.0-rc.2',
     date: '2026-08-12',
     changes: [

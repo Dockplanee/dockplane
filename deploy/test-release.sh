@@ -320,20 +320,22 @@ check "container tools are pinned to a version" \
 echo
 echo "release assets"
 
-for asset in \
-	'dockplane-\$VERSION.tar.gz' \
-	'release-manifest.json' \
-	'sbom-\*.json' \
-	'dockplane-agent_\${debian_version}_amd64.deb' \
-	'dockplane-agent_\${debian_version}_arm64.deb' \
-	'dockplane-agent_\${VERSION}_linux_amd64.tar.gz' \
-	'dockplane-agent_\${VERSION}_linux_arm64.tar.gz'; do
-	check "the release carries $(echo "$asset" | tr -d '\\')" \
-		"$(grep -qE "$asset" "$release" && echo ok || echo fail)"
+# The release job no longer spells any of these out; it asks
+# deploy/release-assets.sh, which is what the installer asks too.
+for helper in bundle_name agent_package_name agent_tarball_name; do
+	check "the release names its assets with $helper" \
+		"$(grep -q "$helper" "$release" && echo ok || echo fail)"
 done
 
-check "the assets are checksummed" \
-	"$(grep -q "sha256sum ./\* > SHA256SUMS" "$release" && echo ok || echo fail)"
+check "the release carries the manifest" \
+	"$(grep -q 'release-manifest.json' "$release" && echo ok || echo fail)"
+check "the release carries the bills of materials" \
+	"$(grep -q 'sbom-\*.json' "$release" && echo ok || echo fail)"
+check "both architectures are published" \
+	"$(grep -q 'for arch in amd64 arm64' "$release" && echo ok || echo fail)"
+
+check "the assets are checksummed under the names they are published as" \
+	"$(grep -q "sha256sum ./\* | sed" "$release" && echo ok || echo fail)"
 check "the checksums are verified before anything is uploaded" \
 	"$(grep -q "sha256sum -c SHA256SUMS" "$release" && echo ok || echo fail)"
 check "a release candidate is published as a prerelease" \
@@ -373,14 +375,8 @@ check "no version is converted with a tilde a shell may expand" \
 [[ -n "$tilde_substitution" ]] && printf '      %s\n' $tilde_substitution
 
 for script in deploy/build-agent.sh deploy/check-agent-release.sh; do
-	# Read by the line lifted out of the script below.
-	# shellcheck disable=SC2034
-	VERSION=0.1.0-rc.1
-	eval "$(grep -m1 '^DEBIAN_VERSION=' "$script")"
-
-	check "$(basename "$script") packages 0.1.0-rc.1 as 0.1.0~rc.1" \
-		"$([[ "$DEBIAN_VERSION" == '0.1.0~rc.1' ]] && echo ok || echo fail)"
-	unset DEBIAN_VERSION VERSION
+	check "$(basename "$script") takes the Debian version from one place" \
+		"$(grep -q 'DEBIAN_VERSION="$(debian_version "$VERSION")"' "$script" && echo ok || echo fail)"
 done
 
 bash deploy/build-agent.sh 1.2 > /dev/null 2>&1
@@ -392,6 +388,95 @@ check "the agent build refuses no version at all" "$([[ $? -eq 2 ]] && echo ok |
 
 bash deploy/build-images.sh > /dev/null 2>&1
 check "the image build refuses no version at all" "$([[ $? -eq 2 ]] && echo ok || echo fail)"
+
+# --- Release asset names ----------------------------------------------------
+#
+# 0.1.0-rc.2 published a package as dockplane-agent_0.1.0.rc.2_amd64.deb while
+# the installer asked for dockplane-agent_0.1.0~rc.2_amd64.deb: GitHub rewrites
+# a tilde in an asset name to a full stop, and the download 404'd. The tilde
+# belongs in the package's Version field, which is not a file name.
+
+echo
+echo "==> release asset names"
+
+# shellcheck source=deploy/release-assets.sh
+source "$REPO_ROOT/deploy/release-assets.sh"
+
+check "the Debian version keeps the tilde dpkg orders by" \
+	"$([[ "$(debian_version 0.1.0-rc.3)" == '0.1.0~rc.3' ]] && echo ok || echo fail)"
+check "a final release has no tilde to keep" \
+	"$([[ "$(debian_version 0.1.0)" == '0.1.0' ]] && echo ok || echo fail)"
+
+check "the package file is named for the product version" \
+	"$([[ "$(agent_package_name 0.1.0-rc.3 amd64)" == 'dockplane-agent_0.1.0-rc.3_amd64.deb' ]] && echo ok || echo fail)"
+check "the tarball is named for the product version" \
+	"$([[ "$(agent_tarball_name 0.1.0-rc.3 arm64)" == 'dockplane-agent_0.1.0-rc.3_linux_arm64.tar.gz' ]] && echo ok || echo fail)"
+check "the bundle is named for the product version" \
+	"$([[ "$(bundle_name 0.1.0-rc.3)" == 'dockplane-0.1.0-rc.3.tar.gz' ]] && echo ok || echo fail)"
+
+# The regression itself: no published name may carry a character GitHub rewrites.
+tilde_names=""
+for name in $(release_asset_names 0.1.0-rc.3 amd64 arm64); do
+	[[ "$name" == *"~"* ]] && tilde_names+="$name "
+	assert_publishable "$name" 2> /dev/null || tilde_names+="$name "
+done
+
+check "no published asset name contains a character GitHub would rewrite" \
+	"$([[ -z "$tilde_names" ]] && echo ok || echo fail)"
+[[ -n "$tilde_names" ]] && printf '      %s\n' $tilde_names
+
+check "a name with a tilde is refused outright" \
+	"$(assert_publishable 'dockplane-agent_0.1.0~rc.3_amd64.deb' 2> /dev/null && echo fail || echo ok)"
+check "a name with a space is refused" \
+	"$(assert_publishable 'a b.deb' 2> /dev/null && echo fail || echo ok)"
+
+# Every component has to agree, or the one that disagrees is the one nobody ran.
+check "the build script composes no asset name of its own" \
+	"$(grep -qE '"dockplane-agent_\$\{?(VERSION|DEBIAN_VERSION)' "$REPO_ROOT/deploy/build-agent.sh" && echo fail || echo ok)"
+check "the release checks compose no asset name of their own" \
+	"$(grep -qE '"dockplane-agent_\$\{?(VERSION|DEBIAN_VERSION)' "$REPO_ROOT/deploy/check-agent-release.sh" && echo fail || echo ok)"
+check "the workflow composes no asset name of its own" \
+	"$(grep -qE 'dockplane-agent_\$\{(debian_version|VERSION)\}' "$REPO_ROOT/.github/workflows/release.yml" && echo fail || echo ok)"
+check "the workflow refuses a name GitHub would rewrite" \
+	"$(grep -q 'assert_publishable' "$REPO_ROOT/.github/workflows/release.yml" && echo ok || echo fail)"
+
+# The installer the control plane serves has to ask for what was published.
+check "the bootstrap installer requests the product-version package" \
+	"$(grep -q 'package="dockplane-agent_\\\${AGENT_VERSION}_\\\${ARCH}.deb"' "$REPO_ROOT/api/src/host-setup/install-script.ts" && echo ok || echo fail)"
+check "the bootstrap installer no longer builds a Debian-version file name" \
+	"$(grep -q 'PACKAGE_VERSION' "$REPO_ROOT/api/src/host-setup/install-script.ts" && echo fail || echo ok)"
+
+# --- Publishing in two steps ------------------------------------------------
+#
+# 0.1.0-rc.2 was a public release candidate whose agent package could not be
+# downloaded. It was public the moment it was created, so there was no point at
+# which anything could have looked and said no. There is one now.
+
+check "the release is created as a draft" \
+	"$(grep -q -- '--draft' "$release" && echo ok || echo fail)"
+check "what GitHub accepted is fetched back" \
+	"$(grep -q 'Accept: application/octet-stream' "$release" && echo ok || echo fail)"
+check "the fetched assets are verified" \
+	"$(grep -q 'verify-release-assets.sh' "$release" && echo ok || echo fail)"
+check "the draft is promoted rather than replaced" \
+	"$(grep -q 'gh release edit "\$TAG"' "$release" && echo ok || echo fail)"
+check "only one release is ever created" \
+	"$([[ "$(grep -c 'gh release create' "$release")" == "1" ]] && echo ok || echo fail)"
+
+order_in_release() { grep -n "$1" "$release" | tail -1 | cut -d: -f1; }
+
+check "verification comes before publication" \
+	"$([[ "$(order_in_release 'verify-release-assets.sh')" -lt "$(order_in_release 'gh release edit')" ]] && echo ok || echo fail)"
+check "the assets are fetched back before they are verified" \
+	"$([[ "$(order_in_release 'Accept: application/octet-stream')" -lt "$(order_in_release 'verify-release-assets.sh')" ]] && echo ok || echo fail)"
+check "the public download is checked after publication" \
+	"$([[ "$(order_in_release 'releases/download')" -gt "$(order_in_release 'gh release edit')" ]] && echo ok || echo fail)"
+check "the public check uses no token" \
+	"$(sed -n "$(order_in_release 'Check the public download'),\$p" "$release" | grep -q 'GH_TOKEN' && echo fail || echo ok)"
+check "the expected list is not written out in the workflow" \
+	"$(grep -q 'source deploy/release-assets.sh' "$release" && echo ok || echo fail)"
+check "only the release job may write contents" \
+	"$([[ "$(grep -c 'contents: write' "$release")" == "1" ]] && echo ok || echo fail)"
 
 echo
 if [[ "$failed" -eq 0 ]]; then

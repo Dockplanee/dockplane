@@ -1,4 +1,7 @@
 import { INestApplication } from '@nestjs/common';
+import { IncomingMessage, Server } from 'node:http';
+import http from 'node:http';
+import { AddressInfo } from 'node:net';
 import { eq } from 'drizzle-orm';
 import request from 'supertest';
 
@@ -241,6 +244,24 @@ describe('container logs', () => {
     control = [];
 
     return { connection, container, agent, operator };
+  };
+
+  /*
+   * The application's server, actually listening.
+   *
+   * supertest starts one per request and takes it down again, which is fine for
+   * a request that ends and useless for one that has to be interrupted. This
+   * listens once, on a port the operating system picks, and every test that
+   * needs a real socket shares it.
+   */
+  const listeningPort = async (): Promise<number> => {
+    const server = app.getHttpServer() as Server;
+
+    if (!server.listening) {
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    }
+
+    return (server.address() as AddressInfo).port;
   };
 
   const readLogs = (containerId: string, session: { cookie: string }, query = '') =>
@@ -672,6 +693,16 @@ describe('container logs', () => {
      * Nothing else tells the server, so the closed connection has to be what
      * stops the agent — otherwise a closed tab leaves a Docker reader running.
      */
+    /*
+     * A real socket, deliberately.
+     *
+     * The behaviour under test is what the server does when a connection goes
+     * away, and supertest is the wrong instrument for it: it is built to buffer
+     * a response that ends, and an event stream does not end. The request is
+     * made with the HTTP client Node already has, so the test can wait for the
+     * response to arrive, wait for the stream to be carrying data, and only
+     * then destroy the connection — in that order, every time.
+     */
     it('cancels the stream when the browser disconnects', async () => {
       const { connection, container, operator } = await ready('Administrator', {
         batches: [{ lines: [{ stream: 'stdout', message: 'live' }] }],
@@ -679,20 +710,38 @@ describe('container logs', () => {
       });
 
       const streams = app.get(LogStreamService);
+      const port = await listeningPort();
 
-      const pending = request(app.getHttpServer())
-        .get(`/api/v1/containers/${container.id}/logs/stream`)
-        .set('cookie', operator.cookie)
-        .end(() => undefined);
+      const client = http.request({
+        port,
+        path: `/api/v1/containers/${container.id}/logs/stream`,
+        headers: { cookie: operator.cookie },
+      });
 
+      const response = await new Promise<IncomingMessage>((resolve, reject) => {
+        client.once('response', resolve);
+        client.once('error', reject);
+        client.end();
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['content-type']).toContain('text/event-stream');
+
+      // The stream is carrying output before anything is taken away from it.
+      // Destroying a connection the server has not finished setting up would
+      // test the setup rather than the cancellation.
+      await new Promise<void>((resolve) => response.once('data', () => resolve()));
       await waitFor(() => streams.runningCount === 1);
 
-      pending.abort();
+      client.destroy();
 
-      await waitFor(() => streams.runningCount === 0);
+      // The agent is what has to hear about it. Both are waited for: the server
+      // letting go of the stream, and the cancellation reaching the far end.
       await waitFor(() => control.includes('stream_cancel'));
+      await waitFor(() => streams.runningCount === 0);
 
       expect(control).toContain('stream_cancel');
+      expect(response.destroyed).toBe(true);
 
       connection.close();
     });

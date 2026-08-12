@@ -24,11 +24,20 @@ export interface InstallScriptOptions {
 }
 
 /**
- * Debian's version grammar is narrower than a marketing version string. A
- * pre-release is a tilde in a package name and a hyphen everywhere else.
+ * The Debian Version field, which is not a file name.
+ *
+ * A tilde is what dpkg reads as "earlier than", so 0.1.0~rc.3 correctly
+ * precedes 0.1.0. It belongs in the package's control data and nowhere else:
+ * GitHub rewrites a tilde in a release asset name to a full stop, so a package
+ * published under one name would be fetched under another.
  */
 export function debianVersion(version: string): string {
   return version.replace(/-/g, '~');
+}
+
+/** What the package is called where it is published. Mirrors deploy/release-assets.sh. */
+export function agentPackageName(version: string, architecture: string): string {
+  return `dockplane-agent_${version}_${architecture}.deb`;
 }
 
 /** A released version, as opposed to whatever a working copy calls itself. */
@@ -96,7 +105,6 @@ export function renderInstallScript(options: InstallScriptOptions): string {
     /^[A-Za-z0-9_-]+$/,
   );
 
-  const packageVersion = debianVersion(agentVersion);
 
   return `#!/usr/bin/env bash
 #
@@ -110,7 +118,6 @@ set -euo pipefail
 
 RELEASE_BASE_URL='${releaseBaseUrl}'
 AGENT_VERSION='${agentVersion}'
-PACKAGE_VERSION='${packageVersion}'
 CONTROL_PLANE_URL='${controlPlaneUrl}'
 STATE_DIR='/var/lib/dockplane-agent'
 
@@ -183,7 +190,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-package="dockplane-agent_\${PACKAGE_VERSION}_\${ARCH}.deb"
+package="dockplane-agent_\${AGENT_VERSION}_\${ARCH}.deb"
 release="\${RELEASE_BASE_URL}/v\${AGENT_VERSION}"
 
 note "downloading dockplane-agent $AGENT_VERSION for $ARCH"
