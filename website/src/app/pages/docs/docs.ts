@@ -7,57 +7,33 @@ import { PageHero } from '../../ui/page-hero/page-hero';
 import { Panel } from '../../ui/panel';
 import { Section } from '../../ui/section';
 import { SectionHeader } from '../../ui/section-header/section-header';
-
-interface DocArea {
-  readonly title: string;
-  readonly summary: string;
-  readonly topics: readonly string[];
-}
+import { DOC_SECTIONS, DOCS_REPOSITORY } from './docs.data';
 
 const TOPOLOGY = [
-  'Dockplane control host',
-  '├── web application',
-  '├── control API',
-  '└── PostgreSQL',
+  'Control plane host',
+  '├── Caddy            80, 443',
+  '├── control server   not published',
+  '└── PostgreSQL       not published',
   '',
   'Docker host A',
-  '└── Dockplane agent',
+  '└── Dockplane agent  ──┐',
   '',
   'Docker host B',
-  '└── Dockplane agent',
+  '└── Dockplane agent  ──┤',
+  '                       │',
+  '        outbound, mutual TLS, 9443',
 ];
 
+// What the operator actually does. Everything after the second step is the
+// command's work, and the interface reports each one as the control plane
+// observes it.
 const CONNECT_STEPS = [
-  'Sign in as an administrator.',
-  'Create a short-lived enrollment token.',
-  'Install the Dockplane agent on the Docker host.',
-  'Configure the Dockplane control-server URL.',
-  'Complete enrollment.',
-  'Verify the host identity in Dockplane.',
-  'Confirm Docker capability discovery.',
-];
-
-const DOC_AREAS: readonly DocArea[] = [
-  {
-    title: 'Getting started',
-    summary: 'Deployment topology and the flow for connecting the first Docker host.',
-    topics: ['Installation', 'Connect the first host'],
-  },
-  {
-    title: 'Architecture',
-    summary: 'How the control server, agents and Docker hosts fit together.',
-    topics: ['Agent protocol', 'Security model'],
-  },
-  {
-    title: 'Integrations',
-    summary: 'How the agent talks to the local Docker Engine and where the limits are.',
-    topics: ['Docker integration'],
-  },
-  {
-    title: 'Operations',
-    summary: 'What to check when a host, an action or the control plane misbehaves.',
-    topics: ['Troubleshooting', 'Recovery'],
-  },
+  'Sign in and open Hosts → Add host.',
+  'Copy the command and run it on the Docker host.',
+  'The agent package is downloaded and its checksum verified.',
+  'The agent generates its key pair and enrolls.',
+  'The service starts and connects outbound.',
+  'The host appears with its containers and Compose projects.',
 ];
 
 @Component({
@@ -70,6 +46,7 @@ const DOC_AREAS: readonly DocArea[] = [
 export class Docs {
   protected readonly topology = TOPOLOGY;
   protected readonly connectSteps = CONNECT_STEPS;
-  protected readonly areas = DOC_AREAS;
+  protected readonly sections = DOC_SECTIONS;
+  protected readonly docsUrl = DOCS_REPOSITORY;
   protected readonly releasesUrl = externalLink('releases');
 }

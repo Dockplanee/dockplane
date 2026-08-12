@@ -19,6 +19,7 @@ env:
   NODE_VERSION: '22.23.2'
   GO_VERSION: '1.26.5'
   SHELLCHECK_IMAGE: 'koalaman/shellcheck:v0.11.0'
+  ACTIONLINT_IMAGE: 'rhysd/actionlint:1.7.7'
 
 jobs:
   control-server:
@@ -183,5 +184,80 @@ jobs:
       - name: Release verification
         run: deploy/test-release-verification.sh
 
+      - name: Tool requirements
+        # A gate that cannot run its checks has to fail, not shrink. This is the
+        # check on that: 0.1.0-rc.3 was verified on a machine without dpkg-deb
+        # and the run was green.
+        run: deploy/test-tool-requirements.sh
+
       - name: Release scripts
         run: deploy/test-release.sh
+
+      - name: Documentation
+        run: deploy/check-docs.sh
+
+  website:
+    name: Website
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install
+        working-directory: website
+        run: npm ci
+
+      - name: Lint
+        working-directory: website
+        run: npm run lint
+
+      - name: Typecheck
+        working-directory: website
+        run: npm run typecheck
+
+      - name: Test
+        working-directory: website
+        run: npm test
+
+      - name: Build
+        working-directory: website
+        run: npm run build
+
+      - name: The generated pages are in step with their sources
+        # The changelog page and the documentation index are derived from
+        # CHANGELOG.md and docs/. Both are generated before the build, so a
+        # difference here means a source changed without the page following it.
+        run: |
+          if ! git diff --quiet -- website/src/app/pages; then
+            echo "generated website data is behind its source:" >&2
+            git diff --stat -- website/src/app/pages >&2
+            echo >&2
+            echo "run: cd website && npm run generate" >&2
+            exit 1
+          fi
+
+  workflows:
+    name: Workflows
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Actionlint
+        # Held to the same shellcheck severity as the shell scripts, so one
+        # policy covers both rather than two that disagree.
+        run: |
+          docker run --rm --volume "$PWD:/repo:ro" --workdir /repo \
+            --env SHELLCHECK_OPTS='--severity=warning' \
+            "$ACTIONLINT_IMAGE" -color .github/workflows/*.yml

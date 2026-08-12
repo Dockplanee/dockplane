@@ -5,12 +5,15 @@
   lede="This page describes the intended deployment model and the documentation that ships with Dockplane."
 >
   <div class="status" dpPanel tone="inset">
-    <p class="dp-mono-label status__label">Current status</p>
+    <p class="dp-mono-label status__label">Where the documentation lives</p>
     <p class="status__body">
-      Dockplane is in active development. The product definition, architecture, security model and
-      design system are in place; deployable builds are not published yet. Installation commands are
-      published here once a release exists, so that this page never documents a setup that cannot be
-      reproduced.
+      The documentation is written once, in the repository, beside the code it describes. This page
+      is an index of it, generated from those files on every build — so a page that is added,
+      renamed or rewritten is reflected here, and nothing on this site can quietly drift out of step
+      with what Dockplane actually does.
+    </p>
+    <p class="status__link">
+      <a class="dp-link-arrow" [href]="docsUrl" rel="noopener">Read the documentation</a>
     </p>
     @if (releasesUrl; as href) {
       <p class="status__link"><a class="dp-link-arrow" [href]="href" rel="noopener">Releases</a></p>
@@ -54,8 +57,8 @@
         index="02"
         eyebrow="First host"
         headingId="first-host-heading"
-        heading="Enrollment uses a short-lived token."
-        lede="An enrollment token is not a permanent agent credential. It is exchanged once for a device-specific identity that can be revoked on its own."
+        heading="Adding a host is one command."
+        lede="The command carries a short-lived ticket, not a permanent credential. The agent exchanges a one-time token for a device identity, generated on the host, that can be revoked on its own. The private key never leaves the machine."
       />
     </div>
 
@@ -77,17 +80,20 @@
       eyebrow="Reference"
       headingId="areas-heading"
       heading="What the documentation covers."
-      lede="The documentation set is maintained alongside the source and describes behaviour that exists rather than planned functionality."
+      lede="Maintained alongside the source, describing behaviour that exists rather than planned functionality."
     />
 
     <div class="areas">
-      @for (area of areas; track area.title) {
+      @for (section of sections; track section.title) {
         <div class="area" dpPanel>
-          <h3 class="area__title">{{ area.title }}</h3>
-          <p class="area__summary">{{ area.summary }}</p>
+          <h3 class="area__title">{{ section.title }}</h3>
+          <p class="area__summary">{{ section.summary }}</p>
           <ul class="area__topics">
-            @for (topic of area.topics; track topic) {
-              <li>{{ topic }}</li>
+            @for (page of section.pages; track page.url) {
+              <li>
+                <a class="area__link" [href]="page.url" rel="noopener">{{ page.title }}</a>
+                <span class="area__page-summary">{{ page.summary }}</span>
+              </li>
             }
           </ul>
         </div>
