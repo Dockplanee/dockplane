@@ -347,11 +347,20 @@ permission change under thousands of container state transitions.
 
 ```http
 POST /api/v1/agents/{id}/revoke
+Content-Type: application/json
+
+{ "reason": "decommissioned" }
 ```
 
 Requires `agents.revoke`, which is deliberately separate from `agents.read` and
 `agents.enroll`. The credential stops being trusted immediately, the live
 connection is closed, and discovery for that agent stops.
+
+**A reason is required.** Withdrawing a host's identity is not something the
+audit trail should record as having happened for no stated cause, so the
+request carries one and it is stored with the entry. A request without it is
+refused with `VALIDATION_FAILED`. The interface asks for it; a caller using the
+API directly has to supply it too.
 
 A revoked agent that tries to reconnect is refused. The agent recognises the
 refusal, stops retrying and exits with code 3; its systemd unit does not

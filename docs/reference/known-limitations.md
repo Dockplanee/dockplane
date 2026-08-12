@@ -23,10 +23,12 @@ to be there.
 
 ## Not built yet
 
-**Re-enrolling a machine creates a new host record.** The old one stays behind
-and stops being refreshed. Dockplane does not merge them, and there is no way to
-reattach a new agent to an existing host record. See
-[Add a Host](../getting-started/add-host.md).
+**Re-enrolling a machine creates a new host record.** The old one stays behind,
+stops being refreshed and is shown as stale; its containers and Compose
+projects remain visible against a host that no longer reports. Dockplane does
+not merge the two, and there is no way to reattach a new agent to an existing
+host record, so a machine enrolled several times accumulates a record each
+time. See [Add a Host](../getting-started/add-host.md).
 
 **There is no automatic update and no self-updater.** Upgrades are explicit:
 download a release, check it, run the installer. See

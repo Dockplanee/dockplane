@@ -6,6 +6,38 @@ Use release-oriented language.
 
 Do not include internal prompt history, development conversation notes or artificial task numbering.
 
+## 0.1.0 — 2026-08-12
+
+First stable release. The product is what the four release candidates converged
+on; the entries below describe it rather than repeating how it got there.
+
+### Added
+- A self-hosted control plane for Docker across multiple hosts: inventory, metrics, health and connectivity for every connected host, with stale data marked rather than presented as current.
+- One-command host onboarding. Dockplane produces the command, the machine runs it, and the agent is downloaded, verified against the release checksums, installed, enrolled and started without a further step.
+- Container lifecycle — start, stop and restart — each behind its own permission, recorded as an action and in the audit trail, and answered with the state observed on the host.
+- Historical container output and a live stream that follows it, with stdout and stderr kept apart. Closing the view stops the read on the host.
+- Compose projects discovered and inspected, read-only.
+- Local accounts with TOTP second factors and single-use recovery codes, server-side sessions with revocation, and roles whose permissions the control server enforces.
+- Audit history with actor, action, target, result and request context.
+- Backup and restore of the database, the application encryption key, the agent certificate authority and Caddy's certificates, validated in full before a restore touches anything.
+- Upgrades through the installer: a validated backup first, then the deployment's files, then the schema, then the containers, and the version marker last.
+- Agents for amd64 and arm64 as Debian packages and tarballs, and multi-architecture control plane images with a bill of materials and build provenance attached.
+
+### Security
+- Typed capabilities instead of remote command execution. There is no exec, attach or shell, and no message that carries a command.
+- Per-agent identity over mutual TLS, with the private key generated on the managed host and never transmitted.
+- One-time, short-lived enrollment credentials, stored only as digests, that never appear in a command, an argument list or on disk.
+- Individual agent revocation that drops the connection and ends any running stream.
+- Container output is never stored and never audited.
+
+### Known limitations
+- Re-enrolling a machine creates a new host record; the previous one remains and stops being refreshed.
+- arm64 is built and inspected; no arm64 machine has run it. Use amd64 in production.
+- Backups are not encrypted by Dockplane and contain this deployment's private keys.
+- Images are not signed; a bill of materials and provenance are attached instead.
+- Compose projects are read-only, and container removal, volume and image management are not implemented.
+- There is no automatic updater and no APT repository.
+
 ## 0.1.0-rc.4 — 2026-08-12
 
 ### Changed
