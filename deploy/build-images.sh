@@ -49,9 +49,13 @@ AGENT_MANIFEST="${AGENT_MANIFEST:-}"
 # Checked before anything is built, so a machine missing a toolchain does not
 # produce half a release and a manifest describing artefacts that do not exist.
 missing=()
-for tool in docker git; do
+for tool in docker git sha256sum tar; do
 	command -v "$tool" > /dev/null || missing+=("$tool")
 done
+
+# Every image here is built by buildx. Docker without it produces no
+# multi-architecture image and no attestation.
+command -v docker > /dev/null && { docker buildx version > /dev/null 2>&1 || missing+=("docker buildx"); }
 
 # Only needed to fold an agent manifest in, so a build without one does not
 # require it.
@@ -202,18 +206,32 @@ BACKUP_FORMAT_VERSION="$(grep -oE '^BACKUP_FORMAT_VERSION=[0-9]+' deploy/backup-
 
 # The digest of the manifest list — the one a deployment would pin — read from
 # what buildx recorded rather than guessed at.
+#
+# A release that cannot say which bytes it published has nothing to pin, so this
+# stops rather than writing a placeholder into the manifest. A word like
+# "unknown" would satisfy every later check that only asks whether a digest is
+# there.
 digest() {
-	local name="$1"
+	local name="$1" reference="$2"
 	local metadata="$OUT/$name-metadata.json"
+	local value=""
 
 	if [[ -f "$metadata" ]]; then
-		grep -o '"containerimage.digest": *"[^"]*"' "$metadata" |
-			head -1 | sed 's/.*"\(sha256:[^"]*\)"/\1/'
-		return
+		value="$(grep -o '"containerimage.digest": *"[^"]*"' "$metadata" |
+			head -1 | sed 's/.*"\(sha256:[^"]*\)"/\1/')"
 	fi
 
-	docker image inspect --format 'sha256:{{.Id}}' "$2" 2>/dev/null |
-		sed 's/sha256:sha256:/sha256:/' || echo unknown
+	if [[ -z "$value" ]]; then
+		value="$(docker image inspect --format 'sha256:{{.Id}}' "$reference" 2> /dev/null |
+			sed 's/sha256:sha256:/sha256:/')"
+	fi
+
+	if [[ ! "$value" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+		echo "no digest for $reference: the release cannot name what it published" >&2
+		exit 4
+	fi
+
+	printf '%s' "$value"
 }
 
 # Each platform's own image digest, out of the OCI index in the archive.

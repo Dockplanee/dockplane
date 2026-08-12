@@ -35,7 +35,7 @@ ARCHITECTURES="${ARCHITECTURES:-amd64 arm64}"
 # file(1) is the one thing read from the host, and a checker that dies with
 # "command not found" halfway through says nothing useful about the release.
 missing=()
-for tool in docker file strings; do
+for tool in docker file strings dpkg-deb sha256sum tar; do
 	command -v "$tool" > /dev/null || missing+=("$tool")
 done
 
