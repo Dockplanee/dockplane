@@ -6,22 +6,35 @@
 
 ARG NODE_VERSION=22.23.2
 
-# --- Dependencies -----------------------------------------------------------
-# Separate from the build so that a change to the source does not reinstall.
-FROM node:${NODE_VERSION}-bookworm-slim AS dependencies
+# --- Production dependencies ------------------------------------------------
+#
+# Built for the image being produced, not for the machine producing it: the
+# password hashing library is a native module with a package per platform, and
+# an architecture's worth of the wrong binary would fail the first time somebody
+# signed in.
+#
+# Only the production set is installed here. The build toolchain is not part of
+# it, which is why this stage does not run esbuild — the one thing that made an
+# emulated install fail.
+FROM node:${NODE_VERSION}-bookworm-slim AS production-deps
 
 WORKDIR /build
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && cp -R node_modules /production-modules && npm ci
+RUN npm ci --omit=dev
 
 # --- Build ------------------------------------------------------------------
-FROM node:${NODE_VERSION}-bookworm-slim AS build
+#
+# On the machine doing the building. TypeScript compiles to JavaScript that is
+# the same whichever architecture produced it, and the toolchain that compiles
+# it has no business running under emulation.
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS build
 
 WORKDIR /build
 
-COPY --from=dependencies /build/node_modules ./node_modules
 COPY package.json package-lock.json tsconfig.json tsconfig.build.json nest-cli.json ./
+RUN npm ci
+
 COPY src ./src
 
 # Source maps and declaration files describe the layout of the source tree and
@@ -59,7 +72,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 WORKDIR /app
 
-COPY --from=dependencies /production-modules ./node_modules
+COPY --from=production-deps /build/node_modules ./node_modules
 COPY --from=build /build/dist ./dist
 COPY package.json ./
 

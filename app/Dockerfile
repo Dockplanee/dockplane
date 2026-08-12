@@ -9,7 +9,13 @@ ARG NODE_VERSION=22.23.2
 ARG CADDY_VERSION=2.11.4
 
 # --- Build ------------------------------------------------------------------
-FROM node:${NODE_VERSION}-bookworm-slim AS build
+#
+# Pinned to the machine doing the building rather than to the image being built.
+# What leaves this stage is compiled JavaScript, CSS and HTML, which is the same
+# whichever architecture produced it — and building it under emulation buys
+# nothing while costing a great deal: the toolchain writes native binaries and
+# runs them immediately, which under QEMU races into ETXTBSY.
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS build
 
 WORKDIR /build
 
