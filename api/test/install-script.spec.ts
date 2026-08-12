@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import {
   UnreleasedAgentVersionError,
+  agentPackageName,
   debianVersion,
   renderInstallScript,
   resolveAgentVersion,
@@ -45,8 +46,26 @@ describe('the install script', () => {
     const script = renderInstallScript(OPTIONS);
 
     expect(script).toContain("AGENT_VERSION='0.1.0-rc.2'");
-    expect(script).toContain("PACKAGE_VERSION='0.1.0~rc.2'");
     expect(script).not.toContain('latest');
+  });
+
+  /*
+   * 0.1.0-rc.2 published dockplane-agent_0.1.0.rc.2_amd64.deb while the
+   * installer asked for dockplane-agent_0.1.0~rc.2_amd64.deb — GitHub rewrites
+   * a tilde in an asset name — and the download 404'd. The tilde belongs in the
+   * package's Version field, which is not a file name.
+   */
+  it('asks for the package under the name it is published as', () => {
+    const script = renderInstallScript(OPTIONS);
+
+    expect(script).toContain('package="dockplane-agent_${AGENT_VERSION}_${ARCH}.deb"');
+    expect(script).not.toContain('~');
+    expect(agentPackageName('0.1.0-rc.2', 'amd64')).toBe('dockplane-agent_0.1.0-rc.2_amd64.deb');
+  });
+
+  it('keeps the tilde where dpkg needs it and nowhere else', () => {
+    expect(debianVersion('0.1.0-rc.2')).toBe('0.1.0~rc.2');
+    expect(agentPackageName('0.1.0-rc.2', 'amd64')).not.toContain('~');
   });
 
   it('names a Debian pre-release the way dpkg orders it', () => {

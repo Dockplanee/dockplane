@@ -15,9 +15,10 @@ OUT="${2:-dist/agent}"
 
 # A pre-release is named with a tilde in a Debian package, because that is what
 # dpkg reads as "earlier than the release".
-# tr rather than a pattern substitution: bash 5.2 and later tilde-expand the
-# replacement, which would turn this into a home directory.
-DEBIAN_VERSION="$(printf '%s' "$VERSION" | tr '-' '~')"
+# shellcheck source=deploy/release-assets.sh
+source "$(dirname "${BASH_SOURCE[0]}")/release-assets.sh"
+
+DEBIAN_VERSION="$(debian_version "$VERSION")"
 
 if [[ -z "$VERSION" ]]; then
 	echo "usage: $0 <version> [directory]" >&2
@@ -70,8 +71,8 @@ expect_absent() {
 echo "==> artefacts for $VERSION in $OUT"
 
 for arch in $ARCHITECTURES; do
-	for file in "dockplane-agent_${DEBIAN_VERSION}_${arch}.deb" \
-		"dockplane-agent_${VERSION}_linux_${arch}.tar.gz"; do
+	for file in "$(agent_package_name "$VERSION" "$arch")" \
+		"$(agent_tarball_name "$VERSION" "$arch")"; do
 		[[ -f "$OUT/$file" ]] && check ok "$file exists" || check fail "$file exists"
 	done
 done
@@ -97,9 +98,9 @@ for arch in $ARCHITECTURES; do
 	echo "==> $arch package"
 
 	contents="$(docker run --rm -v "$REPO_ROOT/$OUT:/w:ro" -w /w "$DEBIAN_IMAGE" \
-		dpkg-deb --contents "dockplane-agent_${DEBIAN_VERSION}_${arch}.deb")"
+		dpkg-deb --contents "$(agent_package_name "$VERSION" "$arch")")"
 	control="$(docker run --rm -v "$REPO_ROOT/$OUT:/w:ro" -w /w "$DEBIAN_IMAGE" \
-		dpkg-deb --field "dockplane-agent_${DEBIAN_VERSION}_${arch}.deb")"
+		dpkg-deb --field "$(agent_package_name "$VERSION" "$arch")")"
 
 	expect_contains "$control" "Architecture: $arch" "declares architecture $arch"
 	expect_contains "$control" "Version: $DEBIAN_VERSION" "declares version $DEBIAN_VERSION"
@@ -124,7 +125,7 @@ for arch in $ARCHITECTURES; do
 	# ownership, which is root, and on Linux the invoking user can then neither
 	# read the tree nor delete it afterwards.
 	docker run --rm -v "$REPO_ROOT/$OUT:/w:ro" -v "$work:/x" -w /w "$DEBIAN_IMAGE" \
-		sh -c "dpkg-deb --extract 'dockplane-agent_${DEBIAN_VERSION}_${arch}.deb' /x &&
+		sh -c "dpkg-deb --extract '$(agent_package_name "$VERSION" "$arch")' /x &&
 			chown -R $(id -u):$(id -g) /x"
 
 	described="$(file -b "$work/usr/bin/dockplane-agent")"
