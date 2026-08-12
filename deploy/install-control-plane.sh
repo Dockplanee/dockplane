@@ -771,6 +771,10 @@ verify_safety_backup() {
 	if [[ -f "$library" ]]; then
 		(
 			set -uo pipefail
+			# The library is written to be sourced by dockplane-control, which
+			# supplies the presentation it prints with. Without them it stops on
+			# an unbound variable and every backup would look invalid.
+			BOLD='' RED='' RESET=''
 			# shellcheck source=/dev/null
 			source "$library"
 			validate_backup "$destination"

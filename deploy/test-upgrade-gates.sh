@@ -91,6 +91,11 @@ run_case() {
 	rm -rf "$root"
 	mkdir -p "$root/install" "$root/bundle" "$root/backups"
 
+	# The real library, so the delegation to the restore path's own validation is
+	# exercised rather than skipped. Without it the gate silently takes the
+	# shorter route and the test proves less than it appears to.
+	cp "$REPO_ROOT/deploy/backup-restore.sh" "$root/install/backup-restore.sh"
+
 	printf '#!/usr/bin/env bash\n%s\n' "$script" > "$root/install/dockplane-control"
 	chmod +x "$root/install/dockplane-control"
 
@@ -118,7 +123,12 @@ complete_backup() {
 		printf 'dump\n' > "$destination/database.dump"
 		printf 'DOCKPLANE_DOMAIN=example.test\n' > "$destination/env"
 		printf 'key\n' > "$destination/secrets/application-encryption-key"
+		printf 'pw\n' > "$destination/secrets/postgres-password"
+		printf 'url\n' > "$destination/secrets/database-url"
 		printf 'ca\n' > "$destination/pki/agent-ca.key"
+		printf 'cacert\n' > "$destination/pki/agent-ca.crt"
+		printf 'gwkey\n' > "$destination/pki/gateway.key"
+		printf 'gwcert\n' > "$destination/pki/gateway.crt"
 		(cd "$destination" && find . -type f ! -name SHA256SUMS -exec sha256sum {} + > SHA256SUMS)
 		chmod 700 "$destination"
 	STUB
