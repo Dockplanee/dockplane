@@ -334,8 +334,8 @@ check "the release carries the bills of materials" \
 check "both architectures are published" \
 	"$(grep -q 'for arch in amd64 arm64' "$release" && echo ok || echo fail)"
 
-check "the assets are checksummed" \
-	"$(grep -q "sha256sum ./\* > SHA256SUMS" "$release" && echo ok || echo fail)"
+check "the assets are checksummed under the names they are published as" \
+	"$(grep -q "sha256sum ./\* | sed" "$release" && echo ok || echo fail)"
 check "the checksums are verified before anything is uploaded" \
 	"$(grep -q "sha256sum -c SHA256SUMS" "$release" && echo ok || echo fail)"
 check "a release candidate is published as a prerelease" \
@@ -445,6 +445,38 @@ check "the bootstrap installer requests the product-version package" \
 	"$(grep -q 'package="dockplane-agent_\\\${AGENT_VERSION}_\\\${ARCH}.deb"' "$REPO_ROOT/api/src/host-setup/install-script.ts" && echo ok || echo fail)"
 check "the bootstrap installer no longer builds a Debian-version file name" \
 	"$(grep -q 'PACKAGE_VERSION' "$REPO_ROOT/api/src/host-setup/install-script.ts" && echo fail || echo ok)"
+
+# --- Publishing in two steps ------------------------------------------------
+#
+# 0.1.0-rc.2 was a public release candidate whose agent package could not be
+# downloaded. It was public the moment it was created, so there was no point at
+# which anything could have looked and said no. There is one now.
+
+check "the release is created as a draft" \
+	"$(grep -q -- '--draft' "$release" && echo ok || echo fail)"
+check "what GitHub accepted is fetched back" \
+	"$(grep -q 'Accept: application/octet-stream' "$release" && echo ok || echo fail)"
+check "the fetched assets are verified" \
+	"$(grep -q 'verify-release-assets.sh' "$release" && echo ok || echo fail)"
+check "the draft is promoted rather than replaced" \
+	"$(grep -q 'gh release edit "\$TAG"' "$release" && echo ok || echo fail)"
+check "only one release is ever created" \
+	"$([[ "$(grep -c 'gh release create' "$release")" == "1" ]] && echo ok || echo fail)"
+
+order_in_release() { grep -n "$1" "$release" | tail -1 | cut -d: -f1; }
+
+check "verification comes before publication" \
+	"$([[ "$(order_in_release 'verify-release-assets.sh')" -lt "$(order_in_release 'gh release edit')" ]] && echo ok || echo fail)"
+check "the assets are fetched back before they are verified" \
+	"$([[ "$(order_in_release 'Accept: application/octet-stream')" -lt "$(order_in_release 'verify-release-assets.sh')" ]] && echo ok || echo fail)"
+check "the public download is checked after publication" \
+	"$([[ "$(order_in_release 'releases/download')" -gt "$(order_in_release 'gh release edit')" ]] && echo ok || echo fail)"
+check "the public check uses no token" \
+	"$(sed -n "$(order_in_release 'Check the public download'),\$p" "$release" | grep -q 'GH_TOKEN' && echo fail || echo ok)"
+check "the expected list is not written out in the workflow" \
+	"$(grep -q 'source deploy/release-assets.sh' "$release" && echo ok || echo fail)"
+check "only the release job may write contents" \
+	"$([[ "$(grep -c 'contents: write' "$release")" == "1" ]] && echo ok || echo fail)"
 
 echo
 if [[ "$failed" -eq 0 ]]; then

@@ -353,25 +353,89 @@ jobs:
             cp "$report" "dist/assets/vulnerabilities-$(basename "$report")"
           done
 
-          # One checksum file over every asset, written last and verified before
-          # anything is uploaded.
-          (cd dist/assets && sha256sum ./* > SHA256SUMS && sha256sum -c SHA256SUMS)
+          # One checksum file over every asset, naming them the way a release
+          # names them, written last and verified before anything is uploaded.
+          (cd dist/assets && sha256sum ./* | sed 's| \./| |' > SHA256SUMS && sha256sum -c SHA256SUMS)
 
           ls -l dist/assets
 
-      - name: Publish
+      # Created as a draft, and it stays one until what GitHub actually holds
+      # has been checked. A release that is wrong should not be a release
+      # anybody can find, and 0.1.0-rc.2 was public before anyone knew.
+      - name: Create the release as a draft
+        id: draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
           VERSION: ${{ needs.tag.outputs.version }}
-          PRERELEASE: ${{ needs.tag.outputs.prerelease }}
         run: |
-          flags=()
-          [[ "$PRERELEASE" == "true" ]] && flags+=(--prerelease)
-
           gh release create "$TAG" \
             --title "Dockplane $VERSION" \
             --notes-file "docs/releases/$VERSION.md" \
             --verify-tag \
-            "${flags[@]}" \
+            --draft \
             dist/assets/*
+
+          echo "id=$(gh release view "$TAG" --json databaseId --jq .databaseId)" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch back what GitHub accepted
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ steps.draft.outputs.id }}
+        run: |
+          set -o pipefail
+          mkdir -p dist/uploaded
+
+          gh api "/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" \
+            > dist/github-assets.json
+
+          jq -r '.[] | [.id, .name] | @tsv' dist/github-assets.json |
+            while IFS=$'\t' read -r id name; do
+              gh api "/repos/$GITHUB_REPOSITORY/releases/assets/$id" \
+                -H 'Accept: application/octet-stream' > "dist/uploaded/$name"
+            done
+
+          ls -l dist/uploaded
+
+      # The gate 0.1.0-rc.2 did not have. Everything here is about what GitHub
+      # holds and hands back, not about what was built.
+      - name: Verify the published artefacts
+        env:
+          VERSION: ${{ needs.tag.outputs.version }}
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: deploy/verify-release-assets.sh "$VERSION" dist/assets dist/github-assets.json dist/uploaded
+
+      # Only now, and by promoting the draft rather than creating a second
+      # release, so the tag never points at two of them.
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ needs.tag.outputs.prerelease }}
+        run: |
+          flags=(--draft=false)
+          [[ "$PRERELEASE" == "true" ]] && flags+=(--prerelease)
+
+          gh release edit "$TAG" "${flags[@]}"
+
+      # Without a token, the way somebody adding a host reaches it.
+      - name: Check the public download
+        env:
+          VERSION: ${{ needs.tag.outputs.version }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -o pipefail
+          # shellcheck source=deploy/release-assets.sh
+          source deploy/release-assets.sh
+
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+
+          for name in "$(bundle_name "$VERSION")" "$(checksums_name)" \
+            "$(agent_package_name "$VERSION" amd64)" "$(agent_package_name "$VERSION" arm64)"; do
+            code="$(curl -sS -o /dev/null -w '%{http_code}' -L "$base/$name")"
+            echo "  $name -> $code"
+            [[ "$code" == "200" ]] || {
+              echo "the release is published but $name is not reachable" >&2
+              exit 1
+            }
+          done

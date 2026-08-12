@@ -180,5 +180,8 @@ jobs:
       - name: Upgrade safety gates
         run: deploy/test-upgrade-gates.sh
 
+      - name: Release verification
+        run: deploy/test-release-verification.sh
+
       - name: Release scripts
         run: deploy/test-release.sh
