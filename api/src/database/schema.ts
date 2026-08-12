@@ -281,6 +281,19 @@ export const containers = pgTable(
     /** When the detail was last read from the host, separate from the summary. */
     detailObservedAt: timestamp('detail_observed_at', { withTimezone: true }),
     /**
+     * Set when two running containers claim the same Dockplane identity and no
+     * replacement explains it.
+     *
+     * Guessing which one is the real container would mean guessing by name, by
+     * age or by state, and being wrong would remove somebody's workload. So
+     * nothing is guessed: the resource says it needs attention and refuses
+     * further mutation until a person resolves it.
+     */
+    identityConflict: jsonb('identity_conflict').$type<{
+      readonly dockerIds: readonly string[];
+      readonly observedAt: string;
+    } | null>(),
+    /**
      * The last complete discovery that saw this container.
      *
      * Reconciliation removes rows only when a snapshot finished, so a sync that

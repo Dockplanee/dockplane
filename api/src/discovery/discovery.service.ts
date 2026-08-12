@@ -10,6 +10,16 @@ import { Database } from '../database/database';
 import { agents, composeProjects, containers, events, hosts } from '../database/schema';
 import { EventType, EventsService } from '../events/events.service';
 
+/**
+ * The label a container Dockplane built carries.
+ *
+ * Identity, not authorisation. A container is not mutable because somebody set
+ * this on it: every mutation is authorised, resolved and dispatched by the
+ * control server long before a label is read. What this decides is which
+ * resource an observed container belongs to.
+ */
+const DOCKPLANE_CONTAINER_ID = 'io.dockplane.container-id';
+
 /** Shapes the agent reports. Only fields the product stores are read. */
 interface HostInventory {
   hostname?: string;
@@ -229,12 +239,52 @@ export class DiscoveryService {
 
     const byDockerId = new Map(existing.map((row) => [row.dockerId, row]));
 
+    /*
+     * Containers Dockplane built carry the identity it gave them.
+     *
+     * Docker gives a replacement a new identifier, so matching on that alone
+     * would see one container vanish and another appear — the operator's
+     * resource would be deleted and recreated under a new address, taking its
+     * URL and its history with it. The label is what says the replacement is
+     * the same thing.
+     */
+    const byIdentity = new Map(existing.map((row) => [row.id, row]));
+    const claimed = new Map<string, string[]>();
+
+    for (const item of reported) {
+      const identity = item?.labels?.[DOCKPLANE_CONTAINER_ID];
+
+      if (identity && item?.dockerId) {
+        claimed.set(identity, [...(claimed.get(identity) ?? []), item.dockerId]);
+      }
+    }
+
     for (const item of reported) {
       if (!item?.dockerId) {
         continue;
       }
 
-      const previous = byDockerId.get(item.dockerId);
+      const identity = item.labels?.[DOCKPLANE_CONTAINER_ID];
+
+      /*
+       * Two containers claiming one identity, and nothing running to explain
+       * it. A replacement in progress legitimately has both for a moment, and
+       * the mutation holding the resource is authoritative until it finishes.
+       */
+      if (identity && (claimed.get(identity)?.length ?? 0) > 1 && !this.mutating(identity)) {
+        await this.recordIdentityConflict(identity, claimed.get(identity) ?? [], hostId);
+        await this.keep(identity, snapshotId, observedAt);
+        continue;
+      }
+
+      // A resource being replaced is the mutation's to move, not discovery's.
+      if (identity && this.mutating(identity)) {
+        await this.keep(identity, snapshotId, observedAt);
+        continue;
+      }
+
+      const previous =
+        (identity ? byIdentity.get(identity) : undefined) ?? byDockerId.get(item.dockerId);
       const projectName = item.labels?.['com.docker.compose.project'];
 
       const values = {
@@ -291,6 +341,61 @@ export class DiscoveryService {
     }
 
     return reported.length;
+  }
+
+  /*
+   * Whether a mutation currently owns a resource.
+   *
+   * Set by the container mutation service while a replacement is in flight.
+   * Discovery does not move a resource that something else is deliberately
+   * moving.
+   */
+  private mutating(containerId: string): boolean {
+    return this.inFlightResources?.has(containerId) ?? false;
+  }
+
+  /** Registered by the mutation service so both agree on what is in flight. */
+  registerInFlight(resources: ReadonlySet<string>): void {
+    this.inFlightResources = resources;
+  }
+
+  private inFlightResources?: ReadonlySet<string>;
+
+  /*
+   * Marks a resource as still seen, without moving it.
+   *
+   * The sweep at the end of a pass removes anything the pass did not touch, and
+   * its whole point is that a running container never vanishes from the
+   * interface. A resource that was deliberately left alone — because a
+   * replacement owns it, or because two containers claim it — has still been
+   * seen, and must not be deleted for having been skipped.
+   */
+  private async keep(containerId: string, snapshotId: string, observedAt: Date): Promise<void> {
+    await this.db.client
+      .update(containers)
+      .set({ snapshotId, observedAt })
+      .where(eq(containers.id, containerId));
+  }
+
+  private async recordIdentityConflict(
+    containerId: string,
+    dockerIds: readonly string[],
+    hostId: string,
+  ): Promise<void> {
+    await this.db.client
+      .update(containers)
+      .set({ identityConflict: { dockerIds: [...dockerIds], observedAt: new Date().toISOString() } })
+      .where(eq(containers.id, containerId));
+
+    this.logger.warn(
+      {
+        event: 'container_identity_conflict',
+        containerId,
+        hostId,
+        dockerIds,
+      },
+      'two containers claim one Dockplane identity',
+    );
   }
 
   private async applyProjects(

@@ -162,6 +162,12 @@ describe('discovery', () => {
       : undefined,
   });
 
+  /** A container Dockplane built, carrying the identity it was given. */
+  const managed = (dockerId: string, name: string, containerId: string, state = 'running') => ({
+    ...container(dockerId, name, state),
+    labels: { 'io.dockplane.managed': 'true', 'io.dockplane.container-id': containerId },
+  });
+
   beforeAll(async () => {
     app = await createTestApp();
     db = app.get(Database);
@@ -402,5 +408,174 @@ describe('discovery', () => {
     expect(serialised).not.toContain('POSTGRES_PASSWORD');
 
     connection.close();
+  });
+
+  /*
+   * A container Dockplane built keeps its identity when Docker replaces it.
+   *
+   * Docker gives a replacement a new identifier. Matching on that alone would
+   * delete the operator's resource and create another one — taking its address,
+   * its history and everything referring to it.
+   */
+  describe('stable identity', () => {
+    it('moves a resource to its replacement rather than replacing the resource', async () => {
+      const agent = await enrollAgent();
+
+      const first = await connectScripted(agent, [
+        inventoryReply('docker-01'),
+        metricsReply(),
+        { capability: 'container.list', payload: { containers: [container('aaa', 'web')] } },
+        { capability: 'compose.list', payload: { projects: [] } },
+      ]);
+
+      await discovery.sync(agent.agentId);
+      first.close();
+
+      const [before] = await db.client.select().from(containers);
+      const resourceId = before.id;
+
+      // The replacement: a different Docker container, the same Dockplane one.
+      const second = await connectScripted(agent, [
+        inventoryReply('docker-01'),
+        metricsReply(),
+        {
+          capability: 'container.list',
+          payload: { containers: [managed('bbb', 'web', resourceId)] },
+        },
+        { capability: 'compose.list', payload: { projects: [] } },
+      ]);
+
+      await discovery.sync(agent.agentId);
+      second.close();
+
+      const rows = await db.client.select().from(containers);
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].id).toBe(resourceId);
+      expect(rows[0].dockerId).toBe('bbb');
+      expect(rows[0].identityConflict).toBeNull();
+    });
+
+    it('refuses to guess when two containers claim one identity', async () => {
+      const agent = await enrollAgent();
+
+      const first = await connectScripted(agent, [
+        inventoryReply('docker-01'),
+        metricsReply(),
+        { capability: 'container.list', payload: { containers: [container('aaa', 'web')] } },
+        { capability: 'compose.list', payload: { projects: [] } },
+      ]);
+
+      await discovery.sync(agent.agentId);
+      first.close();
+
+      const [before] = await db.client.select().from(containers);
+      const resourceId = before.id;
+
+      // What a crash midway through a replacement would leave behind.
+      const second = await connectScripted(agent, [
+        inventoryReply('docker-01'),
+        metricsReply(),
+        {
+          capability: 'container.list',
+          payload: {
+            containers: [
+              managed('bbb', 'web', resourceId),
+              managed('ccc', 'web.dockplane-old', resourceId),
+            ],
+          },
+        },
+        { capability: 'compose.list', payload: { projects: [] } },
+      ]);
+
+      await discovery.sync(agent.agentId);
+      second.close();
+
+      const [row] = await db.client.select().from(containers).where(eq(containers.id, resourceId));
+
+      // Neither is adopted, and nothing is removed. A person decides.
+      expect(row.identityConflict).not.toBeNull();
+      expect(row.identityConflict?.dockerIds).toHaveLength(2);
+      expect(row.dockerId).toBe('aaa');
+    });
+
+    it('leaves a container it did not build alone, whatever it is called', async () => {
+      const agent = await enrollAgent();
+
+      const first = await connectScripted(agent, [
+        inventoryReply('docker-01'),
+        metricsReply(),
+        { capability: 'container.list', payload: { containers: [container('aaa', 'web')] } },
+        { capability: 'compose.list', payload: { projects: [] } },
+      ]);
+
+      await discovery.sync(agent.agentId);
+      first.close();
+
+      const [before] = await db.client.select().from(containers);
+
+      // Same name, no identity label: somebody else's container, not a
+      // replacement. Merging them on the name would be a guess.
+      const second = await connectScripted(agent, [
+        inventoryReply('docker-01'),
+        metricsReply(),
+        { capability: 'container.list', payload: { containers: [container('zzz', 'web')] } },
+        { capability: 'compose.list', payload: { projects: [] } },
+      ]);
+
+      await discovery.sync(agent.agentId);
+      second.close();
+
+      const rows = await db.client.select().from(containers);
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].dockerId).toBe('zzz');
+      expect(rows[0].id).not.toBe(before.id);
+    });
+
+    it('does not move a resource a mutation is holding', async () => {
+      const agent = await enrollAgent();
+
+      const first = await connectScripted(agent, [
+        inventoryReply('docker-01'),
+        metricsReply(),
+        { capability: 'container.list', payload: { containers: [container('aaa', 'web')] } },
+        { capability: 'compose.list', payload: { projects: [] } },
+      ]);
+
+      await discovery.sync(agent.agentId);
+      first.close();
+
+      const [before] = await db.client.select().from(containers);
+
+      // A replacement is in flight: both containers exist, and the mutation
+      // decides which one the resource ends on.
+      discovery.registerInFlight(new Set([before.id]));
+
+      const second = await connectScripted(agent, [
+        inventoryReply('docker-01'),
+        metricsReply(),
+        {
+          capability: 'container.list',
+          payload: {
+            containers: [
+              managed('bbb', 'web', before.id),
+              managed('ccc', 'web.dockplane-old', before.id),
+            ],
+          },
+        },
+        { capability: 'compose.list', payload: { projects: [] } },
+      ]);
+
+      await discovery.sync(agent.agentId);
+      second.close();
+      discovery.registerInFlight(new Set());
+
+      const [row] = await db.client.select().from(containers).where(eq(containers.id, before.id));
+
+      // Untouched, and not flagged: a replacement in progress is not a conflict.
+      expect(row.dockerId).toBe('aaa');
+      expect(row.identityConflict).toBeNull();
+    });
   });
 });

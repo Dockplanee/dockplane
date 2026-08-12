@@ -27,6 +27,10 @@ defended by, and it runs whether or not the server did its job.
 // createRequest asks for a container that does not exist yet.
 type createRequest struct {
 	Spec docker.ContainerSpec `json:"spec"`
+	// The identity the control server allocated for this container, applied as
+	// a label so the container can still be recognised after Docker replaces
+	// its identifier. The browser never chooses it.
+	ContainerID string `json:"containerId,omitempty"`
 	// Set when the container belongs to a stack, so the agent can label it as
 	// such. A caller cannot put this in the spec's own labels: the agent applies
 	// its labels last.
@@ -40,7 +44,10 @@ type createRequest struct {
 // is no merge happening on a host and no way for two partial updates to
 // interleave into a configuration nobody asked for.
 type replaceRequest struct {
-	ContainerID string               `json:"containerId"`
+	// The Docker container being replaced, resolved by the server.
+	DockerID string `json:"dockerId"`
+	// The Dockplane identity that survives the replacement.
+	ContainerID string               `json:"containerId,omitempty"`
 	Spec        docker.ContainerSpec `json:"spec"`
 	Stack       string               `json:"stack,omitempty"`
 }
@@ -48,7 +55,8 @@ type replaceRequest struct {
 // removeRequest asks for a container to be taken away. Volumes are not
 // mentioned because they are never removed with it.
 type removeRequest struct {
-	ContainerID string `json:"containerId"`
+	// The Docker container, resolved by the server from the Dockplane resource.
+	DockerID string `json:"dockerId"`
 	// Stop it first if it is running. Absent, a running container is refused
 	// rather than killed.
 	StopFirst bool `json:"stopFirst,omitempty"`
@@ -65,7 +73,7 @@ func registerManagement(registry *Registry, sources Sources) {
 				return nil, err
 			}
 
-			result, err := sources.Docker.Create(ctx, &request.Spec, request.Stack)
+			result, err := sources.Docker.Create(ctx, &request.Spec, request.Stack, request.ContainerID)
 
 			if err != nil {
 				return nil, wrapManagement(err)
@@ -85,11 +93,17 @@ func registerManagement(registry *Registry, sources Sources) {
 				return nil, err
 			}
 
-			if !identifierPattern.MatchString(request.ContainerID) {
-				return nil, fmt.Errorf("%w: containerId", ErrInvalidPayload)
+			if !identifierPattern.MatchString(request.DockerID) {
+				return nil, fmt.Errorf("%w: dockerId", ErrInvalidPayload)
 			}
 
-			result, err := sources.Docker.Replace(ctx, request.ContainerID, &request.Spec, request.Stack)
+			result, err := sources.Docker.Replace(
+				ctx,
+				request.DockerID,
+				&request.Spec,
+				request.Stack,
+				request.ContainerID,
+			)
 
 			if err != nil {
 				// A rollback is still a result: the server needs to know the
@@ -115,8 +129,8 @@ func registerManagement(registry *Registry, sources Sources) {
 				return nil, err
 			}
 
-			if !identifierPattern.MatchString(request.ContainerID) {
-				return nil, fmt.Errorf("%w: containerId", ErrInvalidPayload)
+			if !identifierPattern.MatchString(request.DockerID) {
+				return nil, fmt.Errorf("%w: dockerId", ErrInvalidPayload)
 			}
 
 			/*
@@ -129,14 +143,14 @@ func registerManagement(registry *Registry, sources Sources) {
 			 * reaching for the kill.
 			 */
 			if request.StopFirst {
-				if _, err := sources.Docker.Stop(ctx, request.ContainerID); err != nil {
+				if _, err := sources.Docker.Stop(ctx, request.DockerID); err != nil {
 					if !errors.Is(err, docker.ErrAlreadyStopped) {
 						return nil, wrapManagement(err)
 					}
 				}
 			}
 
-			result, err := sources.Docker.Remove(ctx, request.ContainerID, false)
+			result, err := sources.Docker.Remove(ctx, request.DockerID, false)
 
 			if err != nil {
 				return nil, wrapManagement(err)

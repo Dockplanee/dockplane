@@ -50,6 +50,13 @@
       "when": 1786569881825,
       "tag": "0006_stacks",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786656281825,
+      "tag": "0007_container_identity",
+      "breakpoints": true
     }
   ]
 }

@@ -119,7 +119,12 @@ The specification is validated again here rather than trusted from the caller.
 The server validated it too; this is the check that holds when the server is
 wrong.
 */
-func (e *Engine) Create(ctx context.Context, spec *ContainerSpec, stack string) (*CreateResult, error) {
+func (e *Engine) Create(
+	ctx context.Context,
+	spec *ContainerSpec,
+	stack string,
+	containerID string,
+) (*CreateResult, error) {
 	if err := spec.Validate(); err != nil {
 		return nil, err
 	}
@@ -134,7 +139,7 @@ func (e *Engine) Create(ctx context.Context, spec *ContainerSpec, stack string) 
 		return nil, err
 	}
 
-	id, err := e.create(ctx, client, spec, stack, spec.Name)
+	id, err := e.create(ctx, client, spec, stack, containerID, spec.Name)
 
 	if err != nil {
 		return nil, err
@@ -191,6 +196,7 @@ func (e *Engine) Replace(
 	currentID string,
 	spec *ContainerSpec,
 	stack string,
+	containerID string,
 ) (*ReplaceResult, error) {
 	if err := spec.Validate(); err != nil {
 		return nil, err
@@ -218,7 +224,7 @@ func (e *Engine) Replace(
 	staging := spec.Name + ".dockplane-new"
 	_ = client.ContainerRemove(ctx, staging, container.RemoveOptions{Force: true})
 
-	replacementID, err := e.create(ctx, client, spec, stack, staging)
+	replacementID, err := e.create(ctx, client, spec, stack, containerID, staging)
 
 	if err != nil {
 		return nil, err
@@ -339,12 +345,13 @@ func (e *Engine) create(
 	client ManagementClient,
 	spec *ContainerSpec,
 	stack string,
+	containerID string,
 	name string,
 ) (string, error) {
 	config := &container.Config{
 		Image:    spec.Image,
 		Env:      spec.SortedEnv(),
-		Labels:   spec.LabelSet(stack),
+		Labels:   spec.LabelSet(stack, containerID),
 		Hostname: spec.Hostname,
 	}
 

@@ -160,6 +160,12 @@ func (s *ContainerSpec) Validate() error {
 		if !labelKeyPattern.MatchString(key) {
 			return fmt.Errorf("%w: label %q", ErrInvalidSpec, key)
 		}
+
+		for _, reserved := range ReservedLabels {
+			if key == reserved {
+				return fmt.Errorf("%w: label %q is reserved by Dockplane", ErrInvalidSpec, key)
+			}
+		}
 	}
 
 	if s.Healthcheck != nil && len(s.Healthcheck.Test) == 0 {
@@ -291,18 +297,34 @@ them.
 const (
 	LabelManaged = "io.dockplane.managed"
 	LabelStack   = "io.dockplane.stack"
+	/*
+	 * The container's identity in Dockplane, which survives being rebuilt.
+	 *
+	 * Docker gives a replacement a new container ID; this label is what says the
+	 * replacement is the same thing the operator was looking at. It is identity
+	 * and nothing else: a container is not mutable because somebody set this
+	 * label on it, because authorisation happens before a capability is ever
+	 * dispatched.
+	 */
+	LabelContainerID = "io.dockplane.container-id"
 )
 
-// Labels returns the label set the container is created with, the agent's own
+// LabelSet returns the labels the container is created with, the agent's own
 // last so a caller cannot claim to be something it is not.
-func (s *ContainerSpec) LabelSet(stack string) map[string]string {
-	labels := make(map[string]string, len(s.Labels)+2)
+func (s *ContainerSpec) LabelSet(stack string, containerID string) map[string]string {
+	labels := make(map[string]string, len(s.Labels)+3)
 
 	for key, value := range s.Labels {
 		labels[key] = value
 	}
 
 	labels[LabelManaged] = "true"
+
+	if containerID != "" {
+		labels[LabelContainerID] = containerID
+	} else {
+		delete(labels, LabelContainerID)
+	}
 
 	if stack != "" {
 		labels[LabelStack] = stack
@@ -312,6 +334,16 @@ func (s *ContainerSpec) LabelSet(stack string) map[string]string {
 
 	return labels
 }
+
+/*
+ReservedLabels are the keys a caller may not set.
+
+They are the agent's statement about what a container is, so a request that
+tries to set one is refused rather than silently overridden — the difference
+between an operator learning their label was rejected and believing it was
+applied.
+*/
+var ReservedLabels = []string{LabelManaged, LabelStack, LabelContainerID}
 
 // SortedEnv renders the environment the way Docker wants it, in a stable order
 // so that two identical specifications produce identical containers.

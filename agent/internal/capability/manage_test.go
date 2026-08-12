@@ -82,10 +82,10 @@ func TestReplaceRefusesAnIdentifierThatIsNotOne(t *testing.T) {
 	registry := managementRegistry()
 
 	for _, bad := range []string{
-		`{"containerId":"; rm -rf /","spec":{"name":"a","image":"b"}}`,
-		`{"containerId":"$(whoami)","spec":{"name":"a","image":"b"}}`,
-		`{"containerId":"","spec":{"name":"a","image":"b"}}`,
-		`{"containerId":"../../etc/passwd","spec":{"name":"a","image":"b"}}`,
+		`{"dockerId":"; rm -rf /","spec":{"name":"a","image":"b"}}`,
+		`{"dockerId":"$(whoami)","spec":{"name":"a","image":"b"}}`,
+		`{"dockerId":"","spec":{"name":"a","image":"b"}}`,
+		`{"dockerId":"../../etc/passwd","spec":{"name":"a","image":"b"}}`,
 		`{"spec":{"name":"a","image":"b"}}`,
 	} {
 		_, err := registry.Invoke(context.Background(), capability.ContainerReplace, json.RawMessage(bad))
@@ -100,10 +100,10 @@ func TestRemoveRefusesAnIdentifierThatIsNotOne(t *testing.T) {
 	registry := managementRegistry()
 
 	for _, bad := range []string{
-		`{"containerId":"; docker rm -f dockplane-api-1"}`,
-		`{"containerId":""}`,
+		`{"dockerId":"; docker rm -f dockplane-api-1"}`,
+		`{"dockerId":""}`,
 		`{}`,
-		`{"containerId":"aaa111","removeVolumes":true}`,
+		`{"dockerId":"aaa111","removeVolumes":true}`,
 	} {
 		_, err := registry.Invoke(context.Background(), capability.ContainerRemove, json.RawMessage(bad))
 
@@ -126,15 +126,37 @@ func TestVolumeRemovalCannotBeRequested(t *testing.T) {
 	registry := managementRegistry()
 
 	for _, attempt := range []string{
-		`{"containerId":"aaa111","removeVolumes":true}`,
-		`{"containerId":"aaa111","v":true}`,
-		`{"containerId":"aaa111","force":true,"removeVolumes":true}`,
+		`{"dockerId":"aaa111","removeVolumes":true}`,
+		`{"dockerId":"aaa111","v":true}`,
+		`{"dockerId":"aaa111","force":true,"removeVolumes":true}`,
 	} {
 		_, err := registry.Invoke(context.Background(), capability.ContainerRemove, json.RawMessage(attempt))
 
 		if !errors.Is(err, capability.ErrInvalidPayload) {
 			t.Fatalf("%s was not refused: %v", attempt, err)
 		}
+	}
+}
+
+func TestReservedLabelsCannotBeSetByACaller(t *testing.T) {
+	registry := managementRegistry()
+
+	for _, reserved := range []string{
+		"io.dockplane.managed", "io.dockplane.container-id", "io.dockplane.stack",
+	} {
+		t.Run(reserved, func(t *testing.T) {
+			payload := `{"spec":{"name":"a","image":"b","labels":{"` + reserved + `":"mine"}}}`
+
+			_, err := registry.Invoke(
+				context.Background(),
+				capability.ContainerCreate,
+				json.RawMessage(payload),
+			)
+
+			if err == nil {
+				t.Fatalf("a caller set %s", reserved)
+			}
+		})
 	}
 }
 

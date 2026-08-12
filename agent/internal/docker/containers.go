@@ -29,6 +29,11 @@ var forwardedLabels = map[string]bool{
 	LabelService:         true,
 	LabelContainerNumber: true,
 	LabelOneOff:          true,
+	// Dockplane's own, so the control server can recognise a container it
+	// built even after Docker has given the replacement a new identifier.
+	// Neither carries anything an operator put there.
+	LabelManaged:     true,
+	LabelContainerID: true,
 }
 
 // ContainerSummary is the normalised form of a listed container.
