@@ -4,6 +4,9 @@ Every release is scanned, both images on both architectures, and the report for
 each is published as a release asset. This page is the assessment behind those
 numbers: what is in them, what was fixed, and why what remains is still there.
 
+The figures below are from **0.1.0-rc.4**, the last release scanned at the time
+of writing. They are what its published reports contain, not a summary of them.
+
 Nothing is hidden. A finding that cannot be fixed is named, along with the
 reason it is not being treated as a release blocker.
 
@@ -67,10 +70,14 @@ existing one.
 
 Base: `caddy:2.11.4-alpine`.
 
-| | Before | After |
+| | 0.1.0-rc.3 | 0.1.0-rc.4 |
 | --- | --- | --- |
-| Critical | 0 | 0 |
-| High | 10 | **5** |
+| Critical | 0 | **0** |
+| High | 10 | **6** |
+
+Five Alpine package findings were removed by applying the distribution's own
+updates. One was added: `CVE-2026-46600` appeared in the vulnerability database
+between the two releases, in a component that was already there.
 
 ### Fixed
 
@@ -92,21 +99,32 @@ published.
 
 ### Remaining
 
-| CVE | Component | Fixed in | Assessment |
+Six, every one of them inside `/usr/bin/caddy`:
+
+| CVE | Component | Installed | Fixed in |
 | --- | --- | --- | --- |
-| CVE-2026-27145 | Go standard library | 1.26.4 | Compiled into the Caddy binary. |
-| CVE-2026-39822 | Go standard library | 1.26.5 | Compiled into the Caddy binary. |
-| CVE-2026-42504 | Go standard library | 1.26.4 | Compiled into the Caddy binary. |
-| CVE-2026-56852 | golang.org/x/text | 0.39.0 | Compiled into the Caddy binary. |
-| GHSA-hrxh-6v49-42gf | google.golang.org/grpc | 1.82.1 | Compiled into the Caddy binary. |
+| CVE-2026-27145 | Go standard library | 1.26.3 | 1.26.4 |
+| CVE-2026-39822 | Go standard library | 1.26.3 | 1.26.5 |
+| CVE-2026-42504 | Go standard library | 1.26.3 | 1.26.4 |
+| CVE-2026-46600 | golang.org/x/net | 0.55.0 | 0.56.0 |
+| CVE-2026-56852 | golang.org/x/text | 0.37.0 | 0.39.0 |
+| GHSA-hrxh-6v49-42gf | google.golang.org/grpc | 1.81.0 | 1.82.1 |
 
-All five are inside the Caddy executable. Fixing them means Caddy rebuilding
-against a newer Go toolchain and publishing a release; 2.11.4 is the newest
-Caddy there is, so there is nothing to upgrade to. Dockplane does not build
-Caddy from source, and a privately built reverse proxy would be a larger
-operational risk than these findings.
+**CVE-2026-46600** is a denial of service in
+`golang.org/x/net/dns/dnsmessage`, reached by parsing an invalid DNS record.
+Caddy resolves names — for upstreams and for ACME challenges — so the parser is
+present. The consequence is availability of the reverse proxy; it discloses
+nothing and grants nothing.
 
-They are tracked. When Caddy publishes a release built on a newer toolchain,
+Every one of the six is compiled into the Caddy executable rather than
+installed as a package, so none can be patched from a repository. Fixing them
+means Caddy rebuilding against newer dependencies and publishing a release.
+**2.11.4 is the newest Caddy release, and it carries these versions**, so there
+is nothing to upgrade to. Dockplane does not build Caddy from source; a
+privately built reverse proxy would be a larger operational risk than these
+findings.
+
+They are tracked. When Caddy publishes a release built on newer dependencies,
 the pinned version moves and this table shrinks.
 
 ## What is not covered
