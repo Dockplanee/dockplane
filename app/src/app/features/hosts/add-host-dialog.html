@@ -70,7 +70,11 @@
 
         <p class="status" role="status" data-testid="expiry">
           @if (expired()) {
-            This command has expired. Create a new one.
+            @if (state()?.status === 'cancelled') {
+              This setup was cancelled. Create a new one.
+            } @else {
+              This command has expired. Create a new one.
+            }
           } @else {
             Expires in {{ expiresIn() }}
           }

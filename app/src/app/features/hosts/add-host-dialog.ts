@@ -114,7 +114,20 @@ export class AddHostDialog implements OnDestroy {
       : `${seconds} s`;
   });
 
-  protected readonly expired = computed(() => this.expiresIn() === 'expired');
+  /**
+   * The server has the last word.
+   *
+   * The countdown is the client's own arithmetic against the expiry it was
+   * handed. It is not the authority: a setup can stop being usable earlier —
+   * cancelled from another session, or expired by a clock that is not this
+   * browser's — and a command that no longer works must not still be presented
+   * as if it does.
+   */
+  protected readonly expired = computed(() => {
+    const status = this.state()?.status;
+
+    return status === 'expired' || status === 'cancelled' || this.expiresIn() === 'expired';
+  });
 
   /** Only what the server has actually seen. Nothing here is an animation. */
   protected readonly steps = computed(() => {
