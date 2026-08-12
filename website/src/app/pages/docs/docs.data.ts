@@ -84,11 +84,6 @@ export const DOC_SECTIONS: readonly DocSection[] = [
         "title": "Building a Release",
         "summary": "A Dockplane release has two halves, built by one command each: the control plane images, and the agent packages.",
         "url": "https://github.com/Dockplanee/dockplane/blob/main/docs/operations/releases.md"
-      },
-      {
-        "title": "Vulnerability Assessment — 0.1.0-rc.1",
-        "summary": "Every known vulnerability in the release images, and what was decided about it. Nothing here is dismissed for being inconvenient; each entry says why it is or is not a reason to hold the release.",
-        "url": "https://github.com/Dockplanee/dockplane/blob/main/docs/operations/security-scan-0.1.0-rc.1.md"
       }
     ]
   },
@@ -110,6 +105,11 @@ export const DOC_SECTIONS: readonly DocSection[] = [
         "title": "Authentication",
         "summary": "Dockplane authenticates operators against local accounts and keeps session state on the server.",
         "url": "https://github.com/Dockplanee/dockplane/blob/main/docs/security/authentication.md"
+      },
+      {
+        "title": "Vulnerability Assessment",
+        "summary": "Every release is scanned, both images on both architectures, and the report for each is published as a release asset. This page is the assessment behind those numbers: what is in them, what was fixed, and why what remains is still there.",
+        "url": "https://github.com/Dockplanee/dockplane/blob/main/docs/security/vulnerabilities.md"
       }
     ]
   },

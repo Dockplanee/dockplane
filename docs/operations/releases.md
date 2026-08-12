@@ -160,7 +160,7 @@ off by default there.
 
 Every release is scanned with Trivy and every critical and high finding is
 assessed in writing before the release goes out — see
-[the assessment for 0.1.0-rc.1](security-scan-0.1.0-rc.1.md).
+[Vulnerability Assessment](../security/vulnerabilities.md).
 
 **Images are not signed.** Provenance and a software bill of materials are
 attached to each image as attestations, which is not the same thing as a

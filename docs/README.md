@@ -30,6 +30,7 @@ nothing here is maintained a second time somewhere else.
 | [Security Model](security/security-model.md) | trust boundaries, and control without a shell |
 | [Agent Security](security/agent-security.md) | enrollment, identity, revocation |
 | [Authentication](security/authentication.md) | sessions, MFA, permissions, audit |
+| [Vulnerability Assessment](security/vulnerabilities.md) | what the scans find, and what is being done about it |
 
 ## Reference
 
