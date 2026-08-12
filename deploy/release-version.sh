@@ -2,9 +2,9 @@
 #
 # Turns a release tag into the version the artefacts carry.
 #
-#   deploy/release-version.sh v0.1.0-rc.2
-#     version=0.1.0-rc.2
-#     tag=v0.1.0-rc.2
+#   deploy/release-version.sh v0.1.0-rc.3
+#     version=0.1.0-rc.3
+#     tag=v0.1.0-rc.3
 #     prerelease=true
 #
 # The tag is the only thing a release build receives from outside, and it
@@ -17,7 +17,7 @@ set -euo pipefail
 TAG="${1:-}"
 
 if [[ -z "$TAG" ]]; then
-	echo "usage: $0 <tag>   e.g. $0 v0.1.0-rc.2" >&2
+	echo "usage: $0 <tag>   e.g. $0 v0.1.0-rc.3" >&2
 	exit 2
 fi
 
@@ -31,7 +31,7 @@ if [[ ! "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)(-(alpha|beta|rc)\.([0-9]+))?$ ]]; t
 		not a release tag: $TAG
 
 		expected  v<major>.<minor>.<patch>[-rc.<n>]
-		examples  v0.1.0-rc.2   v0.1.0   v1.2.3-beta.4
+		examples  v0.1.0-rc.3   v0.1.0   v1.2.3-beta.4
 	MESSAGE
 	exit 3
 fi
