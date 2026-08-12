@@ -23,7 +23,7 @@ source "$REPO_ROOT/deploy/release-assets.sh"
 # rather than worked around: a run that quietly skipped that check would report
 # a pass for the one thing this file exists to cover.
 missing=()
-for tool in jq dpkg-deb; do
+for tool in jq dpkg-deb sha256sum; do
 	command -v "$tool" > /dev/null || missing+=("$tool")
 done
 
@@ -110,8 +110,9 @@ build_release() {
 		cp "$packages/$name" "$root/local/$name"
 	done
 
-	printf '{\n  "version": "%s",\n  "commit": "%s",\n  "protocolVersion": 1,\n  "schemaVersion": "0005_host_setup",\n  "backupFormatVersion": 1,\n  "images": {\n    "controlServer": { "digest": "sha256:aaa" },\n    "web": { "digest": "sha256:bbb" }\n  },\n  "supplyChain": { "signature": "none" }\n}\n' \
-		"$VERSION" "0123456789abcdef0123456789abcdef01234567" > "$root/local/$(manifest_name)"
+	printf '{\n  "version": "%s",\n  "commit": "%s",\n  "protocolVersion": 1,\n  "schemaVersion": "0005_host_setup",\n  "backupFormatVersion": 1,\n  "images": {\n    "controlServer": { "digest": "sha256:%s" },\n    "web": { "digest": "sha256:%s" }\n  },\n  "supplyChain": { "signature": "none" }\n}\n' \
+		"$VERSION" "0123456789abcdef0123456789abcdef01234567" \
+		"$(printf 'a%.0s' {1..64})" "$(printf 'b%.0s' {1..64})" > "$root/local/$(manifest_name)"
 
 	printf 'sbom\n' > "$root/local/sbom-control-server-$VERSION.json"
 	printf 'sbom\n' > "$root/local/sbom-web-$VERSION.json"
@@ -203,6 +204,14 @@ refuses "a manifest missing an interface version" no-schema \
 
 refuses "a manifest with no image digests" no-digests \
 	'jq "del(.images)" download/release-manifest.json > a && mv a download/release-manifest.json'
+
+# A build that could not read a digest once wrote a word there instead. It is
+# as present as a real one, and pins nothing.
+refuses "a manifest with a placeholder where a digest belongs" placeholder-digest \
+	'jq ".images.controlServer.digest = \"unknown\"" download/release-manifest.json > a && mv a download/release-manifest.json'
+
+refuses "a manifest with a digest that is not a digest" short-digest \
+	'jq ".images.web.digest = \"sha256:abc\"" download/release-manifest.json > a && mv a download/release-manifest.json'
 
 echo
 if [[ "$failed" -eq 0 ]]; then

@@ -14,9 +14,10 @@
     "format:check": "prettier --check .",
     "fonts:sync": "node scripts/sync-fonts.mjs",
     "changelog:sync": "node scripts/generate-changelog.mjs",
-    "prebuild": "node scripts/generate-changelog.mjs",
-    "prestart": "node scripts/generate-changelog.mjs",
-    "pretest": "node scripts/generate-changelog.mjs"
+    "prebuild": "npm run generate",
+    "prestart": "npm run generate",
+    "pretest": "npm run generate",
+    "generate": "node scripts/generate-changelog.mjs && node scripts/generate-docs-index.mjs"
   },
   "private": true,
   "packageManager": "npm@11.16.0",

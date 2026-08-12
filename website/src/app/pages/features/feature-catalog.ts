@@ -40,10 +40,6 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
         detail: 'How many containers and Compose projects a host is carrying.',
       },
       {
-        name: 'Host groups',
-        detail: 'Logical grouping of hosts for navigation and permission scopes.',
-      },
-      {
         name: 'Agent state',
         detail: 'Whether the agent is connected and which protocol version it reports.',
       },
@@ -64,7 +60,6 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
         detail: 'Image, configuration, ports, mounts and labels for a single container.',
       },
       { name: 'Health state', detail: 'Configured health checks and their most recent result.' },
-      { name: 'Container metrics', detail: 'CPU, memory and network usage next to the workload.' },
       {
         name: 'Logs',
         detail: 'Container log output with a timestamp column and horizontal scrolling.',
@@ -94,23 +89,8 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
     ],
   },
   {
-    id: 'resources',
-    index: '04',
-    title: 'Docker resources',
-    summary:
-      'The images, networks and volumes behind the workloads, with destructive operations withheld.',
-    entries: [
-      { name: 'Images', detail: 'Image metadata relevant to the workloads on a host.' },
-      { name: 'Networks', detail: 'Docker networks and the workloads attached to them.' },
-      {
-        name: 'Volumes',
-        detail: 'Volume metadata, read-only while safe operation patterns are being defined.',
-      },
-    ],
-  },
-  {
     id: 'operations',
-    index: '05',
+    index: '04',
     title: 'Operational context',
     summary:
       'What happened, what it affected and whether the action you requested actually succeeded.',
@@ -133,7 +113,7 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
   },
   {
     id: 'administration',
-    index: '06',
+    index: '05',
     title: 'Security and administration',
     summary: 'Who may do what, on which resources, and what was recorded about it.',
     entries: [
@@ -149,10 +129,6 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
       {
         name: 'Roles and permissions',
         detail: 'Named permission collections enforced by the backend.',
-      },
-      {
-        name: 'Resource scopes',
-        detail: 'Permissions that apply to all hosts, a host group, a single host or a service.',
       },
       {
         name: 'Agent enrollment',
@@ -171,6 +147,22 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
 ];
 
 export const PLANNED: readonly FeatureEntry[] = [
+  {
+    name: 'Images, networks and volumes',
+    detail: 'Read the resources behind the workloads. Destructive operations stay withheld.',
+  },
+  {
+    name: 'Container metrics',
+    detail: 'CPU, memory and network usage per workload. Metrics are host-level today.',
+  },
+  {
+    name: 'Host groups',
+    detail: 'Group hosts for navigation, and scope permissions to a group.',
+  },
+  {
+    name: 'Resource scopes',
+    detail: 'Permissions that apply to a host, a group or a service rather than everything.',
+  },
   {
     name: 'Image update detection',
     detail: 'Notice when a newer image is available for a running workload.',

@@ -186,6 +186,21 @@ case "${1:-}" in
 			fi
 		done
 
+		# Which agent a new host is given. Unset means this control plane's own
+		# version, which is the pairing this project builds and tests together.
+		# A pin is a deliberate setting, so this reports rather than complains —
+		# but a pin left behind after an upgrade is worth seeing.
+		pinned_agent="$(setting AGENT_RELEASE_VERSION)"
+		running_version="$(setting DOCKPLANE_VERSION)"
+
+		if [[ -z "$pinned_agent" ]]; then
+			ok "add host installs the agent matching this control plane"
+		elif [[ "$pinned_agent" == "$running_version" ]]; then
+			ok "add host installs agent $pinned_agent, pinned, and it matches this release"
+		else
+			meh "add host installs agent $pinned_agent, not $running_version — AGENT_RELEASE_VERSION is pinned in $INSTALL_DIR/.env"
+		fi
+
 		printf '\n'
 
 		# What a backup would need, without reading or printing any of it.

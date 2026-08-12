@@ -12,7 +12,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "fonts:sync": "node scripts/sync-fonts.mjs",
-    "e2e:search": "node e2e/search-palette.e2e.mjs"
+    "e2e:search": "node e2e/search-palette.e2e.mjs",
+    "e2e": "node e2e/run.mjs",
+    "e2e:wizard": "node e2e/add-host-wizard.e2e.mjs"
   },
   "private": true,
   "packageManager": "npm@11.16.0",

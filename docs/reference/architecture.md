@@ -1,5 +1,43 @@
 # Architecture
 
+## Deployment
+
+What a running Dockplane looks like. Every arrow is a connection something
+opens; nothing reaches into a managed host.
+
+```mermaid
+flowchart TB
+    browser["Browser"]
+
+    subgraph control["Control plane — one machine, Docker Compose"]
+        caddy["Caddy<br/>80, 443"]
+        app["Application<br/>static files"]
+        api["Control server<br/>3000, not published"]
+        db[("PostgreSQL<br/>5432, not published")]
+    end
+
+    subgraph host["Managed Docker host"]
+        agent["Dockplane agent<br/>systemd, native"]
+        engine["Docker Engine API<br/>local socket"]
+    end
+
+    browser -->|HTTPS| caddy
+    caddy --> app
+    caddy -->|/api/*| api
+    api --> db
+    agent -->|"outbound, mutual TLS, 9443"| api
+    agent --> engine
+```
+
+The agent opens the connection to the gateway and keeps it open. The control
+server sends capability requests down that existing connection; it never dials a
+host. There is no SSH anywhere in this picture, and no port to open on a managed
+host.
+
+The gateway on 9443 terminates its own TLS and authenticates the agent's client
+certificate. It is not proxied through Caddy — a proxy that terminated that TLS
+would destroy the only thing the gateway authenticates.
+
 ## Overview
 
 Dockplane is a distributed Docker management system composed of:

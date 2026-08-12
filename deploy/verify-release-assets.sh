@@ -33,10 +33,27 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=deploy/release-assets.sh
 source "$REPO_ROOT/deploy/release-assets.sh"
 
-command -v jq > /dev/null || {
-	echo "jq is required to read the release's asset list" >&2
+# Every tool this needs, named before anything is checked.
+#
+# A missing tool must never quietly remove a check. sha256sum is the sharpest
+# example: absent, both sides of a comparison become the empty string, the two
+# match, and a release verifies because nothing was read.
+missing=()
+for tool in jq sha256sum; do
+	command -v "$tool" > /dev/null || missing+=("$tool")
+done
+
+# Only the round trip reads the packages, so a run without downloads does not
+# need dpkg.
+if [[ -n "$DOWNLOAD_DIR" ]]; then
+	command -v dpkg-deb > /dev/null || missing+=(dpkg-deb)
+fi
+
+if [[ ${#missing[@]} -gt 0 ]]; then
+	echo "missing on this machine: ${missing[*]}" >&2
+	echo "These read the release. Without them nothing here is verified." >&2
 	exit 3
-}
+fi
 
 if [[ -t 1 ]]; then
 	RED=$'\033[31m' GREEN=$'\033[32m' RESET=$'\033[0m'
@@ -141,6 +158,11 @@ if jq -e '.[0] | has("digest")' "$ASSET_LIST" > /dev/null 2>&1; then
 	check "the digests GitHub reports match what was built" \
 		"$([[ ${#mismatched[@]} -eq 0 ]] && echo ok || echo fail)"
 	[[ ${#mismatched[@]} -gt 0 ]] && printf '     differ: %s\n' "${mismatched[*]}"
+else
+	# Said out loud rather than passed over. This one is GitHub's to offer, so
+	# its absence is not a failure — but it is not a check that happened either.
+	echo "  · GitHub reported no digests, so they were not compared"
+	echo "     the round trip below is what establishes this, not this check"
 fi
 
 if [[ -z "$DOWNLOAD_DIR" ]]; then
@@ -204,12 +226,6 @@ else
 			continue
 		fi
 
-		if ! command -v dpkg-deb > /dev/null; then
-			check "the $arch package declares version $expected_field" fail
-			printf '     dpkg-deb is not installed, so the package was never read\n'
-			continue
-		fi
-
 		field="$(dpkg-deb -f "$package" Version 2> /dev/null || true)"
 		check "the $arch package declares version $expected_field" \
 			"$([[ "$field" == "$expected_field" ]] && echo ok || echo fail)"
@@ -236,8 +252,11 @@ else
 				"$(jq -e "has(\"$field\")" "$manifest" > /dev/null && echo ok || echo fail)"
 		done
 
-		check "the manifest names the images it published" \
-			"$(jq -e '.images.controlServer.digest and .images.web.digest' "$manifest" > /dev/null &&
+		# A digest, not merely something in the digest field: a placeholder like
+		# "unknown" is as truthy as a real one and pins nothing.
+		check "the manifest names the images it published, by digest" \
+			"$(jq -e '[.images.controlServer.digest, .images.web.digest] |
+				all(type == "string" and test("^sha256:[0-9a-f]{64}$"))' "$manifest" > /dev/null &&
 				echo ok || echo fail)"
 		check "the manifest states what it does and does not carry" \
 			"$([[ "$(jq -r .supplyChain.signature "$manifest")" == "none" ]] && echo ok || echo fail)"

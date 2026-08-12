@@ -163,7 +163,7 @@ filesystem.
 
 This is unavoidable for Docker management, and it is why the agent exposes no
 generic command execution. See
-[Install the Dockplane Agent](../getting-started/agent-installation.md).
+[Install the Dockplane Agent](../operations/agent.md).
 
 Do not expose the daemon over unauthenticated TCP. Do not mount a remote Docker
 socket into the control server.

@@ -111,5 +111,5 @@ again.
 
 - [Agent Gateway](agent-gateway.md)
 - [Agent Protocol](agent-protocol.md)
-- [Security Model](security-model.md)
-- [Agent Enrollment](../administration/agent-enrollment.md)
+- [Security Model](../security/security-model.md)
+- [Agent Enrollment](../security/agent-security.md)

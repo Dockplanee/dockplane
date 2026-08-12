@@ -6,6 +6,19 @@ Use release-oriented language.
 
 Do not include internal prompt history, development conversation notes or artificial task numbering.
 
+## 0.1.0-rc.4 — 2026-08-12
+
+### Changed
+- An upgrade reports a pinned agent version that is not the release being installed, and `dockplane-control doctor` reports one at any time. Without a pin, adding a host installs the agent matching the control plane, and always has; what was missing is that a pin nobody remembers setting was invisible.
+- The reverse proxy image applies the distribution's own security updates, which removes five of the ten high findings against it — curl, libcurl and c-ares. The five that remain are compiled into the Caddy binary and can only be fixed by Caddy publishing a build against a newer Go toolchain.
+
+### Fixed
+- A release gate that cannot run its checks now fails instead of doing less. The asset verification compared checksums without requiring the tool that computes them, so on a machine without it both sides of the comparison were empty and matched. The build also wrote a placeholder into the release manifest when it could not determine an image digest, which satisfied every later check that only asked whether a digest was present.
+- The documentation no longer tells operators to install an agent package under a name that was never published.
+
+### Removed
+- The features page no longer advertises images, networks, volumes, container metrics, host groups or resource scopes. None of them exist in this release; all six are listed as planned.
+
 ## 0.1.0-rc.3 — 2026-08-12
 
 ### Fixed

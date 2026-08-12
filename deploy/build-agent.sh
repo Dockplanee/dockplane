@@ -29,8 +29,17 @@ DEBIAN_VERSION="$(debian_version "$VERSION")"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-if ! command -v docker > /dev/null; then
-	echo "docker is required: the Go toolchain and dpkg both run in containers" >&2
+# The Go toolchain and dpkg run in pinned containers; these are what this
+# machine itself has to provide. A checksum file this cannot write is a release
+# nobody can verify, so a missing tool stops the build rather than shrinking it.
+missing=()
+for tool in docker git sha256sum; do
+	command -v "$tool" > /dev/null || missing+=("$tool")
+done
+
+if [[ ${#missing[@]} -gt 0 ]]; then
+	echo "missing on this machine: ${missing[*]}" >&2
+	echo "The Go toolchain and dpkg are not needed here; both run in containers." >&2
 	exit 3
 fi
 

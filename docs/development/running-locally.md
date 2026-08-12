@@ -132,7 +132,7 @@ reach it.
 
 The agent gateway listens separately on `AGENT_GATEWAY_PORT` (9443 by default)
 and requires a client certificate; see
-[Agent Gateway](../architecture/agent-gateway.md) for the reverse-proxy
+[Agent Gateway](../reference/agent-gateway.md) for the reverse-proxy
 requirements.
 
 `AGENT_GATEWAY_ADVERTISED_URL` is the address enrolling agents are told to
@@ -177,6 +177,6 @@ versioned API so a probe does not break when the API takes a new version.
 
 ## Related
 
-- [Installation](installation.md)
-- [Connect the First Docker Host](first-host.md)
+- [Installation](../getting-started/installation.md)
+- [Connect the First Docker Host](../getting-started/add-host.md)
 - [Troubleshooting](../operations/troubleshooting.md)

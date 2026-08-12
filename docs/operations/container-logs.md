@@ -148,5 +148,5 @@ The content is not. The audit trail is read by people who may not hold
 ## Related
 
 - [Docker Integration](../integrations/docker.md)
-- [Roles and Permissions](../administration/roles.md)
+- [Roles and Permissions](../security/authentication.md)
 - [Container Operations](container-lifecycle.md)

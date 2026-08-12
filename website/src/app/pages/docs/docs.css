@@ -138,10 +138,38 @@
   border-top: 1px solid var(--dp-line);
   list-style: none;
   display: grid;
-  gap: 0.5rem;
+  gap: 0.875rem;
+}
+
+.area__topics > li {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.area__link {
   font-family: var(--font-mono);
   font-size: 0.75rem;
+  color: var(--dp-fg);
+  text-decoration-color: var(--dp-line);
+  text-underline-offset: 0.2em;
+}
+
+.area__link:hover,
+.area__link:focus-visible {
+  text-decoration-color: currentColor;
+}
+
+/* The opening sentence of a page. Two lines is an orientation; the whole
+   paragraph would be the page. */
+.area__page-summary {
   color: var(--dp-fg-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .closing__heading {

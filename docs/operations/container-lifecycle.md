@@ -29,7 +29,7 @@ the container. A browser never chooses which machine an operation lands on.
 
 Each operation has its own permission — `containers.start`, `containers.stop`,
 `containers.restart` — so restart can be granted without granting stop. See
-[Roles and Permissions](../administration/roles.md).
+[Roles and Permissions](../security/authentication.md).
 
 The interface offers a control only where it could succeed, but that is a
 convenience. The control server authorizes every request independently, and the

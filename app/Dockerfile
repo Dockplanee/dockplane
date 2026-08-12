@@ -28,6 +28,21 @@ RUN npm run build
 # --- Runtime ----------------------------------------------------------------
 FROM caddy:${CADDY_VERSION}-alpine AS runtime
 
+# The distribution's own security updates, from its own repositories.
+#
+# Caddy publishes an image per release and does not rebuild it when Alpine
+# patches a library inside it, so an image pinned to the newest Caddy still
+# carries whatever its base held on the day it was built. This applies what
+# Alpine has published since, and pins nothing by hand: mixing distributions or
+# picking individual package versions out of a repository is how a base image
+# becomes something nobody can reason about.
+#
+# It costs bit-for-bit reproducibility across time — the same Dockerfile builds
+# different bytes once Alpine publishes an update. That is what applying
+# security updates means; the release manifest records the digest that was
+# actually published.
+RUN apk upgrade --no-cache
+
 ARG DOCKPLANE_VERSION=0.0.0-dev
 ARG DOCKPLANE_COMMIT=unknown
 ARG DOCKPLANE_BUILD_DATE=unknown

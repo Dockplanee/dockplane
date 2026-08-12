@@ -10,7 +10,7 @@ gateway, and a certificate cannot be enrolled with again.
 ## Prerequisites
 
 The agent CA must exist before the control server starts. See
-[Agent Identity](../architecture/agent-identity.md).
+[Agent Identity](../reference/agent-identity.md).
 
 Enrollment requires the `agents.enroll` permission. Revocation requires
 `agents.revoke`, which is deliberately separate: reading and enrolling do not
@@ -156,6 +156,6 @@ No entry contains a token, a certificate request or key material.
 
 ## Related
 
-- [Agent Identity](../architecture/agent-identity.md)
-- [Agent Gateway](../architecture/agent-gateway.md)
-- [Roles and Permissions](roles.md)
+- [Agent Identity](../reference/agent-identity.md)
+- [Agent Gateway](../reference/agent-gateway.md)
+- [Roles and Permissions](authentication.md)
