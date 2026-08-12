@@ -385,6 +385,8 @@ SOURCE_DIR="$upgrade_work/bundle"
 check "the target version comes from the bundle manifest" \
 	"$([[ "$(bundle_version)" == "0.1.0-rc.2" ]] && echo ok || echo fail)"
 
+# Read by bundle_version, lifted out of the installer above.
+# shellcheck disable=SC2034
 SOURCE_DIR="$upgrade_work/no-bundle"
 check "a checkout without a manifest names no version" \
 	"$(bundle_version > /dev/null 2>&1 && echo fail || echo ok)"
@@ -395,6 +397,7 @@ STATE_FILE="$upgrade_work/installed/version"
 check "the installed version comes from the deployment" \
 	"$([[ "$(installed_version)" == "0.1.0-rc.1" ]] && echo ok || echo fail)"
 
+# shellcheck disable=SC2034
 STATE_FILE="$upgrade_work/absent/version"
 check "a fresh machine reports no installed version" \
 	"$(installed_version > /dev/null 2>&1 && echo fail || echo ok)"
@@ -473,6 +476,28 @@ check "the backup format is checked against what this release restores" \
 	"$(grep -q 'this backup is in a format this release does not restore' <<< "$installer" && echo ok || echo fail)"
 check "the installer and the backup library agree on the format version" \
 	"$([[ "$(grep -oE '^BACKUP_FORMAT_VERSION=[0-9]+' "$REPO_ROOT/deploy/backup-restore.sh" | cut -d= -f2)" == "$(grep -oE '^BACKUP_FORMAT_VERSION=[0-9]+' "$INSTALLER" | cut -d= -f2)" ]] && echo ok || echo fail)"
+
+# Nothing that a restore would need may change before there is a backup. The
+# order is asserted rather than described, because it is the difference between
+# a recoverable upgrade and an unrecoverable one.
+order_of() { grep -n "^	$1\$" <<< "$installer" | tail -1 | cut -d: -f1; }
+
+check "the backup is taken before any directory is created" \
+	"$([[ "$(order_of safety_backup)" -lt "$(order_of create_layout)" ]] && echo ok || echo fail)"
+check "the backup is taken before a missing secret would be generated" \
+	"$([[ "$(order_of safety_backup)" -lt "$(order_of create_secrets)" ]] && echo ok || echo fail)"
+check "the backup is taken before images are loaded" \
+	"$([[ "$(order_of safety_backup)" -lt "$(order_of pull_images)" ]] && echo ok || echo fail)"
+check "the backup is taken before the deployment files are replaced" \
+	"$([[ "$(order_of safety_backup)" -lt "$(order_of write_configuration)" ]] && echo ok || echo fail)"
+check "the backup is taken before the stack is restarted" \
+	"$([[ "$(order_of safety_backup)" -lt "$(order_of start_stack)" ]] && echo ok || echo fail)"
+check "the version marker is written last" \
+	"$([[ "$(order_of record_state)" -gt "$(order_of start_stack)" ]] && echo ok || echo fail)"
+check "the decisive check is the restore path's own validation" \
+	"$(grep -q 'validate_backup "\$destination"' <<< "$installer" && echo ok || echo fail)"
+check "it is run in a subshell so the library cannot displace the installer" \
+	"$(grep -q 'source "\$library"' <<< "$installer" && echo ok || echo fail)"
 
 echo
 printf '%d passed, %d failed\n' "$passed" "$failed"

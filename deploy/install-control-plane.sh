@@ -761,6 +761,26 @@ verify_safety_backup() {
 			"$destination" \
 			"Nothing has been changed."
 
+	# And then the real thing: the validation a restore performs, run against
+	# this backup by the code that would read it. The checks above are a fast
+	# structural pre-check; this is the one that decides. It runs in a subshell
+	# so the library's own helpers cannot displace the installer's.
+	local library="$INSTALL_DIR/backup-restore.sh"
+	[[ -f "$library" ]] || library="$SOURCE_DIR/backup-restore.sh"
+
+	if [[ -f "$library" ]]; then
+		(
+			set -uo pipefail
+			# shellcheck source=/dev/null
+			source "$library"
+			validate_backup "$destination"
+		) > /dev/null 2>&1 ||
+			fail "the restore path does not accept this backup" \
+				"$destination" \
+				"Nothing has been changed. Run:" \
+				"  $INSTALL_DIR/dockplane-control doctor"
+	fi
+
 	# The field a restore reads first: it decides whether this version
 	# understands the backup at all.
 	local format
@@ -1253,9 +1273,13 @@ main() {
 			;;
 	esac
 
+	# Before anything is created or replaced. create_secrets generates whatever is
+	# missing, and on a deployment that has lost a file that is a restore-relevant
+	# change — so nothing runs until there is a backup to go back to.
+	safety_backup
+
 	create_layout
 	create_secrets
-	safety_backup
 	pull_images
 	create_agent_ca
 	write_configuration
