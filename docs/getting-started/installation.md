@@ -47,7 +47,7 @@ only step that changes.
 
 Then open `https://dockplane.example.com`, sign in, and add a Docker host:
 create an enrollment token under **Agents**, install
-[the agent](agent-installation.md) on that host, and enroll it.
+[the agent](../operations/agent.md) on that host, and enroll it.
 
 There will be no `curl … | bash` one-liner. Downloading a script and running it
 unread, from a URL that can answer differently next time, is not an
@@ -217,9 +217,11 @@ An upgrade is the new release's installer, run on the machine that already has
 Dockplane:
 
 ```bash
+VERSION=0.1.0                               # the release you are moving to
+
 sha256sum -c SHA256SUMS                     # 1. check what you downloaded
-tar xzf dockplane-0.2.0.tar.gz              # 2. unpack it
-cd dockplane-0.2.0
+tar xzf "dockplane-$VERSION.tar.gz"         # 2. unpack it
+cd "dockplane-$VERSION"
 
 sudo ./install-control-plane.sh --domain dockplane.example.com   # 3. upgrade
 
@@ -290,7 +292,7 @@ For v0.1:
   `sudo /opt/dockplane/dockplane-control backup /var/backups/before-upgrade`
 - if a rollback is needed, restore that backup and start the old version
 
-See [Backup and Recovery](../operations/backup.md).
+See [Backup and Recovery](../operations/backup-restore.md).
 
 ## Stopping and starting
 
@@ -312,7 +314,7 @@ sessions, which live in PostgreSQL rather than in memory.
 
 The control server can also run directly under systemd, with PostgreSQL and a
 reverse proxy installed on the host. That arrangement works and is described in
-[Running the Control Server](control-server.md), but **Compose is the supported
+[Running the Control Server](../development/running-locally.md), but **Compose is the supported
 distribution for v0.1** and is what upgrades are tested against. Choose the
 native route only if you have a specific reason to.
 
@@ -326,12 +328,12 @@ sudo /opt/dockplane/dockplane-control backup /var/backups/dockplane-$(date -u +%
 ```
 
 Take one before every upgrade, and keep it on encrypted storage — it contains
-this deployment's private keys. See [Backup and Recovery](../operations/backup.md).
+this deployment's private keys. See [Backup and Recovery](../operations/backup-restore.md).
 
 ## Related
 
-- [Backup and Recovery](../operations/backup.md)
-- [Install the Agent](agent-installation.md)
-- [Connect the First Docker Host](first-host.md)
-- [Running the Control Server](control-server.md) — the native alternative
+- [Backup and Recovery](../operations/backup-restore.md)
+- [Install the Agent](../operations/agent.md)
+- [Connect the First Docker Host](add-host.md)
+- [Running the Control Server](../development/running-locally.md) — the native alternative
 - [Troubleshooting](../operations/troubleshooting.md)

@@ -22,7 +22,7 @@ Each boundary is treated explicitly.
 6. The enrollment is audited.
 
 The token is stored only as a digest, so it cannot be recovered from the
-database or the audit log. See [Agent Enrollment](../administration/agent-enrollment.md).
+database or the audit log. See [Agent Enrollment](agent-security.md).
 
 ## Device Revocation
 

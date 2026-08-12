@@ -100,4 +100,4 @@ read-only root filesystem, no capabilities and no shell in its path.
 ## Related
 
 - [Building a Release](releases.md)
-- [Security Model](../architecture/security-model.md)
+- [Security Model](../security/security-model.md)

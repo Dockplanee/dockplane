@@ -4,9 +4,9 @@ A Dockplane release has two halves, built by one command each: the control
 plane images, and the agent packages.
 
 ```bash
-deploy/build-agent.sh  0.1.0-rc.1     # agent .deb and .tar.gz for amd64 and arm64
-deploy/check-agent-release.sh 0.1.0-rc.1
-deploy/build-images.sh 0.1.0-rc.1     # control server and web images, and the bundle
+deploy/build-agent.sh  "$VERSION"     # agent .deb and .tar.gz for amd64 and arm64
+deploy/check-agent-release.sh "$VERSION"
+deploy/build-images.sh "$VERSION"     # control server and web images, and the bundle
 ```
 
 That is the whole procedure, and it is the same procedure in CI: the release
@@ -30,9 +30,9 @@ tree marks it `-dirty`: **release from a clean checkout.**
 
 ```text
 dist/release/
-├── dockplane-0.1.0-rc.1.tar.gz          the bundle an operator installs from
-├── control-server-0.1.0-rc.1.oci.tar    the image, as a portable archive
-├── web-0.1.0-rc.1.oci.tar
+├── dockplane-<version>.tar.gz          the bundle an operator installs from
+├── control-server-<version>.oci.tar    the image, as a portable archive
+├── web-<version>.oci.tar
 ├── dockplane-agent-linux-amd64
 ├── dockplane-agent-linux-arm64
 ├── SHA256SUMS
@@ -47,8 +47,8 @@ same content twice produces the same bytes.
 and, in the local image store or in a registry:
 
 ```text
-ghcr.io/dockplanee/dockplane-control-server:0.1.0-rc.1
-ghcr.io/dockplanee/dockplane-web:0.1.0-rc.1
+ghcr.io/dockplanee/dockplane-control-server:<version>
+ghcr.io/dockplanee/dockplane-web:<version>
 ```
 
 Both images carry the same tag on purpose. A deployment pins one
@@ -62,7 +62,7 @@ cannot say what it is running and cannot be rolled back to what it was.
 
 ```json
 {
-  "version": "0.1.0-rc.1",
+  "version": "<version>",
   "commit": "…",
   "license": "AGPL-3.0-only",
   "maintainer": "Dockplane <info@dockplane.de>",
@@ -75,7 +75,7 @@ cannot say what it is running and cannot be rolled back to what it was.
     "controlServer": { "reference": "…", "digest": "sha256:…", "tags": [ … ], "platforms": [ … ] },
     "web": { … }
   },
-  "agent": { "version": "0.1.0-rc.1", "platforms": [ … ], "artefacts": [ { "name": "…", "sha256": "…" } ] },
+  "agent": { "version": "<version>", "platforms": [ … ], "artefacts": [ { "name": "…", "sha256": "…" } ] },
   "supplyChain": { "sbom": "…", "provenance": "…", "signature": "none" }
 }
 ```
@@ -101,10 +101,10 @@ tarball, plus `SHA256SUMS` and a manifest of its own:
 
 ```text
 dist/agent/
-├── dockplane-agent_0.1.0~rc.1_amd64.deb
-├── dockplane-agent_0.1.0~rc.1_arm64.deb
-├── dockplane-agent_0.1.0-rc.1_linux_amd64.tar.gz
-├── dockplane-agent_0.1.0-rc.1_linux_arm64.tar.gz
+├── dockplane-agent_<version>_amd64.deb
+├── dockplane-agent_<version>_arm64.deb
+├── dockplane-agent_<version>_linux_amd64.tar.gz
+├── dockplane-agent_<version>_linux_arm64.tar.gz
 ├── SHA256SUMS
 └── release-manifest.json
 ```
@@ -143,7 +143,7 @@ The agent cross-compiles for both and the binaries are checked to be what they
 claim. The images accept a platform list:
 
 ```bash
-PLATFORMS=linux/amd64,linux/arm64 PUSH=1 deploy/build-images.sh 0.1.0-rc.1
+PLATFORMS=linux/amd64,linux/arm64 PUSH=1 deploy/build-images.sh "$VERSION"
 ```
 
 but that needs a buildx builder with the `docker-container` driver and emulation

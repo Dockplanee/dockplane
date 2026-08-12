@@ -46,5 +46,5 @@ first candidate has agents enrolled against it and backups taken from it.
 ## Related
 
 - [Agent Gateway](agent-gateway.md)
-- [Backup and Recovery](../operations/backup.md)
+- [Backup and Recovery](../operations/backup-restore.md)
 - [Building a Release](../operations/releases.md)

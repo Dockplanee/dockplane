@@ -92,4 +92,4 @@ already be proven, not alongside it.
 
 - [Agent Identity](agent-identity.md)
 - [Agent Protocol](agent-protocol.md)
-- [Security Model](security-model.md)
+- [Security Model](../security/security-model.md)
