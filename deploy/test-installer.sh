@@ -457,7 +457,7 @@ check "a missing component stops the upgrade" \
 check "the checksums are verified" \
 	"$(grep -q 'does not match its own checksums' <<< "$installer" && echo ok || echo fail)"
 check "the manifest is read" \
-	"$(grep -q 'the backup manifest is not readable' <<< "$installer" && echo ok || echo fail)"
+	"$(grep -q 'the backup manifest does not say what format it is' <<< "$installer" && echo ok || echo fail)"
 check "the backup directory must be owner-only" \
 	"$(grep -q 'readable by others' <<< "$installer" && echo ok || echo fail)"
 check "backups are kept outside the deployment directory" \
@@ -468,6 +468,11 @@ check "a fresh install takes no pre-upgrade backup" \
 	"$(grep -q '\[\[ "\$UPGRADE" -eq 1 \]\] || return 0' <<< "$installer" && echo ok || echo fail)"
 check "the path is named again at the end" \
 	"$(grep -q 'Safety backup from this upgrade' <<< "$installer" && echo ok || echo fail)"
+
+check "the backup format is checked against what this release restores" \
+	"$(grep -q 'this backup is in a format this release does not restore' <<< "$installer" && echo ok || echo fail)"
+check "the installer and the backup library agree on the format version" \
+	"$([[ "$(grep -oE '^BACKUP_FORMAT_VERSION=[0-9]+' "$REPO_ROOT/deploy/backup-restore.sh" | cut -d= -f2)" == "$(grep -oE '^BACKUP_FORMAT_VERSION=[0-9]+' "$INSTALLER" | cut -d= -f2)" ]] && echo ok || echo fail)"
 
 echo
 printf '%d passed, %d failed\n' "$passed" "$failed"

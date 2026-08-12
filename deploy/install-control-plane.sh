@@ -103,6 +103,10 @@ TARGET_VERSION=""
 INSTALLED_VERSION=""
 UPGRADE=0
 SAFETY_BACKUP=""
+
+# The backup format a restore of this release accepts, kept in step with
+# deploy/backup-restore.sh.
+BACKUP_FORMAT_VERSION=1
 INSTALL_DIR="$DEFAULT_DIR"
 ADMIN_EMAIL=""
 ADMIN_PASSWORD_FILE=""
@@ -757,9 +761,20 @@ verify_safety_backup() {
 			"$destination" \
 			"Nothing has been changed."
 
-	grep -q '"formatVersion"' "$destination/manifest.json" ||
-		fail "the backup manifest is not readable" \
+	# The field a restore reads first: it decides whether this version
+	# understands the backup at all.
+	local format
+	format="$(grep -o '"backupFormatVersion"[[:space:]]*:[[:space:]]*[0-9]*' "$destination/manifest.json" |
+		grep -o '[0-9]*$' || true)"
+
+	[[ -n "$format" ]] ||
+		fail "the backup manifest does not say what format it is" \
 			"$destination/manifest.json" \
+			"Nothing has been changed."
+
+	[[ "$format" == "$BACKUP_FORMAT_VERSION" ]] ||
+		fail "this backup is in a format this release does not restore" \
+			"backup: $format, expected: $BACKUP_FORMAT_VERSION" \
 			"Nothing has been changed."
 
 	local mode
