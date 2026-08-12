@@ -261,3 +261,50 @@ jobs:
           docker run --rm --volume "$PWD:/repo:ro" --workdir /repo \
             --env SHELLCHECK_OPTS='--severity=warning' \
             "$ACTIONLINT_IMAGE" -color .github/workflows/*.yml
+
+  browser:
+    name: Browser flows
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            api/package-lock.json
+            app/package-lock.json
+
+      - name: Install the control server
+        working-directory: api
+        run: npm ci
+
+      - name: Build the control server
+        working-directory: api
+        run: npm run build
+
+      - name: Install the application
+        working-directory: app
+        run: npm ci
+
+      - name: Build the application
+        working-directory: app
+        run: npm run build
+
+      - name: Browsers
+        working-directory: app
+        run: npx playwright install --with-deps chromium firefox
+
+      # The instance these run against is created here and destroyed with the
+      # job: its own database container, its own agent authority, and an
+      # administrator whose password is generated for this run. No credential
+      # is configured for this workflow, and nothing here can reach a
+      # deployment somebody is using.
+      - name: Search palette and Add host
+        working-directory: app
+        run: npm run e2e
