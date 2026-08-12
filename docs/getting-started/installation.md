@@ -213,30 +213,49 @@ difference back.
 
 ## Upgrading
 
-An upgrade is a change of one line in `.env`, in this order:
+An upgrade is the new release's installer, run on the machine that already has
+Dockplane:
 
 ```bash
-cd /opt/dockplane
-sudo docker compose pull                    # 1. fetch the new images
+sha256sum -c SHA256SUMS                     # 1. check what you downloaded
+tar xzf dockplane-0.2.0.tar.gz              # 2. unpack it
+cd dockplane-0.2.0
 
-sudo nano .env                              # 2. DOCKPLANE_VERSION=0.2.0
+sudo ./install-control-plane.sh --domain dockplane.example.com   # 3. upgrade
 
-sudo docker compose run --rm migrate        # 3. apply the schema
-
-sudo docker compose up -d                   # 4. replace the containers
-
-curl -fsS https://dockplane.example.com/api/v1/version   # 5. check
+curl -fsS https://dockplane.example.com/api/v1/version           # 4. check
 ```
 
-Step 3 is the one that matters. Running the migration before replacing anything
-means that if it fails, nothing has been replaced: the previous version keeps
-serving while you investigate. `docker compose up -d` on its own would recreate
-the containers first and *then* discover the failure, leaving the control plane
-down — safe for the data, but an outage.
+It recognises what is already installed and says what it is about to do:
 
-The control server refuses to start against a schema older than it expects, so
-a forgotten migration is a service that does not come up rather than one that
-half works.
+```text
+==> Dockplane upgrade
+    0.1.0 -> 0.2.0
+```
+
+Then, in this order: a backup of the current deployment, this release's Compose
+file and Caddyfile staged and rendered before they are adopted, the images from
+the bundle, the schema migration, and only then the containers. The version on
+disk is updated last, once the result is serving.
+
+**Do not upgrade by pulling images and editing `.env`.** A release can change
+more than an image tag — a new setting has to reach the container that reads it,
+and that lives in the Compose file the installer replaces. An upgrade that skips
+it leaves the new version running against the old deployment description, which
+fails in ways that look unrelated.
+
+Running the migration before replacing anything means that if it fails, nothing
+has been replaced: the previous version keeps serving while you investigate. The
+control server refuses to start against a schema older than it expects, so a
+forgotten migration is a service that does not come up rather than one that half
+works.
+
+What is kept: the database, every secret, the certificate authority, Caddy's
+certificates, the domain, and any setting you added to `.env`. A setting this
+release introduces is appended with its default; nothing you set is overwritten.
+The previous Compose file and Caddyfile are left beside the new ones as
+`compose.yaml.pre-upgrade` and `Caddyfile.pre-upgrade`, and the backup path is
+printed.
 
 `/api/v1/version` reports what is running:
 

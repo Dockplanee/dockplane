@@ -360,6 +360,86 @@ for pattern in 'down .*-v' 'down .*--volumes' 'volume rm'; do
 	fi
 done
 
+# --- Upgrading --------------------------------------------------------------
+#
+# The version an upgrade installs comes from the bundle it was started from.
+# Reading it from the installed deployment instead is how an upgrade goes
+# looking for the release it is meant to be replacing.
+
+echo
+echo "==> upgrading"
+
+installer="$(cat "$INSTALLER")"
+
+eval "$(sed -n '/^bundle_version()/,/^}/p' "$INSTALLER")"
+eval "$(sed -n '/^installed_version()/,/^}/p' "$INSTALLER")"
+eval "$(sed -n '/^compare_versions()/,/^}/p' "$INSTALLER")"
+
+upgrade_work="$(mktemp -d)"
+trap 'rm -rf "$upgrade_work"' EXIT
+
+mkdir -p "$upgrade_work/bundle"
+printf '{\n  "version": "0.1.0-rc.2",\n  "commit": "abc"\n}\n' > "$upgrade_work/bundle/release-manifest.json"
+
+SOURCE_DIR="$upgrade_work/bundle"
+check "the target version comes from the bundle manifest" \
+	"$([[ "$(bundle_version)" == "0.1.0-rc.2" ]] && echo ok || echo fail)"
+
+SOURCE_DIR="$upgrade_work/no-bundle"
+check "a checkout without a manifest names no version" \
+	"$(bundle_version > /dev/null 2>&1 && echo fail || echo ok)"
+
+mkdir -p "$upgrade_work/installed"
+printf 'version=0.1.0-rc.1\ndomain=example.test\n' > "$upgrade_work/installed/version"
+STATE_FILE="$upgrade_work/installed/version"
+check "the installed version comes from the deployment" \
+	"$([[ "$(installed_version)" == "0.1.0-rc.1" ]] && echo ok || echo fail)"
+
+STATE_FILE="$upgrade_work/absent/version"
+check "a fresh machine reports no installed version" \
+	"$(installed_version > /dev/null 2>&1 && echo fail || echo ok)"
+
+# Ordering decides whether something is an upgrade, a repair or a downgrade, so
+# releases are compared the way releases are ordered rather than as strings.
+orders() {
+	local relation="is older than"
+	[[ "$3" == 1 ]] && relation="is newer than"
+	[[ "$3" == 0 ]] && relation="is"
+
+	check "$1 $relation $2" "$([[ "$(compare_versions "$1" "$2")" == "$3" ]] && echo ok || echo fail)"
+}
+
+orders 0.1.0-rc.2 0.1.0-rc.1 1
+orders 0.1.0-rc.1 0.1.0-rc.2 -1
+orders 0.1.0-rc.1 0.1.0-rc.1 0
+orders 0.1.0 0.1.0-rc.9 1
+orders 0.1.0-rc.9 0.1.0 -1
+orders 0.1.0-rc.10 0.1.0-rc.9 1
+orders 0.10.0 0.2.0 1
+orders 1.0.0 0.9.9 1
+orders 0.1.0-beta.1 0.1.0-rc.1 -1
+
+check "the deployment's own files are staged from the bundle" \
+	"$(grep -q 'compose/compose.yaml" "$INSTALL_DIR/compose.yaml.staged"' <<< "$installer" && echo ok || echo fail)"
+check "they are adopted only once Compose renders them" \
+	"$(grep -q 'mv "$INSTALL_DIR/compose.yaml.staged" "$INSTALL_DIR/compose.yaml"' <<< "$installer" && echo ok || echo fail)"
+check "the previous ones are kept" \
+	"$(grep -q 'compose.yaml.pre-upgrade' <<< "$installer" && echo ok || echo fail)"
+check "a backup is taken before an upgrade" \
+	"$(grep -q 'safety_backup' <<< "$installer" && echo ok || echo fail)"
+check "a failed backup stops the upgrade" \
+	"$(grep -q 'the pre-upgrade backup failed' <<< "$installer" && echo ok || echo fail)"
+check "a downgrade is refused" \
+	"$(grep -q 'this bundle is older than what is installed' <<< "$installer" && echo ok || echo fail)"
+check "artefacts are named with the target version" \
+	"$(grep -q 'TARGET_VERSION="$VERSION"' <<< "$installer" && echo ok || echo fail)"
+check "the version marker records the target version" \
+	"$(grep -q 'version=$TARGET_VERSION' <<< "$installer" && echo ok || echo fail)"
+check "an operator's settings are amended rather than replaced" \
+	"$(grep -q 'ensure_setting' <<< "$installer" && echo ok || echo fail)"
+check "no secret is regenerated on an upgrade" \
+	"$(grep -q 'already exists, keeping it' <<< "$installer" && echo ok || echo fail)"
+
 echo
 printf '%d passed, %d failed\n' "$passed" "$failed"
 exit $((failed > 0 ? 1 : 0))
