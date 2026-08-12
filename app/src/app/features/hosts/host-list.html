@@ -29,9 +29,9 @@
       (valueChange)="osFilter.set($event)"
     />
 
-    <button #enrollTrigger type="button" dpButton variant="primary" (click)="openEnrollment()">
+    <button #addHostTrigger type="button" dpButton variant="primary" (click)="openAddHost()">
       <dp-icon name="plus" />
-      Connect host
+      Add host
     </button>
   </div>
 
@@ -167,16 +167,4 @@
   }
 </dp-panel>
 
-<dp-confirm-dialog
-  heading="Connect a Docker host"
-  description="A host joins Dockplane by enrolling its agent. Enrollment uses a short-lived, single-use token; the agent then holds its own device credential, which can be revoked independently of every other host."
-  confirmLabel="Close"
-  [details]="[
-    { label: 'Step 1', value: 'Create an enrollment token' },
-    { label: 'Step 2', value: 'Install the agent on the host' },
-    { label: 'Step 3', value: 'Agent enrolls over TLS' },
-    { label: 'Step 4', value: 'Credential is issued and audited' },
-  ]"
-  (confirmed)="closeEnrollment()"
-  (dismissed)="closeEnrollment()"
-/>
+<dp-add-host-dialog />

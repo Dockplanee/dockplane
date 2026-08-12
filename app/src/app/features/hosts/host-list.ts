@@ -17,7 +17,7 @@ import { DockplaneApi } from '../../data/dockplane-api';
 import { Host } from '../../domain/inventory';
 import { hostStatus, isReporting } from '../../domain/status';
 import { Button } from '../../ui/button';
-import { ConfirmDialog } from '../../ui/confirm-dialog/confirm-dialog';
+import { AddHostDialog } from './add-host-dialog';
 import { EmptyState } from '../../ui/empty-state/empty-state';
 import { Icon } from '../../ui/icon/icon';
 import { Meter } from '../../ui/meter/meter';
@@ -34,7 +34,7 @@ type Column = 'name' | 'status' | 'os' | 'containers' | 'cpu' | 'memory' | 'disk
   imports: [
     RouterLink,
     Button,
-    ConfirmDialog,
+    AddHostDialog,
     EmptyState,
     Icon,
     Meter,
@@ -50,8 +50,9 @@ type Column = 'name' | 'status' | 'os' | 'containers' | 'cpu' | 'memory' | 'disk
 export class HostList {
   private readonly api = inject(DockplaneApi);
 
-  private readonly enrollDialog = viewChild.required(ConfirmDialog);
-  private readonly enrollTrigger = viewChild.required<ElementRef<HTMLElement>>('enrollTrigger');
+  private readonly addHostDialog = viewChild.required(AddHostDialog);
+  private readonly addHostTrigger =
+    viewChild.required<ElementRef<HTMLElement>>('addHostTrigger');
 
   protected readonly query = signal('');
   protected readonly statusFilter = signal('all');
@@ -147,12 +148,8 @@ export class HostList {
     return state.key === column ? state.direction : undefined;
   }
 
-  protected openEnrollment(): void {
-    this.enrollDialog().open();
-  }
-
-  protected closeEnrollment(): void {
-    this.enrollDialog().close();
-    this.enrollTrigger().nativeElement.focus();
+  protected openAddHost(): void {
+    // The dialog returns focus to whatever opened it when it closes.
+    this.addHostDialog().open(this.addHostTrigger().nativeElement);
   }
 }

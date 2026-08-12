@@ -1,0 +1,163 @@
+.dialog {
+  inline-size: min(40rem, calc(100vw - 2rem));
+  padding: 1.25rem;
+  color: var(--dp-fg);
+  background: var(--dp-surface);
+  border: 1px solid var(--dp-line);
+  border-radius: var(--dp-radius-lg);
+}
+
+.dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.heading {
+  margin: 0 0 0.5rem;
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+.step-heading {
+  margin: 0;
+  font-size: var(--dp-text-body);
+  font-weight: 600;
+}
+
+.lead,
+.hint {
+  margin: 0 0 1rem;
+  color: var(--dp-fg-muted);
+  font-size: var(--dp-text-body);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--dp-text-label);
+}
+
+.form,
+.command,
+.progress {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.command,
+.progress {
+  margin-block-start: 1rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.field-label {
+  font-size: var(--dp-text-label);
+  font-weight: 500;
+}
+
+.field-input {
+  padding: 0.5rem 0.625rem;
+  color: inherit;
+  font: inherit;
+  background: var(--dp-surface-raised);
+  border: 1px solid var(--dp-line);
+  border-radius: var(--dp-radius-md);
+}
+
+.field-hint {
+  color: var(--dp-fg-muted);
+  font-size: var(--dp-text-label);
+}
+
+/* The command is long and must never be silently truncated: an operator who
+   copies half of it gets a failure they cannot explain. */
+pre {
+  margin: 0;
+  padding: 0.75rem;
+  overflow-x: auto;
+  font-size: var(--dp-text-label);
+  background: var(--dp-surface-sunken);
+  border: 1px solid var(--dp-line);
+  border-radius: var(--dp-radius-md);
+}
+
+pre code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.warning,
+.connected {
+  display: flex;
+  gap: 0.5rem;
+  align-items: start;
+  margin: 0;
+  padding: 0.75rem;
+  font-size: var(--dp-text-body);
+  border: 1px solid var(--dp-line);
+  border-radius: var(--dp-radius-md);
+}
+
+.warning {
+  color: var(--dp-fg);
+  background: var(--dp-warning-surface, var(--dp-surface-raised));
+}
+
+.connected {
+  background: var(--dp-surface-raised);
+}
+
+.steps {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  color: var(--dp-fg-muted);
+  font-size: var(--dp-text-body);
+}
+
+/* State is carried by the icon and the wording as well as by colour. */
+.steps li.done {
+  color: var(--dp-fg);
+  font-weight: 500;
+}
+
+.status {
+  margin: 0;
+  color: var(--dp-fg-muted);
+  font-size: var(--dp-text-label);
+}
+
+.error {
+  margin: 0;
+  color: var(--dp-danger-fg, var(--dp-fg));
+  font-size: var(--dp-text-body);
+}
+
+.request {
+  display: block;
+  color: var(--dp-fg-muted);
+  font-size: var(--dp-text-label);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block-start: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog {
+    transition: none;
+  }
+}

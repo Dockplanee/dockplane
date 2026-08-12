@@ -37,6 +37,10 @@ export type ApiErrorCode =
   | 'COMPOSE_DETAIL_UNAVAILABLE'
   | 'NOT_FOUND'
   | 'HOST_NOT_FOUND'
+  | 'HOST_SETUP_NOT_FOUND'
+  | 'HOST_SETUP_NOT_PENDING'
+  | 'HOST_SETUP_TICKET_INVALID'
+  | 'HOST_SETUP_UNAVAILABLE'
   | 'AGENT_NOT_FOUND'
   | 'AGENT_UNKNOWN'
   | 'AGENT_REVOKED'
@@ -147,6 +151,11 @@ const MESSAGES: Record<ApiErrorCode, string> = {
     'The host has not been reachable since this project was discovered, so no detail has been read yet.',
   NOT_FOUND: 'That does not exist.',
   HOST_NOT_FOUND: 'This host is no longer registered.',
+  HOST_SETUP_NOT_FOUND: 'This host setup no longer exists.',
+  HOST_SETUP_NOT_PENDING: 'This installation command has already been used or cancelled.',
+  HOST_SETUP_TICKET_INVALID: 'This installation command is no longer valid.',
+  HOST_SETUP_UNAVAILABLE:
+    'This Dockplane build has no matching agent release, so it cannot add a host.',
   AGENT_NOT_FOUND: 'This agent is no longer registered.',
   AGENT_UNKNOWN: 'The control server does not recognise this agent.',
   AGENT_REVOKED: 'This agent credential has been revoked.',

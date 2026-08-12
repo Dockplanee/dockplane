@@ -1,13 +1,48 @@
+/* The host contributes no box of its own; the dialog is in the top layer. */
+:host {
+  display: contents;
+}
+
+/*
+ * Geometry is stated in full rather than inherited from the browser.
+ *
+ * Centring a modal dialog by leaving the user agent's `margin: auto` in place
+ * is a bet on the cascade: the preflight reset in `@layer base` sets `margin: 0`
+ * on every element, and this rule overrides only `margin-top`. Whichever way
+ * that interaction resolves in a given engine, the position of a global overlay
+ * should not depend on it, so every side is written out.
+ *
+ * `bottom: auto` removes the over-constraint, so the box is placed by its top
+ * offset alone and does not move when its content grows or shrinks.
+ */
 dialog {
+  position: fixed;
+  top: 12vh;
+  right: 0;
+  bottom: auto;
+  left: 0;
   width: min(34rem, calc(100vw - 2rem));
-  max-height: min(28rem, calc(100vh - 6rem));
-  margin-top: 12vh;
+  max-height: min(28rem, calc(100vh - 12vh - 2rem));
+  margin-block: 0;
+  margin-inline: auto;
   padding: 0;
   border: 1px solid var(--dp-line-strong);
   border-radius: var(--dp-radius-lg);
   background-color: var(--dp-surface);
   color: var(--dp-fg);
   overflow: hidden;
+}
+
+/*
+ * Layout applies only while the dialog is open.
+ *
+ * A browser hides a closed dialog with `dialog:not([open]) { display: none }`.
+ * Setting `display` unconditionally overrides that, and the palette is then laid
+ * out on every page whether or not anybody opened it — closed, so not modal, so
+ * out of the top layer, with no backdrop, sitting in the document flow below the
+ * content. Opening it promotes it to the top layer and it appears to jump.
+ */
+dialog[open] {
   display: flex;
   flex-direction: column;
 }

@@ -109,12 +109,30 @@ export class SearchPalette {
   open(): void {
     const element = this.dialog().nativeElement;
 
-    if (!element.open) {
-      this.query.set('');
-      this.activeIndex.set(0);
-      element.showModal();
-      this.field().nativeElement.focus();
+    /*
+     * A dialog that is open without being modal is the failure this guards
+     * against: it has no backdrop, it is not in the top layer, and it sits in
+     * the document flow rather than over the page. showModal() refuses to
+     * promote a dialog that is already open, so without this the palette would
+     * stay in that state for the rest of the session and no amount of clicking
+     * the trigger would recover it.
+     *
+     * Nothing else opens this dialog. showModal() and close() are the only
+     * paths, so `open` as a plain attribute is never something this component
+     * produced.
+     */
+    if (element.open && !isModal(element)) {
+      element.close();
     }
+
+    if (element.open) {
+      return;
+    }
+
+    this.query.set('');
+    this.activeIndex.set(0);
+    element.showModal();
+    this.field().nativeElement.focus();
   }
 
   protected close(): void {
@@ -157,5 +175,14 @@ export class SearchPalette {
 
   protected flatIndex(result: SearchResult): number {
     return this.results().findIndex((entry) => entry.id === result.id);
+  }
+}
+
+/** `:modal` is not implemented everywhere, and an unsupported selector is not a modal. */
+function isModal(element: HTMLDialogElement): boolean {
+  try {
+    return element.matches(':modal');
+  } catch {
+    return false;
   }
 }

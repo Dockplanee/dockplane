@@ -38,7 +38,15 @@ describe('changelog data', () => {
   });
 
   it('groups entries under a known change type', () => {
-    const known = ['Added', 'Changed', 'Fixed', 'Removed', 'Security'];
+    const known = [
+      'Added',
+      'Changed',
+      'Deprecated',
+      'Fixed',
+      'Removed',
+      'Security',
+      'Known limitations',
+    ];
 
     for (const release of CHANGELOG) {
       for (const group of release.changes) {

@@ -360,6 +360,145 @@ for pattern in 'down .*-v' 'down .*--volumes' 'volume rm'; do
 	fi
 done
 
+# --- Upgrading --------------------------------------------------------------
+#
+# The version an upgrade installs comes from the bundle it was started from.
+# Reading it from the installed deployment instead is how an upgrade goes
+# looking for the release it is meant to be replacing.
+
+echo
+echo "==> upgrading"
+
+installer="$(cat "$INSTALLER")"
+
+eval "$(sed -n '/^bundle_version()/,/^}/p' "$INSTALLER")"
+eval "$(sed -n '/^installed_version()/,/^}/p' "$INSTALLER")"
+eval "$(sed -n '/^compare_versions()/,/^}/p' "$INSTALLER")"
+
+upgrade_work="$(mktemp -d)"
+trap 'rm -rf "$upgrade_work"' EXIT
+
+mkdir -p "$upgrade_work/bundle"
+printf '{\n  "version": "0.1.0-rc.2",\n  "commit": "abc"\n}\n' > "$upgrade_work/bundle/release-manifest.json"
+
+SOURCE_DIR="$upgrade_work/bundle"
+check "the target version comes from the bundle manifest" \
+	"$([[ "$(bundle_version)" == "0.1.0-rc.2" ]] && echo ok || echo fail)"
+
+# Read by bundle_version, lifted out of the installer above.
+# shellcheck disable=SC2034
+SOURCE_DIR="$upgrade_work/no-bundle"
+check "a checkout without a manifest names no version" \
+	"$(bundle_version > /dev/null 2>&1 && echo fail || echo ok)"
+
+mkdir -p "$upgrade_work/installed"
+printf 'version=0.1.0-rc.1\ndomain=example.test\n' > "$upgrade_work/installed/version"
+STATE_FILE="$upgrade_work/installed/version"
+check "the installed version comes from the deployment" \
+	"$([[ "$(installed_version)" == "0.1.0-rc.1" ]] && echo ok || echo fail)"
+
+# shellcheck disable=SC2034
+STATE_FILE="$upgrade_work/absent/version"
+check "a fresh machine reports no installed version" \
+	"$(installed_version > /dev/null 2>&1 && echo fail || echo ok)"
+
+# Ordering decides whether something is an upgrade, a repair or a downgrade, so
+# releases are compared the way releases are ordered rather than as strings.
+orders() {
+	local relation="is older than"
+	[[ "$3" == 1 ]] && relation="is newer than"
+	[[ "$3" == 0 ]] && relation="is"
+
+	check "$1 $relation $2" "$([[ "$(compare_versions "$1" "$2")" == "$3" ]] && echo ok || echo fail)"
+}
+
+orders 0.1.0-rc.2 0.1.0-rc.1 1
+orders 0.1.0-rc.1 0.1.0-rc.2 -1
+orders 0.1.0-rc.1 0.1.0-rc.1 0
+orders 0.1.0 0.1.0-rc.9 1
+orders 0.1.0-rc.9 0.1.0 -1
+orders 0.1.0-rc.10 0.1.0-rc.9 1
+orders 0.10.0 0.2.0 1
+orders 1.0.0 0.9.9 1
+orders 0.1.0-beta.1 0.1.0-rc.1 -1
+
+check "the deployment's own files are staged from the bundle" \
+	"$(grep -q 'compose/compose.yaml" "$INSTALL_DIR/compose.yaml.staged"' <<< "$installer" && echo ok || echo fail)"
+check "they are adopted only once Compose renders them" \
+	"$(grep -q 'mv "$INSTALL_DIR/compose.yaml.staged" "$INSTALL_DIR/compose.yaml"' <<< "$installer" && echo ok || echo fail)"
+check "the previous ones are kept" \
+	"$(grep -q 'compose.yaml.pre-upgrade' <<< "$installer" && echo ok || echo fail)"
+check "a backup is taken before an upgrade" \
+	"$(grep -q 'safety_backup' <<< "$installer" && echo ok || echo fail)"
+check "a failed backup stops the upgrade" \
+	"$(grep -q 'the pre-upgrade backup failed' <<< "$installer" && echo ok || echo fail)"
+check "a downgrade is refused" \
+	"$(grep -q 'this bundle is older than what is installed' <<< "$installer" && echo ok || echo fail)"
+check "artefacts are named with the target version" \
+	"$(grep -q 'TARGET_VERSION="$VERSION"' <<< "$installer" && echo ok || echo fail)"
+check "the version marker records the target version" \
+	"$(grep -q 'version=$TARGET_VERSION' <<< "$installer" && echo ok || echo fail)"
+check "an operator's settings are amended rather than replaced" \
+	"$(grep -q 'ensure_setting' <<< "$installer" && echo ok || echo fail)"
+check "no secret is regenerated on an upgrade" \
+	"$(grep -q 'already exists, keeping it' <<< "$installer" && echo ok || echo fail)"
+
+# The backup is the one thing that makes an upgrade reversible, and it reported
+# success once while writing nothing: backup-restore.sh is a library that
+# dockplane-control sources, and running it directly does nothing and exits
+# zero. An exit status is not a backup.
+check "the backup goes through dockplane-control, not the library" \
+	"$(grep -q 'bash "$helper" backup' <<< "$installer" && echo ok || echo fail)"
+check "backup-restore.sh is never executed directly" \
+	"$(grep -qE '(bash |")\$?\{?(SOURCE_DIR|INSTALL_DIR)\}?/backup-restore\.sh" backup' <<< "$installer" && echo fail || echo ok)"
+check "what was written is read back before the upgrade continues" \
+	"$(grep -q 'verify_safety_backup' <<< "$installer" && echo ok || echo fail)"
+check "a backup that wrote nothing stops the upgrade" \
+	"$(grep -q 'reported success but wrote nothing' <<< "$installer" && echo ok || echo fail)"
+check "a missing component stops the upgrade" \
+	"$(grep -q 'the backup is incomplete' <<< "$installer" && echo ok || echo fail)"
+check "the checksums are verified" \
+	"$(grep -q 'does not match its own checksums' <<< "$installer" && echo ok || echo fail)"
+check "the manifest is read" \
+	"$(grep -q 'the backup manifest does not say what format it is' <<< "$installer" && echo ok || echo fail)"
+check "the backup directory must be owner-only" \
+	"$(grep -q 'readable by others' <<< "$installer" && echo ok || echo fail)"
+check "backups are kept outside the deployment directory" \
+	"$(grep -q 'local root=/var/backups/dockplane' <<< "$installer" && echo ok || echo fail)"
+check "the backup is taken before the schema is migrated" \
+	"$([[ "$(grep -n 'safety_backup$' <<< "$installer" | tail -1 | cut -d: -f1)" -lt "$(grep -n 'write_configuration$' <<< "$installer" | tail -1 | cut -d: -f1)" ]] && echo ok || echo fail)"
+check "a fresh install takes no pre-upgrade backup" \
+	"$(grep -q '\[\[ "\$UPGRADE" -eq 1 \]\] || return 0' <<< "$installer" && echo ok || echo fail)"
+check "the path is named again at the end" \
+	"$(grep -q 'Safety backup from this upgrade' <<< "$installer" && echo ok || echo fail)"
+
+check "the backup format is checked against what this release restores" \
+	"$(grep -q 'this backup is in a format this release does not restore' <<< "$installer" && echo ok || echo fail)"
+check "the installer and the backup library agree on the format version" \
+	"$([[ "$(grep -oE '^BACKUP_FORMAT_VERSION=[0-9]+' "$REPO_ROOT/deploy/backup-restore.sh" | cut -d= -f2)" == "$(grep -oE '^BACKUP_FORMAT_VERSION=[0-9]+' "$INSTALLER" | cut -d= -f2)" ]] && echo ok || echo fail)"
+
+# Nothing that a restore would need may change before there is a backup. The
+# order is asserted rather than described, because it is the difference between
+# a recoverable upgrade and an unrecoverable one.
+order_of() { grep -n "^	$1\$" <<< "$installer" | tail -1 | cut -d: -f1; }
+
+check "the backup is taken before any directory is created" \
+	"$([[ "$(order_of safety_backup)" -lt "$(order_of create_layout)" ]] && echo ok || echo fail)"
+check "the backup is taken before a missing secret would be generated" \
+	"$([[ "$(order_of safety_backup)" -lt "$(order_of create_secrets)" ]] && echo ok || echo fail)"
+check "the backup is taken before images are loaded" \
+	"$([[ "$(order_of safety_backup)" -lt "$(order_of pull_images)" ]] && echo ok || echo fail)"
+check "the backup is taken before the deployment files are replaced" \
+	"$([[ "$(order_of safety_backup)" -lt "$(order_of write_configuration)" ]] && echo ok || echo fail)"
+check "the backup is taken before the stack is restarted" \
+	"$([[ "$(order_of safety_backup)" -lt "$(order_of start_stack)" ]] && echo ok || echo fail)"
+check "the version marker is written last" \
+	"$([[ "$(order_of record_state)" -gt "$(order_of start_stack)" ]] && echo ok || echo fail)"
+check "the decisive check is the restore path's own validation" \
+	"$(grep -q 'validate_backup "\$destination"' <<< "$installer" && echo ok || echo fail)"
+check "it is run in a subshell so the library cannot displace the installer" \
+	"$(grep -q 'source "\$library"' <<< "$installer" && echo ok || echo fail)"
+
 echo
 printf '%d passed, %d failed\n' "$passed" "$failed"
 exit $((failed > 0 ? 1 : 0))

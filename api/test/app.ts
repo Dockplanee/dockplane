@@ -49,6 +49,12 @@ export async function createTestApp(): Promise<INestApplication> {
     AGENT_CA_KEY_PATH: pki.caKeyPath,
     DEV_ALLOW_INSECURE_COOKIES: 'true',
     /*
+     * A test build has no published release, and the bootstrap refuses to name
+     * one it cannot point at. Tests pin a version the same way a rehearsal
+     * deployment does.
+     */
+    AGENT_RELEASE_VERSION: '0.1.0-rc.2',
+    /*
      * A short keepalive so a test can observe one without waiting. The interval
      * is a deployment choice; what a test asserts is that a quiet stream is
      * kept open at all.

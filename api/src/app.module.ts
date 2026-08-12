@@ -32,6 +32,11 @@ import {
 import { DiscoveryScheduler } from './discovery/discovery.scheduler';
 import { EnrollmentService } from './agents/enrollment.service';
 import { AgentEnrollmentController, AgentsController } from './agents/agents.controller';
+import {
+  HostBootstrapController,
+  HostSetupController,
+} from './host-setup/host-setup.controller';
+import { HostSetupService } from './host-setup/host-setup.service';
 import { AuditController } from './audit/audit.controller';
 import { AuditService } from './audit/audit.service';
 import { AppConfigModule } from './config/config.module';
@@ -84,6 +89,8 @@ import { SecretBox } from './common/crypto';
     RolesController,
     AgentsController,
     AgentEnrollmentController,
+    HostSetupController,
+    HostBootstrapController,
     HostsController,
     ContainersController,
     ComposeProjectsController,
@@ -117,6 +124,7 @@ import { SecretBox } from './common/crypto';
     LogStreamService,
     DiscoveryScheduler,
     EnrollmentService,
+    HostSetupService,
     AgentGatewayService,
     { provide: APP_GUARD, useClass: SessionGuard },
     { provide: APP_GUARD, useClass: CsrfGuard },

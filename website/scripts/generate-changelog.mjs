@@ -16,7 +16,24 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const source = join(root, '..', 'CHANGELOG.md');
 const target = join(root, 'src', 'app', 'pages', 'changelog', 'changelog.data.ts');
 
-const CHANGE_TYPES = ['Added', 'Changed', 'Fixed', 'Removed', 'Security'];
+/*
+ * The sections a release may be divided into: the Keep a Changelog set, plus
+ * the one this project genuinely needs. A release that ships with something it
+ * cannot yet do says so on the same page as what it added, rather than leaving
+ * that for somebody to discover.
+ *
+ * The list is a guard against a typo in a heading, not a style rule. A section
+ * that belongs in the changelog belongs here too.
+ */
+const CHANGE_TYPES = [
+  'Added',
+  'Changed',
+  'Deprecated',
+  'Fixed',
+  'Removed',
+  'Security',
+  'Known limitations',
+];
 const DATE = /(\d{4}-\d{2}-\d{2})/;
 
 function parse(markdown) {

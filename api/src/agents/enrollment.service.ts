@@ -54,8 +54,15 @@ export class EnrollmentService {
     @Inject(CONFIG) private readonly config: AppConfig,
   ) {}
 
+  /**
+   * Mints a one-time token.
+   *
+   * The actor may have no user row: a host bootstrap mints a token on behalf of
+   * whoever created the setup, and that account may since have been deleted.
+   * The audit entry then records what did it rather than who.
+   */
   async createToken(
-    actor: { id: string; email: string },
+    actor: { id?: string; email: string },
     options: { intendedHostname?: string; sourceIp?: string; userAgent?: string },
   ): Promise<CreatedEnrollmentToken> {
     const token = generateSecret();

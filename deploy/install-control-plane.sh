@@ -17,7 +17,14 @@ set -euo pipefail
 # --- What this installs -----------------------------------------------------
 
 DEFAULT_DIR=/opt/dockplane
-DEFAULT_VERSION=0.1.0-rc.1
+# The version this installer installs.
+#
+# A release bundle carries its own manifest, and that is the authority: the
+# installer is copied into the bundle verbatim, so a constant compiled into it
+# would name whatever release it was written for rather than the one it ships
+# with. Outside a bundle — run from a checkout — there is nothing to install
+# from, so the version has to be given.
+DEFAULT_VERSION=
 
 # The account the containers run as, on the host and inside them. Deliberately
 # not 1000, which on most distributions is the first human login account.
@@ -89,6 +96,17 @@ usage() {
 
 DOMAIN=""
 VERSION="$DEFAULT_VERSION"
+
+# Resolved before anything is decided. Declared here so `set -u` catches a path
+# that reads them before resolve_versions has run.
+TARGET_VERSION=""
+INSTALLED_VERSION=""
+UPGRADE=0
+SAFETY_BACKUP=""
+
+# The backup format a restore of this release accepts, kept in step with
+# deploy/backup-restore.sh.
+BACKUP_FORMAT_VERSION=1
 INSTALL_DIR="$DEFAULT_DIR"
 ADMIN_EMAIL=""
 ADMIN_PASSWORD_FILE=""
@@ -124,6 +142,117 @@ fi
 SECRETS_DIR="$INSTALL_DIR/secrets"
 PKI_DIR="$INSTALL_DIR/pki"
 STATE_FILE="$INSTALL_DIR/version"
+
+# --- Versions ---------------------------------------------------------------
+#
+# Two versions, and confusing them is how an upgrade installs the release it is
+# replacing. TARGET_VERSION is what this bundle contains and decides every
+# artefact: images, Compose file, Caddyfile, schema. INSTALLED_VERSION is what
+# is on this machine already and decides only whether this is an upgrade.
+
+bundle_version() {
+	local manifest="$SOURCE_DIR/release-manifest.json"
+
+	[[ -f "$manifest" ]] || return 1
+
+	# Deliberately not jq: a release bundle is meant to install on a host with
+	# nothing but Docker.
+	local version
+	version="$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$manifest" | head -1 |
+		sed 's/.*"\([^"]*\)"$/\1/')"
+
+	[[ -n "$version" ]] || return 1
+	printf '%s' "$version"
+}
+
+installed_version() {
+	[[ -f "$STATE_FILE" ]] || return 1
+
+	local version
+	version="$(awk -F= '/^version=/{print $2}' "$STATE_FILE" 2> /dev/null || true)"
+
+	[[ -n "$version" ]] || return 1
+	printf '%s' "$version"
+}
+
+# Compares two releases the way SemVer orders them, so 0.1.0-rc.2 is understood
+# to precede 0.1.0 and 0.2.0 to follow 0.10.0 is not. Prints -1, 0 or 1.
+compare_versions() {
+	local left="$1" right="$2"
+
+	[[ "$left" == "$right" ]] && {
+		printf '0'
+		return
+	}
+
+	local left_core="${left%%-*}" right_core="${right%%-*}"
+	local left_pre="" right_pre=""
+	[[ "$left" == *-* ]] && left_pre="${left#*-}"
+	[[ "$right" == *-* ]] && right_pre="${right#*-}"
+
+	local index
+	for index in 1 2 3; do
+		local a b
+		a="$(cut -d. -f$index <<< "$left_core")"
+		b="$(cut -d. -f$index <<< "$right_core")"
+		a="${a:-0}"
+		b="${b:-0}"
+
+		if ((10#$a > 10#$b)); then
+			printf '1'
+			return
+		elif ((10#$a < 10#$b)); then
+			printf -- '-1'
+			return
+		fi
+	done
+
+	# Same release number: a pre-release precedes the release it leads to.
+	if [[ -z "$left_pre" && -n "$right_pre" ]]; then
+		printf '1'
+		return
+	elif [[ -n "$left_pre" && -z "$right_pre" ]]; then
+		printf -- '-1'
+		return
+	fi
+
+	# Both are pre-releases. Their dot-separated identifiers are compared one at
+	# a time, numerically where both are numbers — otherwise rc.10 would be
+	# taken for older than rc.9.
+	local -a left_ids right_ids
+	IFS='.' read -r -a left_ids <<< "$left_pre"
+	IFS='.' read -r -a right_ids <<< "$right_pre"
+
+	local count=${#left_ids[@]}
+	((${#right_ids[@]} > count)) && count=${#right_ids[@]}
+
+	for ((index = 0; index < count; index++)); do
+		local a="${left_ids[index]:-}" b="${right_ids[index]:-}"
+
+		# A shorter set of identifiers precedes a longer one that starts the same.
+		[[ -z "$a" ]] && {
+			printf -- '-1'
+			return
+		}
+		[[ -z "$b" ]] && {
+			printf '1'
+			return
+		}
+		[[ "$a" == "$b" ]] && continue
+
+		if [[ "$a" =~ ^[0-9]+$ && "$b" =~ ^[0-9]+$ ]]; then
+			((10#$a > 10#$b)) && printf '1' || printf -- '-1'
+		elif [[ "$a" > "$b" ]]; then
+			printf '1'
+		else
+			printf -- '-1'
+		fi
+
+		return
+	done
+
+	printf '0'
+}
 
 # --- Preflight --------------------------------------------------------------
 #
@@ -442,6 +571,43 @@ create_agent_ca() {
 
 # --- Images -----------------------------------------------------------------
 
+# Decides what is being installed and what is already here, and refuses the
+# combinations that are not an upgrade.
+resolve_versions() {
+	if [[ -z "$VERSION" ]]; then
+		VERSION="$(bundle_version || true)"
+	fi
+
+	if [[ -z "$VERSION" ]]; then
+		fail "this installer does not know which release to install" \
+			"A release bundle carries release-manifest.json beside the installer." \
+			"Run it from an unpacked bundle, or pass --version."
+	fi
+
+	TARGET_VERSION="$VERSION"
+	INSTALLED_VERSION="$(installed_version || true)"
+
+	if [[ -z "$INSTALLED_VERSION" ]]; then
+		UPGRADE=0
+		return
+	fi
+
+	local order
+	order="$(compare_versions "$TARGET_VERSION" "$INSTALLED_VERSION")"
+
+	if [[ "$order" == "-1" ]]; then
+		fail "this bundle is older than what is installed" \
+			"installed: $INSTALLED_VERSION" \
+			"bundle:    $TARGET_VERSION" \
+			"Downgrading is not something this installer does. Restore from a backup" \
+			"if you need to go back."
+	fi
+
+	# Same version is a repair: configuration is restored from the bundle and the
+	# services are checked, and nothing that cannot be regenerated is touched.
+	UPGRADE=$([[ "$order" == "1" ]] && echo 1 || echo 0)
+}
+
 resolve_images() {
 	API_IMAGE="${DOCKPLANE_API_IMAGE:-ghcr.io/dockplanee/dockplane-control-server}"
 	WEB_IMAGE="${DOCKPLANE_WEB_IMAGE:-ghcr.io/dockplanee/dockplane-web}"
@@ -523,16 +689,165 @@ verify_bundle() {
 
 # --- Configuration ----------------------------------------------------------
 
+# An upgrade replaces the deployment's own files and migrates the schema, so
+# there has to be a way back before it starts.
+#
+# The backup is the one the product already ships, taken through the same
+# entry point an operator uses. backup-restore.sh is a library that
+# dockplane-control sources — run directly it does nothing and exits zero, which
+# is a success worth nobody's trust.
+safety_backup() {
+	[[ "$UPGRADE" -eq 1 ]] || return 0
+
+	step "Safety backup"
+
+	local root=/var/backups/dockplane
+	install -d -m 0700 -o root -g root "$root" ||
+		fail "cannot create $root" \
+			"Nothing has been changed."
+
+	local destination
+	destination="$root/pre-upgrade-$INSTALLED_VERSION-$(date -u +%Y%m%dT%H%M%SZ)"
+
+	info "creating safety backup"
+
+	local helper="$INSTALL_DIR/dockplane-control"
+	[[ -x "$helper" ]] || helper="$SOURCE_DIR/dockplane-control"
+
+	if ! bash "$helper" backup "$destination" > /dev/null 2>&1; then
+		fail "the pre-upgrade backup failed" \
+			"Nothing has been changed. An upgrade that cannot be undone is not one" \
+			"this installer will start." \
+			"Run: $INSTALL_DIR/dockplane-control doctor"
+	fi
+
+	verify_safety_backup "$destination"
+
+	SAFETY_BACKUP="$destination"
+	good "safety backup verified: $destination"
+}
+
+# An exit status is not a backup. What matters is whether the thing that would
+# be restored from is there and intact, so it is read back the way a restore
+# would read it.
+verify_safety_backup() {
+	local destination="$1"
+	local missing=()
+
+	[[ -d "$destination" ]] ||
+		fail "the backup command reported success but wrote nothing" \
+			"expected: $destination" \
+			"Nothing has been changed."
+
+	local component
+	for component in manifest.json SHA256SUMS database.dump env; do
+		[[ -e "$destination/$component" ]] || missing+=("$component")
+	done
+
+	[[ -e "$destination/secrets/application-encryption-key" ]] ||
+		missing+=("secrets/application-encryption-key")
+	[[ -e "$destination/pki/agent-ca.key" ]] || missing+=("pki/agent-ca.key")
+
+	if [[ ${#missing[@]} -gt 0 ]]; then
+		fail "the backup is incomplete" \
+			"missing: ${missing[*]}" \
+			"Nothing has been changed. A backup without these cannot restore this" \
+			"deployment."
+	fi
+
+	# The checksums the backup wrote over itself, checked rather than assumed.
+	(cd "$destination" && sha256sum --quiet -c SHA256SUMS > /dev/null 2>&1) ||
+		fail "the backup does not match its own checksums" \
+			"$destination" \
+			"Nothing has been changed."
+
+	# And then the real thing: the validation a restore performs, run against
+	# this backup by the code that would read it. The checks above are a fast
+	# structural pre-check; this is the one that decides. It runs in a subshell
+	# so the library's own helpers cannot displace the installer's.
+	local library="$INSTALL_DIR/backup-restore.sh"
+	[[ -f "$library" ]] || library="$SOURCE_DIR/backup-restore.sh"
+
+	if [[ -f "$library" ]]; then
+		(
+			set -uo pipefail
+			# The library is written to be sourced by dockplane-control, which
+			# supplies the presentation it prints with. Without them it stops on
+			# an unbound variable and every backup would look invalid.
+			BOLD='' RED='' RESET='' GREEN=''
+			ok() { :; }
+			# shellcheck source=/dev/null
+			source "$library"
+			validate_backup "$destination"
+		) > /dev/null 2>&1 ||
+			fail "the restore path does not accept this backup" \
+				"$destination" \
+				"Nothing has been changed. Run:" \
+				"  $INSTALL_DIR/dockplane-control doctor"
+	fi
+
+	# The field a restore reads first: it decides whether this version
+	# understands the backup at all.
+	local format
+	format="$(grep -o '"backupFormatVersion"[[:space:]]*:[[:space:]]*[0-9]*' "$destination/manifest.json" |
+		grep -o '[0-9]*$' || true)"
+
+	[[ -n "$format" ]] ||
+		fail "the backup manifest does not say what format it is" \
+			"$destination/manifest.json" \
+			"Nothing has been changed."
+
+	[[ "$format" == "$BACKUP_FORMAT_VERSION" ]] ||
+		fail "this backup is in a format this release does not restore" \
+			"backup: $format, expected: $BACKUP_FORMAT_VERSION" \
+			"Nothing has been changed."
+
+	local mode
+	mode="$(stat -c '%a' "$destination" 2> /dev/null || stat -f '%Lp' "$destination")"
+	[[ "$mode" == "700" ]] ||
+		fail "the backup directory is readable by others" \
+			"$destination is mode $mode" \
+			"It holds this deployment's private keys."
+}
+
+# Settings a new release introduces have to arrive somehow, and replacing the
+# whole file would throw away whatever the operator tuned. Each one is appended
+# only if it is absent.
+ensure_setting() {
+	local key="$1" value="$2"
+
+	grep -qE "^[[:space:]]*$key=" "$INSTALL_DIR/.env" && return 0
+
+	printf '%s=%s\n' "$key" "$value" >> "$INSTALL_DIR/.env"
+	note "added $key"
+}
+
 write_configuration() {
 	step "Configuration"
 
-	install -m 0644 -o root -g root "$SOURCE_DIR/compose/compose.yaml" "$INSTALL_DIR/compose.yaml"
-	install -m 0644 -o root -g root "$SOURCE_DIR/compose/Caddyfile" "$INSTALL_DIR/Caddyfile"
+	# Written beside the originals first and only moved into place once Compose
+	# has rendered them, so a bad release cannot leave half a deployment.
+	install -m 0644 -o root -g root "$SOURCE_DIR/compose/compose.yaml" "$INSTALL_DIR/compose.yaml.staged"
+	install -m 0644 -o root -g root "$SOURCE_DIR/compose/Caddyfile" "$INSTALL_DIR/Caddyfile.staged"
+
+	if [[ "$UPGRADE" -eq 1 ]]; then
+		cp -p "$INSTALL_DIR/compose.yaml" "$INSTALL_DIR/compose.yaml.pre-upgrade"
+		cp -p "$INSTALL_DIR/Caddyfile" "$INSTALL_DIR/Caddyfile.pre-upgrade"
+	fi
 
 	if [[ -f "$INSTALL_DIR/.env" ]]; then
-		# An operator may have tuned this. The version is the one thing the
-		# installer owns, and even that only moves forward deliberately.
+		# An operator may have tuned this, so it is amended rather than replaced.
+		# The version is the one value the installer owns.
 		note ".env already exists, keeping the operator's settings"
+
+		if [[ "$UPGRADE" -eq 1 ]]; then
+			sed -i.bak "s|^DOCKPLANE_VERSION=.*|DOCKPLANE_VERSION=$TARGET_VERSION|" "$INSTALL_DIR/.env"
+			rm -f "$INSTALL_DIR/.env.bak"
+			note "version set to $TARGET_VERSION"
+		fi
+
+		ensure_setting DOCKPLANE_API_IMAGE "$API_IMAGE"
+		ensure_setting DOCKPLANE_WEB_IMAGE "$WEB_IMAGE"
 	else
 		umask 077
 		cat > "$INSTALL_DIR/.env" <<-EOF
@@ -557,6 +872,25 @@ write_configuration() {
 		chmod 0600 "$INSTALL_DIR/.env"
 		good ".env written"
 	fi
+
+	# Rendered against the staged files and this deployment's own settings. Only
+	# once that succeeds do they become the deployment's files.
+	if ! docker compose --project-directory "$INSTALL_DIR" --file "$INSTALL_DIR/compose.yaml.staged" \
+		config --quiet < /dev/null 2> "$INSTALL_DIR/.compose-error"; then
+		local detail
+		detail="$(head -3 "$INSTALL_DIR/.compose-error" 2> /dev/null || true)"
+		rm -f "$INSTALL_DIR/compose.yaml.staged" "$INSTALL_DIR/Caddyfile.staged" "$INSTALL_DIR/.compose-error"
+
+		fail "this release's Compose configuration does not render here" \
+			"${detail:-docker compose config reported an error}" \
+			"Nothing has been changed. The deployment is still running the previous" \
+			"configuration."
+	fi
+
+	rm -f "$INSTALL_DIR/.compose-error"
+	mv "$INSTALL_DIR/compose.yaml.staged" "$INSTALL_DIR/compose.yaml"
+	mv "$INSTALL_DIR/Caddyfile.staged" "$INSTALL_DIR/Caddyfile"
+	[[ "$UPGRADE" -eq 1 ]] && good "Compose file and Caddyfile replaced with $TARGET_VERSION"
 
 	quiet_compose config --quiet ||
 		fail "the Compose configuration is not valid" \
@@ -782,7 +1116,7 @@ record_state() {
 	cat > "$STATE_FILE" <<-EOF
 		# Written by install-control-plane.sh. Read by the installer to recognise
 		# an existing deployment; not configuration.
-		version=$VERSION
+		version=$TARGET_VERSION
 		domain=$DOMAIN
 		installed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 	EOF
@@ -854,7 +1188,10 @@ summary() {
 		    $INSTALL_DIR/dockplane-control logs
 		    $INSTALL_DIR/dockplane-control doctor
 
-		  Back it up, before you need to
+		  ${SAFETY_BACKUP:+Safety backup from this upgrade
+	    $SAFETY_BACKUP
+
+	}  Back it up, before you need to
 		    $INSTALL_DIR/dockplane-control backup /var/backups/dockplane-\$(date -u +%Y%m%dT%H%M%SZ)
 
 		  Open in the firewall, if you have one
@@ -882,20 +1219,37 @@ install_helper() {
 # --- Main -------------------------------------------------------------------
 
 main() {
+	preflight
+
+	resolve_versions
 	resolve_images
 
 	local state
 	state="$(installation_state)"
 
 	if [[ "$state" == "complete" ]]; then
-		step "Dockplane is already installed in $INSTALL_DIR"
+		if [[ "$UPGRADE" -eq 1 ]]; then
+			step "Dockplane upgrade"
+			note "$INSTALLED_VERSION -> $TARGET_VERSION"
+		else
+			step "Dockplane $TARGET_VERSION is already installed in $INSTALL_DIR"
+		fi
+
 		# Read back rather than asked again: the domain is already decided, and
 		# changing it silently would invalidate the gateway certificate.
 		DOMAIN="$(awk -F= '/^domain=/{print $2}' "$STATE_FILE" 2> /dev/null || true)"
 		[[ -n "$DOMAIN" ]] || DOMAIN="$(awk -F= '/^DOCKPLANE_DOMAIN=/{print $2}' "$INSTALL_DIR/.env")"
 		note "domain $DOMAIN"
-		note "Nothing will be regenerated. Continuing will start what is not running,"
-		note "apply any pending schema change, and check the result."
+
+		if [[ "$UPGRADE" -eq 1 ]]; then
+			note "Secrets, the certificate authority and the database are kept."
+			note "The Compose file and Caddyfile are replaced with this release's,"
+			note "the schema is migrated before the containers change, and a backup"
+			note "is taken first."
+		else
+			note "Nothing will be regenerated. Continuing will start what is not running,"
+			note "apply any pending schema change, and check the result."
+		fi
 
 		if [[ "$ASSUME_YES" -eq 0 && -t 0 ]]; then
 			local answer
@@ -903,8 +1257,6 @@ main() {
 			[[ ! "$answer" =~ ^[Nn] ]] || exit 0
 		fi
 	fi
-
-	preflight
 
 	case "$state" in
 		absent)
@@ -925,6 +1277,11 @@ main() {
 			fi
 			;;
 	esac
+
+	# Before anything is created or replaced. create_secrets generates whatever is
+	# missing, and on a deployment that has lost a file that is a restore-relevant
+	# change — so nothing runs until there is a backup to go back to.
+	safety_backup
 
 	create_layout
 	create_secrets

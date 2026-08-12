@@ -158,6 +158,47 @@ export const agentEnrollmentTokens = pgTable(
   (table) => [uniqueIndex('enrollment_tokens_hash_unique').on(table.tokenHash)],
 );
 
+/**
+ * A host somebody is in the middle of adding.
+ *
+ * Deliberately not a host row. A host that has never been reached is not
+ * inventory, and creating one before an agent exists leaves an entry nobody can
+ * distinguish from a machine that has gone quiet. The real host and agent are
+ * created by enrollment, exactly as they always were, and referenced here
+ * afterwards.
+ *
+ * The bootstrap ticket is the operator's half of the exchange: it authorises
+ * one machine to ask for one enrollment token. Only its digest is stored, it is
+ * spent atomically, and it is not the credential the agent ends up holding.
+ */
+export const hostSetups = pgTable(
+  'host_setups',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Operator's own name for the machine. Never an identity. */
+    displayName: text('display_name'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    /** SHA-256 of 256 bits of random material. The raw ticket is shown once. */
+    ticketHash: text('ticket_hash').notNull(),
+    ticketExpiresAt: timestamp('ticket_expires_at', { withTimezone: true }).notNull(),
+    ticketConsumedAt: timestamp('ticket_consumed_at', { withTimezone: true }),
+    /** Bumped by a regenerate, so an old ticket cannot be told apart by age. */
+    ticketIssuedAt: timestamp('ticket_issued_at', { withTimezone: true }).notNull().defaultNow(),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelledBy: uuid('cancelled_by').references(() => users.id, { onDelete: 'set null' }),
+    /** The enrollment token minted when the ticket was spent. */
+    enrollmentTokenId: uuid('enrollment_token_id'),
+    agentId: uuid('agent_id'),
+    hostId: uuid('host_id'),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('host_setups_ticket_hash_unique').on(table.ticketHash),
+    index('host_setups_created_idx').on(table.createdAt),
+  ],
+);
+
 export const hosts = pgTable(
   'hosts',
   {

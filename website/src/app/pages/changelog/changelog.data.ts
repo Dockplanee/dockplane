@@ -3,7 +3,8 @@ import { ChangelogRelease } from './changelog-entries';
 
 export const CHANGELOG: readonly ChangelogRelease[] = [
   {
-    version: 'Unreleased',
+    version: '0.1.0-rc.1',
+    date: '2026-08-11',
     changes: [
       {
         type: 'Added',
@@ -22,6 +23,23 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
           'Control-plane interface covering hosts, containers, Compose projects, health, actions, agents, users, roles and the audit log.',
           'Public website covering the product overview, feature catalogue, security model, documentation entry point and changelog.',
           'Initial product, architecture, security and design baseline.',
+          'Docker Compose distribution of the control plane: PostgreSQL, the control server, and Caddy serving the application and obtaining its certificate, with the REST API and the database reachable only from inside the stack.',
+          'An installer that prepares a host in one command — checking it first, generating this deployment\'s secrets and certificate authority, applying the schema, waiting until the control plane is actually serving, and creating the first administrator — and that replaces nothing when it is run again.',
+          '`dockplane-control` for everyday operation: status, start, stop, restart, logs, version, and a doctor that checks the whole deployment without printing any of it.',
+          'Backup and restore of the control plane: the database, the application encryption key, the agent certificate authority and Caddy\'s certificates, with a manifest and checksums. A restore validates the whole backup before touching anything, saves the current deployment first, signs everyone out, invalidates unused enrollment tokens and cancels actions that were still running.',
+          'Debian packages and tarballs of the agent for amd64 and arm64, with a systemd unit, and a release build that produces byte-identical artefacts from the same commit.',
+          'Multi-architecture control plane images for amd64 and arm64, with software bills of materials and build provenance attached.',
+          '`GET /api/v1/version` reporting the release, the commit, the build date, the agent protocol version and the database schema version.',
+          'Releases are built and published from a tag: every gate runs first, the images are pushed with their bill of materials and provenance, and the bundle, both agent packages, both tarballs, the manifest, the vulnerability reports and one checksum file over all of them are attached to the release.',
+        ],
+      },
+      {
+        type: 'Known limitations',
+        items: [
+          'Backups are not encrypted. They contain the agent certificate authority\'s private key and the application encryption key, and must be kept on encrypted storage.',
+          'Enrolling the same machine a second time creates a new host record; the previous one remains in the inventory, marked revoked, and every operation against it is refused.',
+          'There is no automatic update mechanism and no APT repository. Upgrades are a documented sequence of commands.',
+          'There is deliberately no shell, exec or arbitrary command execution on a managed host, and Compose projects are read-only.',
         ],
       },
     ],

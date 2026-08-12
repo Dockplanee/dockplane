@@ -177,5 +177,8 @@ jobs:
       - name: Backup and restore
         run: deploy/test-backup-restore.sh
 
+      - name: Upgrade safety gates
+        run: deploy/test-upgrade-gates.sh
+
       - name: Release scripts
         run: deploy/test-release.sh
