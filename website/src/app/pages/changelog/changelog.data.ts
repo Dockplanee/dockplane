@@ -3,6 +3,42 @@ import { ChangelogRelease } from './changelog-entries';
 
 export const CHANGELOG: readonly ChangelogRelease[] = [
   {
+    version: '0.1.0-rc.2',
+    date: '2026-08-12',
+    changes: [
+      {
+        type: 'Added',
+        items: [
+          'Adding a Docker host is one command. Dockplane produces it, the machine runs it, and the agent is downloaded, verified against the release checksums, installed, enrolled and started without a further step. The command carries a short-lived single-use ticket in the request body; the credential the agent enrolls with is never visible.',
+          'The interface reports what the control plane has observed while a host is being added — the command was run, a certificate was issued, the agent connected, the inventory arrived — and nothing that has not happened.',
+        ],
+      },
+      {
+        type: 'Changed',
+        items: [
+          'The installer is the upgrade. It recognises an existing deployment, takes a backup and refuses to continue without one, replaces the deployment\'s Compose file and Caddyfile with the release\'s, migrates the schema before replacing containers, and records the new version only once the result is serving.',
+        ],
+      },
+      {
+        type: 'Fixed',
+        items: [
+          'The search overlay was laid out on every page even when closed, which put it below the page content instead of over it.',
+          'The installer named the release it was written for rather than the one it shipped in, so an upgrade looked for the version it was replacing.',
+          'The pre-upgrade backup was reported without being taken. It is now created through the same command an operator uses and read back by the validation a restore performs before anything is migrated.',
+          'An installation command that had stopped working still counted down instead of saying so.',
+        ],
+      },
+      {
+        type: 'Known limitations',
+        items: [
+          'arm64 is built and inspected; no arm64 machine has run it. Use amd64 in production.',
+          'Backups are not encrypted and contain this deployment\'s private keys.',
+          'Upgrading from 0.1.0-rc.1 uses the installer from this release; the sequence documented in 0.1.0-rc.1 never adopted a new Compose file.',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.1.0-rc.1',
     date: '2026-08-11',
     changes: [
