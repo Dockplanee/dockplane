@@ -18,6 +18,21 @@ VERSION=0.1.0-rc.3
 # shellcheck source=deploy/release-assets.sh
 source "$REPO_ROOT/deploy/release-assets.sh"
 
+# The verifier reads the Version field out of the agent packages, so the ones
+# here are real packages and reading them takes dpkg. Missing tools are refused
+# rather than worked around: a run that quietly skipped that check would report
+# a pass for the one thing this file exists to cover.
+missing=()
+for tool in jq dpkg-deb; do
+	command -v "$tool" > /dev/null || missing+=("$tool")
+done
+
+if [[ ${#missing[@]} -gt 0 ]]; then
+	echo "these checks need: ${missing[*]}" >&2
+	echo "run them on a Debian or Ubuntu machine, or in a container with dpkg." >&2
+	exit 3
+fi
+
 if [[ -t 1 ]]; then
 	RED=$'\033[31m' GREEN=$'\033[32m' RESET=$'\033[0m'
 else
@@ -42,16 +57,57 @@ check() {
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
+ARCHITECTURES=(amd64 arm64)
+
+# Two real packages, built once and copied into each scenario. Stand-in files
+# named like packages would leave the verifier with nothing to read, and it
+# would say so.
+build_packages() {
+	local into="$1" field="$2"
+	mkdir -p "$into"
+
+	local arch tree
+	for arch in "${ARCHITECTURES[@]}"; do
+		tree="$work/tree-$field-$arch"
+		rm -rf "$tree"
+		install -d -m 0755 "$tree/DEBIAN" "$tree/usr/bin"
+		printf 'stands in for the agent\n' > "$tree/usr/bin/dockplane-agent"
+
+		cat > "$tree/DEBIAN/control" <<-CONTROL
+			Package: dockplane-agent
+			Version: $field
+			Architecture: $arch
+			Maintainer: Dockplane <info@dockplane.de>
+			Description: Fixture for the release verification checks.
+		CONTROL
+
+		dpkg-deb --root-owner-group --build "$tree" \
+			"$into/$(agent_package_name "$VERSION" "$arch")" > /dev/null
+	done
+}
+
+PACKAGES="$work/packages"
+build_packages "$PACKAGES" "$(debian_version "$VERSION")"
+
 # A release exactly as it should be: built here, uploaded, fetched back.
+# A second package directory builds an otherwise flawless release around
+# packages that declare something else, so that check is tested on its own
+# rather than alongside a checksum that no longer matches.
 build_release() {
-	local root="$1"
+	local root="$1" packages="${2:-$PACKAGES}"
 
 	rm -rf "$root"
 	mkdir -p "$root/local" "$root/download"
 
 	local name
-	for name in $(release_asset_names "$VERSION" amd64 arm64); do
+	for name in $(release_asset_names "$VERSION" "${ARCHITECTURES[@]}"); do
 		printf 'contents of %s\n' "$name" > "$root/local/$name"
+	done
+
+	local arch
+	for arch in "${ARCHITECTURES[@]}"; do
+		name="$(agent_package_name "$VERSION" "$arch")"
+		cp "$packages/$name" "$root/local/$name"
 	done
 
 	printf '{\n  "version": "%s",\n  "commit": "%s",\n  "protocolVersion": 1,\n  "schemaVersion": "0005_host_setup",\n  "backupFormatVersion": 1,\n  "images": {\n    "controlServer": { "digest": "sha256:aaa" },\n    "web": { "digest": "sha256:bbb" }\n  },\n  "supplyChain": { "signature": "none" }\n}\n' \
@@ -91,11 +147,11 @@ echo
 echo "==> and every way it can be wrong is refused"
 
 refuses() {
-	local description="$1" name="$2" mutate="$3"
+	local description="$1" name="$2" mutate="$3" packages="${4:-$PACKAGES}"
 	local root="$work/$name"
 
-	build_release "$root"
-	( cd "$root" && eval "$mutate" )
+	build_release "$root" "$packages"
+	[[ -n "$mutate" ]] && ( cd "$root" && eval "$mutate" )
 
 	local output
 	output="$(verify "$root")"
@@ -127,6 +183,11 @@ refuses "an asset that could not be fetched back" unfetchable \
 
 refuses "published checksums that do not match the published files" bad-sums \
 	'printf "0000000000000000000000000000000000000000000000000000000000000000  dockplane-agent_0.1.0-rc.3_amd64.deb\n" > download/SHA256SUMS'
+
+# Correctly named, correctly checksummed, and wrong where only dpkg looks.
+build_packages "$work/packages-wrong-field" 0.9.9
+refuses "a package that declares a version it was not named for" wrong-field \
+	'' "$work/packages-wrong-field"
 
 refuses "a manifest for another version" wrong-version \
 	'jq ".version = \"0.9.9\"" download/release-manifest.json > a && mv a download/release-manifest.json'
