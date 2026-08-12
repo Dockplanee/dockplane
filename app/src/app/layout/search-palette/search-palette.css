@@ -6,11 +6,11 @@
 /*
  * Geometry is stated in full rather than inherited from the browser.
  *
- * A modal dialog is centred by the user agent's `margin: auto`, and the global
- * reset that comes with Tailwind's preflight sets `margin: 0` on every element
- * — including this one. The dialog then keeps the user agent's `inset: 0` with
- * no auto margins to distribute the leftover, so it sits against the inline
- * start edge instead of in the middle of the viewport.
+ * Centring a modal dialog by leaving the user agent's `margin: auto` in place
+ * is a bet on the cascade: the preflight reset in `@layer base` sets `margin: 0`
+ * on every element, and this rule overrides only `margin-top`. Whichever way
+ * that interaction resolves in a given engine, the position of a global overlay
+ * should not depend on it, so every side is written out.
  *
  * `bottom: auto` removes the over-constraint, so the box is placed by its top
  * offset alone and does not move when its content grows or shrinks.
