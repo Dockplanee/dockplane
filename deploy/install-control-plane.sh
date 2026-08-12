@@ -774,7 +774,8 @@ verify_safety_backup() {
 			# The library is written to be sourced by dockplane-control, which
 			# supplies the presentation it prints with. Without them it stops on
 			# an unbound variable and every backup would look invalid.
-			BOLD='' RED='' RESET=''
+			BOLD='' RED='' RESET='' GREEN=''
+			ok() { :; }
 			# shellcheck source=/dev/null
 			source "$library"
 			validate_backup "$destination"
