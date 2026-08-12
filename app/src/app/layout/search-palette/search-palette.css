@@ -1,7 +1,30 @@
+/* The host contributes no box of its own; the dialog is in the top layer. */
+:host {
+  display: contents;
+}
+
+/*
+ * Geometry is stated in full rather than inherited from the browser.
+ *
+ * A modal dialog is centred by the user agent's `margin: auto`, and the global
+ * reset that comes with Tailwind's preflight sets `margin: 0` on every element
+ * — including this one. The dialog then keeps the user agent's `inset: 0` with
+ * no auto margins to distribute the leftover, so it sits against the inline
+ * start edge instead of in the middle of the viewport.
+ *
+ * `bottom: auto` removes the over-constraint, so the box is placed by its top
+ * offset alone and does not move when its content grows or shrinks.
+ */
 dialog {
+  position: fixed;
+  top: 12vh;
+  right: 0;
+  bottom: auto;
+  left: 0;
   width: min(34rem, calc(100vw - 2rem));
-  max-height: min(28rem, calc(100vh - 6rem));
-  margin-top: 12vh;
+  max-height: min(28rem, calc(100vh - 12vh - 2rem));
+  margin-block: 0;
+  margin-inline: auto;
   padding: 0;
   border: 1px solid var(--dp-line-strong);
   border-radius: var(--dp-radius-lg);

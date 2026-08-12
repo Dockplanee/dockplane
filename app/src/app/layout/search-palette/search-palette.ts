@@ -112,7 +112,18 @@ export class SearchPalette {
     if (!element.open) {
       this.query.set('');
       this.activeIndex.set(0);
-      element.showModal();
+      /*
+       * showModal is what puts the dialog in the top layer. Not every
+       * environment implements it — a test renderer typically does not — so
+       * the element is still opened there rather than the call throwing and
+       * taking the flow with it.
+       */
+      if (typeof element.showModal === 'function') {
+        element.showModal();
+      } else {
+        element.setAttribute('open', '');
+      }
+
       this.field().nativeElement.focus();
     }
   }
