@@ -71,9 +71,12 @@ func TestTheAdvertisedSetIsExactlyTheDefinedCapabilities(t *testing.T) {
 	expected := []string{
 		"compose.inspect",
 		"compose.list",
+		"container.create",
 		"container.inspect",
 		"container.list",
 		"container.logs",
+		"container.remove",
+		"container.replace",
 		"container.restart",
 		"container.start",
 		"container.stop",
@@ -100,20 +103,27 @@ rather than passing unnoticed.
 
 Container start, stop and restart left this list by a product decision that came
 with a permission, an audit trail and a confirmation, and container.logs left it
-the same way: it reads output and carries no input. Nothing else has, and in
-particular there is no capability that takes an operation name or a command.
+the same way: it reads output and carries no input. Create, replace and remove
+left it in v0.2 on the same terms, each carrying a typed specification rather
+than a Docker payload.
+
+Nothing else has. In particular there is still no capability that takes an
+operation name, a command or an argument list, and none that carries input:
+exec and attach are absent from the agent's Docker interfaces entirely, so no
+request can reach them however it is shaped.
 */
 func TestNoForbiddenCapabilityIsRegistered(t *testing.T) {
 	registry := capability.New()
 	capability.Register(registry, capability.Sources{})
 
 	forbidden := map[string]bool{
-		"container.remove": true, "container.exec": true, "container.attach": true,
-		"container.kill": true, "container.pause": true, "container.update": true,
+		"container.exec": true, "container.attach": true,
+		"container.kill": true, "container.pause": true,
 		"compose.up": true, "compose.down": true, "compose.deploy": true,
-		"image.pull": true, "volume.remove": true, "network.remove": true,
+		"volume.remove": true, "network.remove": true,
 		"host.reboot": true, "shell": true, "exec": true, "docker.command": true,
-		"container.action": true,
+		"container.action": true, "docker.raw": true, "container.raw": true,
+		"command.run": true,
 	}
 
 	for _, name := range registry.Names() {

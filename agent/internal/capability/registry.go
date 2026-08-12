@@ -2,8 +2,7 @@
 //
 // A capability is a named operation with a schema, a timeout and a handler. The
 // registry is the only way to reach one, so an operation that is not registered
-// cannot be invoked no matter what the server asks for. Everything here is
-// read-only: this agent observes a Docker host and changes nothing on it.
+// cannot be invoked no matter what the server asks for.
 package capability
 
 import (
@@ -37,6 +36,17 @@ const (
 	ContainerRestart = "container.restart"
 
 	/*
+	 * The operations that build one.
+	 *
+	 * Each carries a typed container specification, never a Docker API payload.
+	 * What may be asked for is the shape of that type: an option Docker has and
+	 * Dockplane has not modelled cannot be requested, whatever a caller sends.
+	 */
+	ContainerCreate  = "container.create"
+	ContainerReplace = "container.replace"
+	ContainerRemove  = "container.remove"
+
+	/*
 	 * The one capability that answers over time rather than once.
 	 *
 	 * It reads a container's output and nothing else. There is no attach, which
@@ -55,6 +65,10 @@ var (
 	ErrNotFound          = errors.New("not found")
 	ErrAlreadyRunning    = errors.New("container already running")
 	ErrAlreadyStopped    = errors.New("container already stopped")
+	ErrNameInUse         = errors.New("container name in use")
+	ErrInvalidSpec       = errors.New("invalid container specification")
+	ErrImageNotFound     = errors.New("image not found")
+	ErrReplacementFailed = errors.New("replacement failed")
 	ErrDockerPermission  = errors.New("docker permission denied")
 	ErrDockerFailed      = errors.New("docker operation failed")
 )
@@ -227,6 +241,14 @@ func Code(err error) string {
 		return "DOCKER_OPERATION_FAILED"
 	case errors.Is(err, ErrNotFound):
 		return "CONTAINER_NOT_FOUND"
+	case errors.Is(err, ErrNameInUse):
+		return "CONTAINER_NAME_IN_USE"
+	case errors.Is(err, ErrImageNotFound):
+		return "IMAGE_NOT_FOUND"
+	case errors.Is(err, ErrInvalidSpec):
+		return "INVALID_CONTAINER_SPEC"
+	case errors.Is(err, ErrReplacementFailed):
+		return "REPLACEMENT_FAILED"
 	case errors.Is(err, context.DeadlineExceeded):
 		return "AGENT_REQUEST_EXPIRED"
 	default:

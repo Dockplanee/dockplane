@@ -76,7 +76,10 @@ func TestLifecycleRefusesAnIdentifierItDoesNotRecognise(t *testing.T) {
 func TestUnknownCapabilityIsRefusedBeforeAnythingRuns(t *testing.T) {
 	registry := lifecycleRegistry(nil)
 
-	for _, name := range []string{"container.remove", "container.exec", "docker.command", "shell"} {
+	for _, name := range []string{
+		"container.exec", "container.attach", "docker.command", "docker.raw",
+		"command.run", "shell",
+	} {
 		_, err := registry.Invoke(context.Background(), name, payload("aaa111"))
 
 		if !errors.Is(err, capability.ErrUnsupported) {

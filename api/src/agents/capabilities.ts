@@ -2,11 +2,15 @@
  * Capability catalog.
  *
  * A capability is a named, validated operation, never a command. The list is
- * exhaustive: six observations, three named container operations and one log
+ * exhaustive: six observations, six named container operations and one log
  * stream. There is deliberately no capability that takes an operation name or
  * an argument list, because that is a remote shell with extra steps — and none
  * that carries input, which is what keeps a log stream from becoming a
  * console.
+ *
+ * The three that build a container carry a typed specification rather than a
+ * Docker API payload. What can be asked for is the shape of that type, so an
+ * option Docker has and Dockplane has not modelled cannot be requested at all.
  *
  * The catalog is shared by the dispatcher and the agent. Both sides check it,
  * so a capability the server never dispatches is also one the agent refuses to
@@ -24,6 +28,9 @@ export const CAPABILITIES = [
   'container.stop',
   'container.restart',
   'container.logs',
+  'container.create',
+  'container.replace',
+  'container.remove',
 ] as const;
 
 /**
@@ -54,6 +61,9 @@ export const MUTATING_CAPABILITIES = [
   'container.start',
   'container.stop',
   'container.restart',
+  'container.create',
+  'container.replace',
+  'container.remove',
 ] as const;
 
 export type MutatingCapability = (typeof MUTATING_CAPABILITIES)[number];
@@ -94,6 +104,14 @@ export const CAPABILITY_TIMEOUT_MS: Record<Capability, number> = {
   'container.stop': 60_000,
   'container.restart': 90_000,
   /*
+   * Building a container may have to fetch an image first, which is somebody
+   * else's network. Replacing one does that and then waits for the result to
+   * come up, so it is given the longest of the three.
+   */
+  'container.create': 300_000,
+  'container.replace': 420_000,
+  'container.remove': 90_000,
+  /*
    * A stream's timeout covers being accepted, not being finished. A follow
    * stream runs until something ends it, and how long that may be is a stream
    * lifetime rather than a request timeout.
@@ -117,6 +135,10 @@ const AGENT_ERROR_CODES = new Set<string>([
   'CONTAINER_NOT_FOUND',
   'CONTAINER_ALREADY_RUNNING',
   'CONTAINER_ALREADY_STOPPED',
+  'CONTAINER_NAME_IN_USE',
+  'IMAGE_NOT_FOUND',
+  'INVALID_CONTAINER_SPEC',
+  'REPLACEMENT_FAILED',
   'COMPOSE_PROJECT_NOT_FOUND',
   'VALIDATION_FAILED',
   'AGENT_CAPABILITY_FAILED',
@@ -147,6 +169,11 @@ const AGENT_ERROR_MESSAGES: Record<string, string> = {
   CONTAINER_NOT_FOUND: 'The container no longer exists on its host.',
   CONTAINER_ALREADY_RUNNING: 'The container is already running.',
   CONTAINER_ALREADY_STOPPED: 'The container is not running.',
+  CONTAINER_NAME_IN_USE: 'A container of that name already exists on this host.',
+  IMAGE_NOT_FOUND: 'The image could not be found or pulled on this host.',
+  INVALID_CONTAINER_SPEC: 'The host rejected the container configuration as invalid.',
+  REPLACEMENT_FAILED:
+    'The replacement did not start, so the original container was put back.',
   COMPOSE_PROJECT_NOT_FOUND: 'The Compose project no longer exists on its host.',
   VALIDATION_FAILED: 'The host rejected the request as invalid.',
   AGENT_CAPABILITY_FAILED: 'The operation failed on the host.',
