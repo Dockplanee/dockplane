@@ -440,6 +440,35 @@ check "an operator's settings are amended rather than replaced" \
 check "no secret is regenerated on an upgrade" \
 	"$(grep -q 'already exists, keeping it' <<< "$installer" && echo ok || echo fail)"
 
+# The backup is the one thing that makes an upgrade reversible, and it reported
+# success once while writing nothing: backup-restore.sh is a library that
+# dockplane-control sources, and running it directly does nothing and exits
+# zero. An exit status is not a backup.
+check "the backup goes through dockplane-control, not the library" \
+	"$(grep -q 'bash "$helper" backup' <<< "$installer" && echo ok || echo fail)"
+check "backup-restore.sh is never executed directly" \
+	"$(grep -qE '(bash |")\$?\{?(SOURCE_DIR|INSTALL_DIR)\}?/backup-restore\.sh" backup' <<< "$installer" && echo fail || echo ok)"
+check "what was written is read back before the upgrade continues" \
+	"$(grep -q 'verify_safety_backup' <<< "$installer" && echo ok || echo fail)"
+check "a backup that wrote nothing stops the upgrade" \
+	"$(grep -q 'reported success but wrote nothing' <<< "$installer" && echo ok || echo fail)"
+check "a missing component stops the upgrade" \
+	"$(grep -q 'the backup is incomplete' <<< "$installer" && echo ok || echo fail)"
+check "the checksums are verified" \
+	"$(grep -q 'does not match its own checksums' <<< "$installer" && echo ok || echo fail)"
+check "the manifest is read" \
+	"$(grep -q 'the backup manifest is not readable' <<< "$installer" && echo ok || echo fail)"
+check "the backup directory must be owner-only" \
+	"$(grep -q 'readable by others' <<< "$installer" && echo ok || echo fail)"
+check "backups are kept outside the deployment directory" \
+	"$(grep -q 'local root=/var/backups/dockplane' <<< "$installer" && echo ok || echo fail)"
+check "the backup is taken before the schema is migrated" \
+	"$([[ "$(grep -n 'safety_backup$' <<< "$installer" | tail -1 | cut -d: -f1)" -lt "$(grep -n 'write_configuration$' <<< "$installer" | tail -1 | cut -d: -f1)" ]] && echo ok || echo fail)"
+check "a fresh install takes no pre-upgrade backup" \
+	"$(grep -q '\[\[ "\$UPGRADE" -eq 1 \]\] || return 0' <<< "$installer" && echo ok || echo fail)"
+check "the path is named again at the end" \
+	"$(grep -q 'Safety backup from this upgrade' <<< "$installer" && echo ok || echo fail)"
+
 echo
 printf '%d passed, %d failed\n' "$passed" "$failed"
 exit $((failed > 0 ? 1 : 0))

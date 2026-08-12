@@ -102,6 +102,7 @@ VERSION="$DEFAULT_VERSION"
 TARGET_VERSION=""
 INSTALLED_VERSION=""
 UPGRADE=0
+SAFETY_BACKUP=""
 INSTALL_DIR="$DEFAULT_DIR"
 ADMIN_EMAIL=""
 ADMIN_PASSWORD_FILE=""
@@ -684,26 +685,89 @@ verify_bundle() {
 
 # --- Configuration ----------------------------------------------------------
 
-# An upgrade replaces the deployment's own files, so there has to be a way back
-# before it starts. The backup is the one the product already ships and tests;
-# if it cannot be taken, the upgrade does not happen.
+# An upgrade replaces the deployment's own files and migrates the schema, so
+# there has to be a way back before it starts.
+#
+# The backup is the one the product already ships, taken through the same
+# entry point an operator uses. backup-restore.sh is a library that
+# dockplane-control sources — run directly it does nothing and exits zero, which
+# is a success worth nobody's trust.
 safety_backup() {
 	[[ "$UPGRADE" -eq 1 ]] || return 0
 
 	step "Safety backup"
 
-	local destination
-	destination="$INSTALL_DIR/pre-upgrade-$INSTALLED_VERSION-$(date -u +%Y%m%dT%H%M%SZ)"
+	local root=/var/backups/dockplane
+	install -d -m 0700 -o root -g root "$root" ||
+		fail "cannot create $root" \
+			"Nothing has been changed."
 
-	if ! "$SOURCE_DIR/backup-restore.sh" backup "$destination" > /dev/null 2>&1 &&
-		! bash "$INSTALL_DIR/backup-restore.sh" backup "$destination" > /dev/null 2>&1; then
+	local destination
+	destination="$root/pre-upgrade-$INSTALLED_VERSION-$(date -u +%Y%m%dT%H%M%SZ)"
+
+	info "creating safety backup"
+
+	local helper="$INSTALL_DIR/dockplane-control"
+	[[ -x "$helper" ]] || helper="$SOURCE_DIR/dockplane-control"
+
+	if ! bash "$helper" backup "$destination" > /dev/null 2>&1; then
 		fail "the pre-upgrade backup failed" \
 			"Nothing has been changed. An upgrade that cannot be undone is not one" \
 			"this installer will start." \
 			"Run: $INSTALL_DIR/dockplane-control doctor"
 	fi
 
-	good "backup taken: $destination"
+	verify_safety_backup "$destination"
+
+	SAFETY_BACKUP="$destination"
+	good "safety backup verified: $destination"
+}
+
+# An exit status is not a backup. What matters is whether the thing that would
+# be restored from is there and intact, so it is read back the way a restore
+# would read it.
+verify_safety_backup() {
+	local destination="$1"
+	local missing=()
+
+	[[ -d "$destination" ]] ||
+		fail "the backup command reported success but wrote nothing" \
+			"expected: $destination" \
+			"Nothing has been changed."
+
+	local component
+	for component in manifest.json SHA256SUMS database.dump env; do
+		[[ -e "$destination/$component" ]] || missing+=("$component")
+	done
+
+	[[ -e "$destination/secrets/application-encryption-key" ]] ||
+		missing+=("secrets/application-encryption-key")
+	[[ -e "$destination/pki/agent-ca.key" ]] || missing+=("pki/agent-ca.key")
+
+	if [[ ${#missing[@]} -gt 0 ]]; then
+		fail "the backup is incomplete" \
+			"missing: ${missing[*]}" \
+			"Nothing has been changed. A backup without these cannot restore this" \
+			"deployment."
+	fi
+
+	# The checksums the backup wrote over itself, checked rather than assumed.
+	(cd "$destination" && sha256sum --quiet -c SHA256SUMS > /dev/null 2>&1) ||
+		fail "the backup does not match its own checksums" \
+			"$destination" \
+			"Nothing has been changed."
+
+	grep -q '"formatVersion"' "$destination/manifest.json" ||
+		fail "the backup manifest is not readable" \
+			"$destination/manifest.json" \
+			"Nothing has been changed."
+
+	local mode
+	mode="$(stat -c '%a' "$destination" 2> /dev/null || stat -f '%Lp' "$destination")"
+	[[ "$mode" == "700" ]] ||
+		fail "the backup directory is readable by others" \
+			"$destination is mode $mode" \
+			"It holds this deployment's private keys."
 }
 
 # Settings a new release introduces have to arrive somehow, and replacing the
@@ -1084,7 +1148,10 @@ summary() {
 		    $INSTALL_DIR/dockplane-control logs
 		    $INSTALL_DIR/dockplane-control doctor
 
-		  Back it up, before you need to
+		  ${SAFETY_BACKUP:+Safety backup from this upgrade
+	    $SAFETY_BACKUP
+
+	}  Back it up, before you need to
 		    $INSTALL_DIR/dockplane-control backup /var/backups/dockplane-\$(date -u +%Y%m%dT%H%M%SZ)
 
 		  Open in the firewall, if you have one
