@@ -402,6 +402,122 @@ export const usersRelations = relations(users, ({ many }) => ({
   recoveryCodes: many(recoveryCodes),
 }));
 
+/**
+ * A stack Dockplane is the source of truth for.
+ *
+ * Distinct from `compose_projects`, which is what discovery found on a host and
+ * stays read-only. A project becomes a stack only by being adopted, deliberately
+ * and by somebody, and adoption is what makes Dockplane responsible for
+ * deploying it. Nothing here is created by discovery.
+ */
+export const stacks = pgTable(
+  'stacks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    hostId: uuid('host_id')
+      .notNull()
+      .references(() => hosts.id, { onDelete: 'cascade' }),
+    /** The Compose project name on the host. Unique per host, as Compose is. */
+    name: text('name').notNull(),
+    /**
+     * Where this stack came from.
+     *
+     * `dockplane` was written here; `adopted` existed on the host first. The
+     * difference matters when reporting what Dockplane can and cannot know
+     * about the configuration a stack is running.
+     */
+    sourceType: text('source_type').notNull().default('dockplane'),
+    /** Observed, never asserted from the outcome of an API call. */
+    status: text('status').notNull().default('unknown'),
+    /** The revision last successfully deployed, as opposed to last saved. */
+    currentRevisionId: uuid('current_revision_id'),
+    /** The revision a deployment is working towards, while one is running. */
+    desiredRevisionId: uuid('desired_revision_id'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    lastDeployedAt: timestamp('last_deployed_at', { withTimezone: true }),
+    adoptedAt: timestamp('adopted_at', { withTimezone: true }),
+    /** The discovered project this stack manages, once it is deployed. */
+    composeProjectId: uuid('compose_project_id'),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('stacks_host_name_unique').on(table.hostId, table.name),
+    index('stacks_host_idx').on(table.hostId),
+  ],
+);
+
+/**
+ * An immutable configuration of a stack.
+ *
+ * A revision is written once and never updated. A deployment names one, so what
+ * ran is always a thing that can be looked at afterwards rather than whatever
+ * happened to be in an editor at the time.
+ *
+ * The Compose source is encrypted at rest with the application encryption key,
+ * because a Compose file can carry credentials inline and Dockplane cannot tell
+ * when it does. The environment is snapshotted with it, so rolling back to a
+ * revision restores the configuration that revision actually meant.
+ */
+export const stackRevisions = pgTable(
+  'stack_revisions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    stackId: uuid('stack_id')
+      .notNull()
+      .references(() => stacks.id, { onDelete: 'cascade' }),
+    /** Monotonic per stack, and what an operator sees: "revision 12". */
+    number: integer('number').notNull(),
+    /** AES-256-GCM envelope. Never stored or returned as plain text. */
+    composeSourceEncrypted: text('compose_source_encrypted').notNull(),
+    /**
+     * The environment as it stood when this revision was written.
+     *
+     * Secret values inside are encrypted individually, exactly as they are in
+     * the live environment. A revision's secrets are never revealed: reveal
+     * answers for the current value of a variable, not for what it used to be.
+     */
+    environmentSnapshot: jsonb('environment_snapshot').$type<unknown[]>().notNull(),
+    /** What changed, in words, without naming a value. */
+    changeSummary: text('change_summary'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('stack_revisions_stack_number_unique').on(table.stackId, table.number),
+    index('stack_revisions_stack_idx').on(table.stackId),
+  ],
+);
+
+/**
+ * A stack's environment, as variables rather than as a file.
+ *
+ * Structured because a `.env` blob cannot say which value is a secret, and
+ * without that Dockplane could not redact one. A non-secret value is stored as
+ * it is; a secret is encrypted and has no column that could hold it in the
+ * clear.
+ */
+export const stackEnvironmentVariables = pgTable(
+  'stack_environment_variables',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    stackId: uuid('stack_id')
+      .notNull()
+      .references(() => stacks.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    /** Set only when the variable is not a secret. */
+    value: text('value'),
+    /** AES-256-GCM envelope. Set only when the variable is a secret. */
+    valueEncrypted: text('value_encrypted'),
+    isSecret: boolean('is_secret').notNull().default(false),
+    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('stack_environment_stack_key_unique').on(table.stackId, table.key),
+    index('stack_environment_stack_idx').on(table.stackId),
+  ],
+);
+
 export const rolesRelations = relations(roles, ({ many }) => ({
   permissions: many(rolePermissions),
   users: many(userRoles),
@@ -424,6 +540,23 @@ export const containersRelations = relations(containers, ({ one }) => ({
     references: [composeProjects.id],
   }),
 }));
+
+export const stacksRelations = relations(stacks, ({ many, one }) => ({
+  host: one(hosts, { fields: [stacks.hostId], references: [hosts.id] }),
+  revisions: many(stackRevisions),
+  environment: many(stackEnvironmentVariables),
+}));
+
+export const stackRevisionsRelations = relations(stackRevisions, ({ one }) => ({
+  stack: one(stacks, { fields: [stackRevisions.stackId], references: [stacks.id] }),
+}));
+
+export const stackEnvironmentVariablesRelations = relations(
+  stackEnvironmentVariables,
+  ({ one }) => ({
+    stack: one(stacks, { fields: [stackEnvironmentVariables.stackId], references: [stacks.id] }),
+  }),
+);
 
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;

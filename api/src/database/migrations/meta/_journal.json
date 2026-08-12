@@ -43,6 +43,13 @@
       "when": 1786483481825,
       "tag": "0005_host_setup",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786569881825,
+      "tag": "0006_stacks",
+      "breakpoints": true
     }
   ]
 }
