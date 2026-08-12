@@ -189,15 +189,32 @@ else
 	fi
 
 	# A package is two versions: the one it is called and the one dpkg orders by.
-	for arch in "${ARCHITECTURES[@]}"; do
-		package="$DOWNLOAD_DIR/$(agent_package_name "$VERSION" "$arch")"
+	# Neither this check nor any other here may quietly disappear because
+	# something it needs is missing. A check that did not run reads exactly like
+	# a check that passed, and that is how 0.1.0-rc.2 became public.
+	expected_field="$(debian_version "$VERSION")"
 
-		if [[ -f "$package" ]] && command -v dpkg-deb > /dev/null; then
-			field="$(dpkg-deb -f "$package" Version 2> /dev/null || true)"
-			check "the $arch package declares version $(debian_version "$VERSION")" \
-				"$([[ "$field" == "$(debian_version "$VERSION")" ]] && echo ok || echo fail)"
-			[[ "$field" != "$(debian_version "$VERSION")" ]] && printf '     declares: %s\n' "$field"
+	for arch in "${ARCHITECTURES[@]}"; do
+		name="$(agent_package_name "$VERSION" "$arch")"
+		package="$DOWNLOAD_DIR/$name"
+
+		if [[ ! -f "$package" ]]; then
+			check "the $arch package declares version $expected_field" fail
+			printf '     %s did not come back to be read\n' "$name"
+			continue
 		fi
+
+		if ! command -v dpkg-deb > /dev/null; then
+			check "the $arch package declares version $expected_field" fail
+			printf '     dpkg-deb is not installed, so the package was never read\n'
+			continue
+		fi
+
+		field="$(dpkg-deb -f "$package" Version 2> /dev/null || true)"
+		check "the $arch package declares version $expected_field" \
+			"$([[ "$field" == "$expected_field" ]] && echo ok || echo fail)"
+		[[ "$field" != "$expected_field" ]] &&
+			printf '     declares: %s\n' "${field:-nothing, it is not a package}"
 	done
 
 	# The manifest describes this release and no other.
