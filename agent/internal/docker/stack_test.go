@@ -73,6 +73,8 @@ type fakeHost struct {
 	wontStart map[string]bool
 	/** Containers that refuse to stop, keyed the same way. */
 	wontStop map[string]bool
+	/** Containers that refuse to be removed, keyed the same way. */
+	wontRemove map[string]bool
 	/** How many starts this host has performed, which dates each one. */
 	started int
 	/** Set to make an image unavailable. */
@@ -89,6 +91,7 @@ func newHost() *fakeHost {
 		volumes:    map[string]map[string]string{},
 		wontStart:  map[string]bool{},
 		wontStop:   map[string]bool{},
+		wontRemove: map[string]bool{},
 	}
 }
 
@@ -233,6 +236,11 @@ func (h *fakeHost) ContainerRemove(_ context.Context, id string, options contain
 
 	if found, present := h.containers[id]; present {
 		h.record("remove:%s", found.name)
+
+		if h.wontRemove[revisionService(found)] {
+			return errors.New("the container would not be removed")
+		}
+
 		delete(h.containers, id)
 	}
 

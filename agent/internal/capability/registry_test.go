@@ -82,6 +82,7 @@ func TestTheAdvertisedSetIsExactlyTheDefinedCapabilities(t *testing.T) {
 		"host.inventory",
 		"host.metrics",
 		"stack.deploy",
+		"stack.remove",
 		"stack.restart",
 		"stack.start",
 		"stack.stop",

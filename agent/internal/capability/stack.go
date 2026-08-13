@@ -105,6 +105,45 @@ func registerStack(registry *Registry, sources Sources) {
 			},
 		})
 	}
+
+	/*
+	 * Removing a stack's containers.
+	 *
+	 * The same payload the lifecycle operations take, because it needs exactly
+	 * the same thing: which containers, proven by the identity Dockplane gave
+	 * them. There is no volume field and no force field — neither is a decision
+	 * a request may make.
+	 */
+	registry.Register(Definition{
+		Name:    StackRemove,
+		Timeout: 10 * time.Minute,
+		Handler: func(ctx context.Context, payload json.RawMessage) (any, error) {
+			var request stackLifecycleRequest
+
+			if err := decode(payload, &request); err != nil {
+				return nil, err
+			}
+
+			result, err := sources.Docker.RemoveStack(ctx, &request.Plan)
+
+			if err != nil {
+				return nil, wrapStackRemove(err)
+			}
+
+			return result, nil
+		},
+	})
+}
+
+/** Maps a refusal to remove a stack onto a code the server acts on. */
+func wrapStackRemove(err error) error {
+	var incomplete *docker.StackRemoveIncompleteError
+
+	if errors.As(err, &incomplete) {
+		return fmt.Errorf("%w: %v", ErrStackRemoveIncomplete, incomplete.Cause)
+	}
+
+	return wrapStackLifecycle(err)
 }
 
 /*

@@ -69,6 +69,16 @@ const (
 	StackRestart = "stack.restart"
 
 	/*
+	 * The containers of a stack, taken away.
+	 *
+	 * It removes containers and nothing else: no volume, on any path. Deleting
+	 * a stack is deleting a configuration and the things running it, and
+	 * somebody's database is neither — which is why there is no field here in
+	 * which a caller could ask for one.
+	 */
+	StackRemove = "stack.remove"
+
+	/*
 	 * The one capability that answers over time rather than once.
 	 *
 	 * It reads a container's output and nothing else. There is no attach, which
@@ -106,8 +116,11 @@ var (
 	ErrStackServiceMissing = errors.New("a service of this stack is not on the host")
 	// Some services moved and others did not. The host is left as it is.
 	ErrStackLifecycleIncomplete = errors.New("the stack was left partly changed")
-	ErrDockerPermission         = errors.New("docker permission denied")
-	ErrDockerFailed             = errors.New("docker operation failed")
+	// Some of a stack's containers are gone and some are not. Nothing is
+	// rebuilt: this path never reads the configuration one would need.
+	ErrStackRemoveIncomplete = errors.New("the stack was left partly removed")
+	ErrDockerPermission      = errors.New("docker permission denied")
+	ErrDockerFailed          = errors.New("docker operation failed")
 )
 
 // Handler performs a capability. The context carries the per-capability
@@ -294,6 +307,8 @@ func Code(err error) string {
 		return "STACK_SERVICE_MISSING"
 	case errors.Is(err, ErrStackLifecycleIncomplete):
 		return "STACK_LIFECYCLE_INCOMPLETE"
+	case errors.Is(err, ErrStackRemoveIncomplete):
+		return "STACK_REMOVE_INCOMPLETE"
 	case errors.Is(err, ErrReplacementFailed):
 		return "REPLACEMENT_FAILED"
 	case errors.Is(err, context.DeadlineExceeded):
