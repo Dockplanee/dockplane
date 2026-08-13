@@ -189,6 +189,11 @@ jobs:
 
           ls -l dist/release/sbom-* dist/release/provenance-*
 
+      - name: Check what was built
+        env:
+          VERSION: ${{ needs.tag.outputs.version }}
+        run: deploy/check-release-artefacts.sh "$VERSION"
+
       - name: Report the package visibility
         # Visibility is a property of the package, not of the push, and this
         # workflow does not change it. It is read and reported so that a test

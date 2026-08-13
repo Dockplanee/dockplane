@@ -7,9 +7,10 @@
 #
 # Format:  <CVE>  <package>  # why it is carried
 #
-# Assessed for 0.1.0-rc.1 against Trivy 0.73.0. When Debian publishes a fix,
-# the finding becomes fixable, the release stops, and the line is removed
-# rather than updated.
+# Assessed for 0.1.0-rc.1 and re-assessed for 0.2.0-rc.1, both against Trivy
+# 0.73.0 on linux/amd64 and linux/arm64. When Debian publishes a fix, the
+# finding becomes fixable, the release stops, and the line is removed rather
+# than updated.
 
 CVE-2026-13221  perl-base  # no fixed version in Debian; perl is never executed in this image
 CVE-2026-42496  perl-base  # no fixed version in Debian; perl is never executed in this image
