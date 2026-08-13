@@ -20,6 +20,15 @@
 
 export type StackLifecycleKind = 'start' | 'stop' | 'restart';
 
+/**
+ * Everything recorded as an operation on a stack.
+ *
+ * Deleting one is not a lifecycle operation — it takes containers away rather
+ * than moving them between running and stopped — but it is recorded in the same
+ * place, because a stack may only ever have one unfinished mutation of any kind.
+ */
+export type StackOperationKind = StackLifecycleKind | 'delete';
+
 export type StackLifecycleOutcome =
   /** The stack reached the state that was asked for. */
   | { kind: 'applied' }

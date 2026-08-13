@@ -61,6 +61,9 @@ export class FakeDockerHost {
   /** Services that refuse to stop, which is how a stack ends up half stopped. */
   readonly wontStop = new Set<string>();
 
+  /** Services that refuse to be removed, which is how a delete ends up partial. */
+  readonly wontRemove = new Set<string>();
+
   /** Every lifecycle operation this host was asked to perform, in order. */
   readonly stackOperations: { operation: string; plan: StackLifecyclePlan }[] = [];
 
@@ -146,6 +149,8 @@ export class FakeDockerHost {
         return this.runStackLifecycle('stop', payload);
       case 'stack.restart':
         return this.runStackLifecycle('restart', payload);
+      case 'stack.remove':
+        return this.removeStack(payload);
       default:
         throw { code: 'CAPABILITY_UNSUPPORTED', message: `no such capability: ${capability}` };
     }
@@ -510,6 +515,67 @@ export class FakeDockerHost {
         services: [...resolved.keys()],
       },
     };
+  }
+
+  /**
+   * Removing a stack's containers, the way the agent does.
+   *
+   * Ownership is proven for every expected service before the first container
+   * goes, and no removal ever asks Docker to take a volume with it — the two
+   * rules this operation exists to keep.
+   */
+  private removeStack(payload: Record<string, unknown>) {
+    const plan = payload.plan as StackLifecyclePlan;
+
+    this.stackOperations.push({ operation: 'remove', plan });
+
+    const resolved = new Map<string, FakeContainer>();
+
+    for (const service of plan.services) {
+      const claims = [...this.containers.values()].filter(
+        (container) =>
+          container.labels['io.dockplane.stack-id'] === plan.stackId &&
+          container.labels['io.dockplane.stack-service'] === service.serviceName,
+      );
+
+      if (claims.length > 1) {
+        throw {
+          code: 'STACK_STATE_AMBIGUOUS',
+          message: `more than one container is service ${service.serviceName}`,
+        };
+      }
+
+      if (claims.length === 0) {
+        throw { code: 'STACK_SERVICE_MISSING', message: `${service.serviceName} is not on the host` };
+      }
+
+      if (claims[0].labels['io.dockplane.container-id'] !== service.containerId) {
+        throw {
+          code: 'STACK_STATE_AMBIGUOUS',
+          message: `${service.serviceName} is held by a container with another identity`,
+        };
+      }
+
+      resolved.set(service.serviceName, claims[0]);
+    }
+
+    const removed: { serviceName: string; dockerId: string }[] = [];
+
+    for (const name of [...lifecycleOrder(plan)].reverse()) {
+      const container = resolved.get(name)!;
+
+      if (this.wontRemove.has(name)) {
+        throw {
+          code: removed.length > 0 ? 'STACK_REMOVE_INCOMPLETE' : 'DOCKER_OPERATION_FAILED',
+          message: `${name} would not be removed`,
+        };
+      }
+
+      this.containers.delete(container.dockerId);
+      removed.push({ serviceName: name, dockerId: container.dockerId });
+    }
+
+    return { stackId: plan.stackId, revisionId: plan.revisionId, outcome: 'removed', removed };
   }
 
   /** Monotonic, as Docker's own start times are. */

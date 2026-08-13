@@ -39,6 +39,7 @@ export const CAPABILITIES = [
   'stack.start',
   'stack.stop',
   'stack.restart',
+  'stack.remove',
 ] as const;
 
 /**
@@ -76,6 +77,7 @@ export const MUTATING_CAPABILITIES = [
   'stack.start',
   'stack.stop',
   'stack.restart',
+  'stack.remove',
 ] as const;
 
 export type MutatingCapability = (typeof MUTATING_CAPABILITIES)[number];
@@ -139,6 +141,11 @@ export const CAPABILITY_TIMEOUT_MS: Record<Capability, number> = {
   'stack.stop': 300_000,
   'stack.restart': 600_000,
   /*
+   * Removing a stack stops each of its services before taking it away, so it
+   * waits what a stop waits and then some. Bounded like everything else.
+   */
+  'stack.remove': 600_000,
+  /*
    * A stream's timeout covers being accepted, not being finished. A follow
    * stream runs until something ends it, and how long that may be is a stream
    * lifetime rather than a request timeout.
@@ -168,6 +175,9 @@ const AGENT_ERROR_CODES = new Set<string>([
   'REPLACEMENT_FAILED',
   'STACK_RESOURCE_CONFLICT',
   'STACK_STATE_AMBIGUOUS',
+  'STACK_SERVICE_MISSING',
+  'STACK_LIFECYCLE_INCOMPLETE',
+  'STACK_REMOVE_INCOMPLETE',
   'VOLUME_MISSING',
   'COMPOSE_PROJECT_NOT_FOUND',
   'VALIDATION_FAILED',
@@ -207,6 +217,12 @@ const AGENT_ERROR_MESSAGES: Record<string, string> = {
     'A container, volume or network on this host has a name this stack needs and was not created by it.',
   STACK_STATE_AMBIGUOUS:
     'The containers of this stack on the host do not say clearly which revision it is running.',
+  STACK_SERVICE_MISSING:
+    'A service of this stack has no container on the host. Dockplane will not create one in its place.',
+  STACK_LIFECYCLE_INCOMPLETE:
+    'Part of this stack was moved and part of it was not. Nothing was undone.',
+  STACK_REMOVE_INCOMPLETE:
+    'Part of this stack was removed and part of it was not. Nothing was rebuilt.',
   VOLUME_MISSING:
     'A volume this stack was using is not on the host. Dockplane will not create an empty one in its place.',
   COMPOSE_PROJECT_NOT_FOUND: 'The Compose project no longer exists on its host.',

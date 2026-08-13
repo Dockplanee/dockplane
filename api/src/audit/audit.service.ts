@@ -121,6 +121,15 @@ export type AuditAction =
   | 'stack.restart.failed'
   | 'stack.operation.interrupted'
   | 'stack.operation.needs_attention'
+  /*
+   * Deleting a stack. Recorded against its identifier and name, both of which
+   * outlive the row: nothing sensitive is kept alive to satisfy a reference.
+   */
+  | 'stack.delete.requested'
+  | 'stack.deleted'
+  | 'stack.delete.failed'
+  | 'stack.delete.interrupted'
+  | 'stack.delete.needs_attention'
   | 'container.recovery.promoted'
   | 'container.recovery.discarded'
   | 'container.recovery.removed'

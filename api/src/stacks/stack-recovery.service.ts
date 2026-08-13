@@ -19,7 +19,13 @@ import { DiscoveryService } from '../discovery/discovery.service';
 import { MutationRegistry } from '../operations/mutation-registry';
 import { ObservedService, classifyStackApply } from './stack-deployment';
 import { UNRESOLVED_DEPLOYMENT, stackKey } from './stack-deployment.service';
-import { ObservedRuntime, StackLifecycleKind, classifyStackLifecycle } from './stack-lifecycle';
+import { classifyStackDelete } from './stack-delete';
+import {
+  ObservedRuntime,
+  StackLifecycleKind,
+  StackOperationKind,
+  classifyStackLifecycle,
+} from './stack-lifecycle';
 import { UNRESOLVED_OPERATION } from './stack-lifecycle.service';
 
 /**
@@ -138,7 +144,15 @@ export class StackRecoveryService implements OnApplicationBootstrap {
         continue;
       }
 
-      if (await this.settleOperation(operation, hostId)) {
+      const settled =
+        operation.type === 'delete'
+          ? await this.settleDeletion(operation, hostId)
+          : await this.settleOperation(
+              operation as UnfinishedOperation & { type: StackLifecycleKind },
+              hostId,
+            );
+
+      if (settled) {
         recovered += 1;
       }
     }
@@ -177,7 +191,7 @@ export class StackRecoveryService implements OnApplicationBootstrap {
         ),
       );
 
-    return rows.map((row) => ({ ...row, type: row.type as StackLifecycleKind }));
+    return rows.map((row) => ({ ...row, type: row.type as StackOperationKind }));
   }
 
   /**
@@ -191,7 +205,7 @@ export class StackRecoveryService implements OnApplicationBootstrap {
    * have happened.
    */
   private async settleOperation(
-    operation: UnfinishedOperation,
+    operation: UnfinishedOperation & { type: StackLifecycleKind },
     hostId: string,
   ): Promise<boolean> {
     const observed = await this.observedRuntime(
@@ -301,6 +315,122 @@ export class StackRecoveryService implements OnApplicationBootstrap {
         outcome: outcome.kind,
       },
       'an unfinished stack operation was settled from the host',
+    );
+
+    return true;
+  }
+
+  /**
+   * Settles a deletion whose answer never came back.
+   *
+   * The question is narrow and the host answers it completely: does anything on
+   * it still claim to be this stack? Nothing does, and the configuration goes;
+   * everything does, and the removal never happened; some of it does, and
+   * somebody has to look.
+   *
+   * Volumes and networks the stack used are not part of the question. Dockplane
+   * does not remove them, so finding them is the expected outcome rather than
+   * an unfinished deletion.
+   */
+  private async settleDeletion(
+    operation: UnfinishedOperation,
+    hostId: string,
+  ): Promise<boolean> {
+    const rows = await this.db.client
+      .select({
+        id: containers.id,
+        dockerId: containers.dockerId,
+        stackService: containers.stackService,
+      })
+      .from(containers)
+      .where(eq(containers.stackId, operation.stackId));
+
+    const outcome = classifyStackDelete({
+      expectedServices: await this.services(operation.revisionId),
+      observed: rows.map((row) => ({
+        serviceName: row.stackService ?? '',
+        containerId: row.id,
+        dockerId: row.dockerId,
+      })),
+      // Read completely just above, which is the only reason anything may be
+      // concluded here at all.
+      snapshotComplete: true,
+    });
+
+    if (outcome.kind === 'unknown') {
+      return false;
+    }
+
+    const now = new Date();
+    const deleted = outcome.kind === 'finalize_deleted';
+    const attention = outcome.kind === 'needs_attention';
+
+    await this.db.client.transaction(async (tx) => {
+      if (operation.actionId) {
+        await tx
+          .update(actions)
+          .set({
+            status: deleted ? 'succeeded' : 'failed',
+            completedAt: now,
+            ...(deleted
+              ? {}
+              : { errorCode: attention ? 'STACK_DELETE_PARTIAL' : 'STACK_DELETE_FAILED' }),
+          })
+          .where(eq(actions.id, operation.actionId));
+      }
+
+      if (deleted) {
+        /*
+         * The host is clear, so the configuration goes — including the
+         * operation row itself, which the stack's own cascade takes with it.
+         */
+        await tx.delete(containers).where(eq(containers.stackId, operation.stackId));
+        await tx.delete(stacks).where(eq(stacks.id, operation.stackId));
+
+        return;
+      }
+
+      await tx
+        .update(stackOperations)
+        .set({
+          status: attention ? 'needs_attention' : 'failed',
+          failureCode: attention ? 'STACK_DELETE_PARTIAL' : 'STACK_DELETE_FAILED',
+          resolvedAt: now,
+          updatedAt: now,
+        })
+        .where(eq(stackOperations.id, operation.id));
+
+      if (attention) {
+        await tx
+          .update(stacks)
+          .set({ status: 'needs_attention', updatedAt: now })
+          .where(eq(stacks.id, operation.stackId));
+      }
+    });
+
+    await this.audit.record({
+      action: deleted
+        ? 'stack.deleted'
+        : attention
+          ? 'stack.delete.needs_attention'
+          : 'stack.delete.failed',
+      result: deleted ? 'success' : 'failure',
+      actorLabel: 'system',
+      targetType: 'stack',
+      targetId: operation.stackId,
+      targetLabel: operation.name,
+      reasonCode: operation.id,
+    });
+
+    this.logger.info(
+      {
+        event: 'stack_delete_recovered',
+        hostId,
+        stackId: operation.stackId,
+        operationId: operation.id,
+        outcome: outcome.kind,
+      },
+      'an unfinished stack removal was settled from the host',
     );
 
     return true;
@@ -551,7 +681,7 @@ interface UnfinishedOperation {
   readonly id: string;
   readonly stackId: string;
   readonly revisionId: string;
-  readonly type: StackLifecycleKind;
+  readonly type: StackOperationKind;
   readonly fingerprint: typeof stackOperations.$inferSelect.fingerprint;
   readonly actionId: string | null;
   readonly name: string;

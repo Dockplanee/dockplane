@@ -189,6 +189,15 @@ export const ERROR_CODES = [
    * holding a lock somebody needs — and the stack waits for a person.
    */
   'STACK_LIFECYCLE_PARTIAL',
+  /* The stack's containers were not removed. Everything about it is as it was. */
+  'STACK_DELETE_FAILED',
+  /*
+   * Some of the stack's containers are gone and some are not.
+   *
+   * Nothing is rebuilt and nothing about the saved configuration is removed:
+   * that is what somebody needs in order to make sense of the host.
+   */
+  'STACK_DELETE_PARTIAL',
   /*
    * Something on the host already has a name the stack needs. Never resolved by
    * renaming or removing whatever is in the way — it belongs to somebody.

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   HttpCode,
@@ -17,6 +18,7 @@ import { RequirePermissions } from '../rbac/permissions.decorator';
 import { AuthenticatedRequest, AuthenticatedUser } from '../auth/authenticated-request';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { ComposeCompilerService } from './compose-compiler.service';
+import { StackDeleteService } from './stack-delete.service';
 import { StackDeploymentService } from './stack-deployment.service';
 import { StackLifecycleService } from './stack-lifecycle.service';
 import { StackService } from './stack.service';
@@ -157,6 +159,7 @@ export class StacksController {
     private readonly stacks: StackService,
     private readonly deployments: StackDeploymentService,
     private readonly lifecycle: StackLifecycleService,
+    private readonly deletion: StackDeleteService,
   ) {}
 
   @Post()
@@ -292,6 +295,29 @@ export class StacksController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.lifecycle.run('stop', id, user, context(request));
+  }
+
+  /**
+   * Deletes a stack.
+   *
+   * Its containers are removed from the host and its saved configuration is
+   * removed from Dockplane. Named volumes are kept, on every path: there is no
+   * field here in which a caller could ask for one to be deleted, which is the
+   * point — data loss must not be reachable through a request body.
+   *
+   * Answers when the deletion is over rather than when it was dispatched, and a
+   * request that outlives its answer leaves the operation unresolved rather
+   * than reporting a stack gone that may still be running.
+   */
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('stacks.delete')
+  async remove(
+    @Param('id', new ZodValidationPipe(idSchema)) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.deletion.delete(id, user, context(request));
   }
 
   @Post(':id/restart')

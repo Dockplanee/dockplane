@@ -34,6 +34,7 @@ export type EventType =
   | 'stack.started'
   | 'stack.stopped'
   | 'stack.restarted'
+  | 'stack.deleted'
   | 'stack.operation.failed'
   | 'compose.discovered'
   | 'compose.state.changed'
