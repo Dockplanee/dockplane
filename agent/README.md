@@ -41,8 +41,14 @@ behind a build tag, because they create, operate and remove a throwaway
 container:
 
 ```bash
-go test -tags docker_integration ./internal/docker/
+go test -tags docker_integration -timeout 40m ./internal/docker/
 ```
+
+The timeout is stated rather than left at Go's ten-minute default. These tests
+pull images on a cold machine, and a package that legitimately needs longer than
+the default is otherwise reported as a hang. Warm, the package finishes in well
+under two minutes; the first run on a machine without the images takes as long
+as the pulls do.
 
 Those tests prepare and tear down the environment with the Docker CLI, because
 the product code cannot: its Engine client interface exposes no way to create or
