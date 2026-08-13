@@ -547,11 +547,27 @@ export const stackEnvironmentVariables = pgTable(
  * No environment values live here. They are variables, in a table of their own,
  * so that a secret has exactly one home and it is an encrypted one.
  */
-export const containerDesiredConfigs = pgTable('container_desired_configs', {
-  containerId: uuid('container_id')
-    .primaryKey()
-    .references(() => containers.id, { onDelete: 'cascade' }),
-  image: text('image').notNull(),
+export const containerDesiredConfigs = pgTable(
+  'container_desired_configs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    containerId: uuid('container_id')
+      .notNull()
+      .references(() => containers.id, { onDelete: 'cascade' }),
+    /*
+     * Whether this is what the container is, or what it is being asked to
+     * become.
+     *
+     * A replacement is a Docker side effect, and a database transaction cannot
+     * roll one back. So the intended configuration is written before the agent
+     * is asked to do anything, and becomes current only once the container
+     * running it has been observed — which means a control server that dies
+     * halfway through finds both on restart and can tell which one happened.
+     */
+    state: text('state').notNull().default('pending'),
+    /** The mutation that owns this candidate, for recovery and correlation. */
+    actionId: uuid('action_id'),
+    image: text('image').notNull(),
   hostname: text('hostname'),
   command: jsonb('command').$type<string[]>(),
   entrypoint: jsonb('entrypoint').$type<string[]>(),
@@ -560,10 +576,25 @@ export const containerDesiredConfigs = pgTable('container_desired_configs', {
   networks: jsonb('networks').$type<string[]>().notNull().default([]),
   restartPolicy: text('restart_policy').notNull().default('no'),
   labels: jsonb('labels').$type<Record<string, string>>().notNull().default({}),
-  healthcheck: jsonb('healthcheck').$type<unknown>(),
-  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
-  ...timestamps,
-});
+    healthcheck: jsonb('healthcheck').$type<unknown>(),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    ...timestamps,
+  },
+  (table) => [
+    /*
+     * One of each per container, enforced here rather than in whichever code
+     * path happens to write the row. Two currents would mean nobody could say
+     * what a container is supposed to be.
+     */
+    uniqueIndex('container_desired_current_unique')
+      .on(table.containerId)
+      .where(sql`state = 'current'`),
+    uniqueIndex('container_desired_pending_unique')
+      .on(table.containerId)
+      .where(sql`state = 'pending'`),
+    index('container_desired_container_idx').on(table.containerId),
+  ],
+);
 
 /**
  * A managed container's environment, as variables rather than as a blob.
@@ -576,9 +607,17 @@ export const containerEnvironmentVariables = pgTable(
   'container_environment_variables',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    containerId: uuid('container_id')
+    /*
+     * The configuration these variables belong to, not the container.
+     *
+     * While a replacement is pending a container has two configurations, and a
+     * variable that hung off the container could not say which one it was part
+     * of — which for a secret means not being able to say which value is
+     * actually running.
+     */
+    desiredConfigId: uuid('desired_config_id')
       .notNull()
-      .references(() => containers.id, { onDelete: 'cascade' }),
+      .references(() => containerDesiredConfigs.id, { onDelete: 'cascade' }),
     key: text('key').notNull(),
     value: text('value'),
     valueEncrypted: text('value_encrypted'),
@@ -586,8 +625,8 @@ export const containerEnvironmentVariables = pgTable(
     ...timestamps,
   },
   (table) => [
-    uniqueIndex('container_environment_container_key_unique').on(table.containerId, table.key),
-    index('container_environment_container_idx').on(table.containerId),
+    uniqueIndex('container_environment_config_key_unique').on(table.desiredConfigId, table.key),
+    index('container_environment_config_idx').on(table.desiredConfigId),
   ],
 );
 
@@ -631,19 +670,23 @@ export const stackEnvironmentVariablesRelations = relations(
   }),
 );
 
-export const containerDesiredConfigsRelations = relations(containerDesiredConfigs, ({ one }) => ({
-  container: one(containers, {
-    fields: [containerDesiredConfigs.containerId],
-    references: [containers.id],
+export const containerDesiredConfigsRelations = relations(
+  containerDesiredConfigs,
+  ({ many, one }) => ({
+    container: one(containers, {
+      fields: [containerDesiredConfigs.containerId],
+      references: [containers.id],
+    }),
+    environment: many(containerEnvironmentVariables),
   }),
-}));
+);
 
 export const containerEnvironmentVariablesRelations = relations(
   containerEnvironmentVariables,
   ({ one }) => ({
-    container: one(containers, {
-      fields: [containerEnvironmentVariables.containerId],
-      references: [containers.id],
+    desiredConfig: one(containerDesiredConfigs, {
+      fields: [containerEnvironmentVariables.desiredConfigId],
+      references: [containerDesiredConfigs.id],
     }),
   }),
 );

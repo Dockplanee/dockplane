@@ -64,6 +64,13 @@
       "when": 1786742681825,
       "tag": "0008_container_desired_state",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786829081825,
+      "tag": "0009_desired_config_identity",
+      "breakpoints": true
     }
   ]
 }
