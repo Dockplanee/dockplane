@@ -73,6 +73,16 @@ export const ERROR_CODES = [
   'CONTAINER_NAME_IN_USE',
   'IMAGE_NOT_FOUND',
   'REPLACEMENT_FAILED',
+  'CONTAINER_CREATE_FAILED',
+  'CONTAINER_REMOVE_FAILED',
+  /*
+   * An operation stopped partway through and what it left behind cannot be
+   * resolved without a person: a container claiming a configuration nobody
+   * asked for, or one that will not say which configuration it is. Recovery
+   * says so rather than guessing, and the container refuses further mutation
+   * until somebody settles it.
+   */
+  'CONTAINER_STATE_UNRESOLVED',
   'ACTION_CONFLICT',
   'ACTION_TIMEOUT',
   'AGENT_OFFLINE',

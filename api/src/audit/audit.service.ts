@@ -46,6 +46,18 @@ export type AuditAction =
   | 'container.restart.succeeded'
   | 'container.restart.failed'
   /*
+   * An operation the server finished on its own behalf, after the process that
+   * started it stopped being able to. These carry the original action so the
+   * trail reads as one operation an operator began and the server closed, not
+   * as something a person did twice.
+   */
+  | 'container.recovery.promoted'
+  | 'container.recovery.discarded'
+  | 'container.recovery.removed'
+  | 'container.recovery.failed'
+  | 'container.recovery.conflicted'
+  | 'container.recovery.needs_attention'
+  /*
    * A log stream is recorded as an event, never as content.
    *
    * The entry says who opened a stream against which container and how it

@@ -44,7 +44,7 @@ on the machine it was aimed at.
 | `CONTAINER_NOT_FOUND` | No such container is registered. |
 | `AGENT_REVOKED` | The host has no agent credential that may be used. |
 | `AGENT_OFFLINE` | No agent is connected for that host. |
-| `ACTION_CONFLICT` | Another operation is already running on that container. |
+| `ACTION_CONFLICT` | Another operation is already running on that container, or an earlier one never resolved. |
 | `CONTAINER_ALREADY_RUNNING` | Start, on a container that is already running. |
 | `CONTAINER_ALREADY_STOPPED` | Stop, on a container that is not running. |
 | `DOCKER_PERMISSION_DENIED` | The Docker daemon refused the agent. |
@@ -59,6 +59,32 @@ Operations are serialised per container, not globally, so one slow restart does
 not block a fleet. A second operation on the same container is refused rather
 than queued — with two in flight, neither the operator nor the audit trail
 could say which one produced the state that resulted.
+
+## A container whose last change never finished
+
+Changing a container's configuration is a Docker side effect, and a control
+server that stops partway through one leaves a container that is either the
+configuration it was or the configuration it was becoming. Until that is
+settled, operations on it are refused with `ACTION_CONFLICT` — a restart of a
+container nobody can describe would produce a result nobody can describe either.
+
+Settling it does not need an operator. The container carries the identity of the
+configuration it is running, so the next complete discovery pass establishes
+which one happened, and the server records the outcome against the action the
+operator originally started. The audit trail says so explicitly:
+`container.recovery.promoted` when the change took, `container.recovery.discarded`
+when it did not.
+
+Two cases are not settled automatically, and both say so rather than guessing:
+
+| Code | Meaning |
+| --- | --- |
+| `CONTAINER_IDENTITY_CONFLICT` | Two containers claim to be this one. Choosing between them would mean guessing, and a wrong guess removes a running workload. |
+| `CONTAINER_STATE_UNRESOLVED` | The container claims a configuration the server does not have, or will not say which one it is running. |
+
+Both leave the container readable and refuse every operation on it until a
+person resolves which container is the real one. Nothing is removed in the
+meantime.
 
 ## What the answer means
 
