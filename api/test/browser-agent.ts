@@ -264,6 +264,7 @@ const SUPPORTED = [
   'stack.start',
   'stack.stop',
   'stack.restart',
+  'stack.remove',
 ] as const;
 
 function checkProtocol(): string[] {
@@ -306,6 +307,7 @@ const commands: Record<string, (command: Command) => Promise<unknown> | unknown>
     host.wontStart.clear();
     host.wontCreate.clear();
     host.wontStop.clear();
+    host.wontRemove.clear();
     host.leaveHalfApplied = false;
 
     for (const service of (command.wontStart ?? []) as string[]) {
@@ -319,6 +321,11 @@ const commands: Record<string, (command: Command) => Promise<unknown> | unknown>
     /* A service that refuses to stop, which is how a stack ends up half moved. */
     for (const service of (command.wontStop ?? []) as string[]) {
       host.wontStop.add(service);
+    }
+
+    /* And one that refuses to be removed, which is how a delete ends up partial. */
+    for (const service of (command.wontRemove ?? []) as string[]) {
+      host.wontRemove.add(service);
     }
 
     host.leaveHalfApplied = Boolean(command.leaveHalfApplied);
