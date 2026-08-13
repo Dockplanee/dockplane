@@ -150,6 +150,69 @@ func TestListContainersNormalisesTheSummary(t *testing.T) {
 	}
 }
 
+/*
+Exactly which labels leave the host, named one by one.
+
+A label the control server reads has to be one it asked for. Docker labels are
+writable by anyone who can reach the daemon, so an allow list that grew by
+accident would be a way to put chosen values into the control server's own
+records — and the identity labels among these are what discovery matches
+containers to resources by.
+
+Written as an exact set rather than a set of individual checks, so widening it
+is a decision somebody makes here rather than a side effect somewhere else.
+*/
+func TestForwardedLabelsAreExactlyTheOnesTheServerReads(t *testing.T) {
+	offered := map[string]string{
+		"com.docker.compose.project":          "shop",
+		"com.docker.compose.service":          "web",
+		"com.docker.compose.container-number": "1",
+		"com.docker.compose.oneoff":           "False",
+		docker.LabelManaged:                   "true",
+		docker.LabelContainerID:               "container-x",
+		docker.LabelDesiredConfigID:           "config-a",
+
+		// Everything else, however plausible it looks.
+		docker.LabelStack:            "billing",
+		"com.docker.compose.version": "2.31.0",
+		"io.dockplane.anything":      "no",
+		"maintainer":                 "somebody",
+		"internal.deploy.token":      "s3cr3t",
+	}
+
+	expected := []string{
+		"com.docker.compose.project",
+		"com.docker.compose.service",
+		"com.docker.compose.container-number",
+		"com.docker.compose.oneoff",
+		docker.LabelManaged,
+		docker.LabelContainerID,
+		docker.LabelDesiredConfigID,
+	}
+
+	engine := docker.NewEngine(&fakeClient{summaries: []container.Summary{{
+		ID: "abc123", Names: []string{"/web"}, Image: "nginx:1.27", State: "running", Labels: offered,
+	}}})
+
+	result, err := engine.ListContainers(context.Background())
+
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+
+	forwarded := result[0].Labels
+
+	if len(forwarded) != len(expected) {
+		t.Fatalf("forwarded %d labels, want %d: %v", len(forwarded), len(expected), forwarded)
+	}
+
+	for _, key := range expected {
+		if forwarded[key] != offered[key] {
+			t.Errorf("%s = %q, want %q", key, forwarded[key], offered[key])
+		}
+	}
+}
+
 func TestInspectOmitsEnvironmentAndOtherSensitiveDetail(t *testing.T) {
 	pidsLimit := int64(100)
 
