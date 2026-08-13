@@ -35,6 +35,8 @@ export interface Stack {
   readonly runningRevision: RevisionRef | null;
   /** An attempt that has not resolved, so no further operation may start. */
   readonly reconciling: boolean;
+  /** Whether this stack's host can be reached at all right now. */
+  readonly hostReachable: boolean;
   readonly lastDeployedAt?: string | null;
   readonly updatedAt: string;
 }

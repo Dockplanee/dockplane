@@ -1,16 +1,8 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  effect,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
 
 import { PageContext } from '../../core/page-context';
 import { Permissions } from '../../core/permissions';
-import { DockplaneApi } from '../../data/dockplane-api';
 import {
   APPLY_LABELS,
   STACK_STATE_LABELS,
@@ -61,7 +53,6 @@ const TABS = [
 export class StackDetail {
   protected readonly store = inject(StackStore);
   protected readonly apply = inject(StackApply);
-  private readonly api = inject(DockplaneApi);
   private readonly permissions = inject(Permissions);
   private readonly page = inject(PageContext);
 
@@ -71,9 +62,6 @@ export class StackDetail {
 
   protected readonly canEdit = computed(() => this.permissions.has('stacks.update'));
   protected readonly canDeploy = computed(() => this.permissions.has('stacks.deploy'));
-
-  /** The host has to be reachable for anything to be applied to it. */
-  private readonly host = signal<{ online: boolean } | undefined>(undefined);
 
   protected readonly latest = computed(() => this.store.stack()?.latestRevision ?? null);
   protected readonly running = computed(() => this.store.stack()?.runningRevision ?? null);
@@ -99,7 +87,7 @@ export class StackDetail {
       return 'Dockplane is still establishing what happened on the host.';
     }
 
-    if (this.host() && !this.host()!.online) {
+    if (!stack.hostReachable) {
       return 'The host agent is offline.';
     }
 
@@ -140,7 +128,6 @@ export class StackDetail {
           title: stack.name,
           breadcrumb: [{ label: 'Stacks', path: '/stacks' }, { label: stack.name }],
         });
-        this.readHost(stack);
       }
     });
   }
@@ -151,21 +138,6 @@ export class StackDetail {
 
   protected tone(stack: Stack) {
     return STACK_STATE_TONES[stackState(stack)];
-  }
-
-  /**
-   * Asked once per stack, so a disabled deploy can name the reason.
-   *
-   * The agent's own connection rather than the host's health: a host that is
-   * degraded can still be deployed to, and one whose agent is not connected
-   * cannot be reached at all.
-   */
-  private readHost(stack: Stack): void {
-    this.api.host(stack.hostId).subscribe({
-      next: (host) =>
-        this.host.set(host ? { online: host.agentStatus === 'connected' } : undefined),
-      error: () => this.host.set(undefined),
-    });
   }
 
   protected requestApply(): void {

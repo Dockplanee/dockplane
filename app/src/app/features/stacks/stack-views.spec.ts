@@ -21,9 +21,18 @@ const stack = (overrides: Partial<Stack> = {}): Stack => ({
   hostname: 'docker-01',
   sourceType: 'dockplane',
   status: 'running',
-  latestRevision: { id: 'revision-2', number: 2, summary: { services: ['web'], networks: [], volumes: [] } },
-  runningRevision: { id: 'revision-2', number: 2, summary: { services: ['web'], networks: [], volumes: [] } },
+  latestRevision: {
+    id: 'revision-2',
+    number: 2,
+    summary: { services: ['web'], networks: [], volumes: [] },
+  },
+  runningRevision: {
+    id: 'revision-2',
+    number: 2,
+    summary: { services: ['web'], networks: [], volumes: [] },
+  },
   reconciling: false,
+  hostReachable: true,
   updatedAt: '2026-08-13T10:00:00.000Z',
   ...overrides,
 });
@@ -117,7 +126,10 @@ describe('one stack', () => {
 
   it('offers editing and deploying to somebody who may', async () => {
     const fixture = await render(
-      { latestRevision: { id: 'revision-3', number: 3 }, runningRevision: { id: 'revision-2', number: 2 } },
+      {
+        latestRevision: { id: 'revision-3', number: 3 },
+        runningRevision: { id: 'revision-2', number: 2 },
+      },
       ['stacks.read', 'stacks.update', 'stacks.deploy'],
     );
 
@@ -127,7 +139,10 @@ describe('one stack', () => {
 
   it('offers neither to somebody who may only look', async () => {
     const fixture = await render(
-      { latestRevision: { id: 'revision-3', number: 3 }, runningRevision: { id: 'revision-2', number: 2 } },
+      {
+        latestRevision: { id: 'revision-3', number: 3 },
+        runningRevision: { id: 'revision-2', number: 2 },
+      },
       ['stacks.read'],
     );
 
@@ -146,7 +161,10 @@ describe('one stack', () => {
 
   it('calls going back to an older revision a rollback', async () => {
     const fixture = await render(
-      { latestRevision: { id: 'revision-1', number: 1 }, runningRevision: { id: 'revision-2', number: 2 } },
+      {
+        latestRevision: { id: 'revision-1', number: 1 },
+        runningRevision: { id: 'revision-2', number: 2 },
+      },
       ['stacks.read', 'stacks.deploy'],
     );
 

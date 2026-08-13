@@ -1,7 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
+import { AgentConnectionManager } from '../agents/connection-manager.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/authenticated-request';
 import { SecretBox } from '../common/crypto';
@@ -9,6 +10,7 @@ import { AppError } from '../common/errors';
 import { SECRET_BOX } from '../config/tokens';
 import { Database } from '../database/database';
 import {
+  agents,
   composeProjects,
   containers,
   hosts,
@@ -44,6 +46,7 @@ export class StackService {
   constructor(
     private readonly db: Database,
     private readonly compiler: ComposeCompilerService,
+    private readonly connections: AgentConnectionManager,
     private readonly audit: AuditService,
     @Inject(SECRET_BOX) private readonly box: SecretBox,
   ) {}
@@ -221,9 +224,12 @@ export class StackService {
 
     const [{ value: total }] = await this.db.client.select({ value: count() }).from(stacks);
     const unresolved = await this.unresolvedStacks();
+    const reachable = await this.reachableHosts();
 
     return {
-      stacks: rows.map((row) => present(row, unresolved.has(row.stack.id))),
+      stacks: rows.map((row) =>
+        present(row, unresolved.has(row.stack.id), reachable.has(row.stack.hostId)),
+      ),
       total,
     };
   }
@@ -242,8 +248,9 @@ export class StackService {
     }
 
     const unresolved = await this.unresolvedStacks(stackId);
+    const reachable = await this.reachableHosts();
 
-    return present(row, unresolved.has(stackId));
+    return present(row, unresolved.has(stackId), reachable.has(row.stack.hostId));
   }
 
   /**
@@ -276,6 +283,25 @@ export class StackService {
     return {
       services: rows.map((row) => ({ ...row, serviceName: row.serviceName ?? '' })),
     };
+  }
+
+  /**
+   * The hosts whose agent is connected right now.
+   *
+   * Read here rather than left to the interface to fetch separately: whether a
+   * revision can be applied is part of what a stack is at this moment, and an
+   * interface that asked a second endpoint would be showing two answers from
+   * two moments.
+   */
+  private async reachableHosts(): Promise<Set<string>> {
+    const rows = await this.db.client
+      .select({ id: agents.id, hostId: agents.hostId })
+      .from(agents)
+      .where(isNull(agents.revokedAt));
+
+    return new Set(
+      rows.filter((row) => this.connections.isConnected(row.id)).map((row) => row.hostId),
+    );
   }
 
   /**
@@ -553,6 +579,7 @@ function present(
     running: typeof stackRevisions.$inferSelect | null;
   },
   reconciling: boolean,
+  hostReachable: boolean,
 ) {
   return {
     id: row.stack.id,
@@ -571,6 +598,8 @@ function present(
     deployedRevisionId: row.stack.currentRevisionId,
     /** An attempt that has not resolved. No further operation may be started. */
     reconciling,
+    /** Whether this stack's host can be reached at all right now. */
+    hostReachable,
     lastDeployedAt: row.stack.lastDeployedAt,
     createdAt: row.stack.createdAt,
     updatedAt: row.stack.updatedAt,

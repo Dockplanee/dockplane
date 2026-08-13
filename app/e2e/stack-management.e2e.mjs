@@ -137,6 +137,24 @@ function watchConsole(page) {
   return problems;
 }
 
+/**
+ * Clicks something once the interface is willing to be clicked.
+ *
+ * Deploying is offered only when the host's agent is connected, and the
+ * interface learns that from the same discovery everything else waits for. A
+ * click the moment the button appears races that, and losing the race says
+ * nothing about the product.
+ */
+async function clickWhenEnabled(page, selector) {
+  const target = page.locator(selector).first();
+
+  await until(`${selector} to be offered`, async () =>
+    (await target.count()) > 0 ? await target.isEnabled() : false,
+  );
+
+  await target.click();
+}
+
 /** Everywhere a secret could linger once the operator has moved on. */
 async function canaryTraces(page, canary) {
   return page.evaluate((value) => {
@@ -356,7 +374,7 @@ async function run() {
 
     console.log('\n== deploying ==');
 
-    await page.click('button:has-text("Deploy revision #2")');
+    await clickWhenEnabled(page, 'button:has-text("Deploy revision #2")');
     await until('the review', async () => await page.locator('dialog[open]').count());
 
     const review = await page.locator('dialog[open]').innerText();
@@ -392,7 +410,7 @@ async function run() {
       (await page.locator('button:has-text("Roll back to revision #1")').count()) === 1,
     );
 
-    await page.click('button:has-text("Roll back to revision #1")');
+    await clickWhenEnabled(page, 'button:has-text("Roll back to revision #1")');
     await until('the rollback review', async () => await page.locator('dialog[open]').count());
 
     const rollbackReview = await page.locator('dialog[open]').innerText();
@@ -420,7 +438,7 @@ async function run() {
 
     await agent.dropNext('stack.deploy', { apply: true });
     await page.goto(`${stackUrl}/revisions`, { waitUntil: 'networkidle' });
-    await page.click('button:has-text("Deploy revision #2")');
+    await clickWhenEnabled(page, 'button:has-text("Deploy revision #2")');
     await until('the review', async () => await page.locator('dialog[open]').count());
     await page.locator('dialog[open] button:has-text("Deploy revision #2")').click();
 
@@ -462,7 +480,7 @@ async function run() {
 
     await agent.stackBehaviour({ wontStart: ['web'], leaveHalfApplied: true });
     await page.goto(`${stackUrl}/revisions`, { waitUntil: 'networkidle' });
-    await page.click('button:has-text("Roll back to revision #1")');
+    await clickWhenEnabled(page, 'button:has-text("Roll back to revision #1")');
     await until('the review', async () => await page.locator('dialog[open]').count());
     await page.locator('dialog[open] button:has-text("Roll back")').click();
 
@@ -493,7 +511,7 @@ async function run() {
 
     const repairs = sent.filter((request) => request.url.endsWith('/deploy')).length;
 
-    await page.click('button:has-text("Repair using revision #1")');
+    await clickWhenEnabled(page, 'button:has-text("Repair using revision #1")');
     await until('the repair review', async () => await page.locator('dialog[open]').count());
     await page.locator('dialog[open] button:has-text("Repair")').click();
 
