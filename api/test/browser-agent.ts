@@ -71,8 +71,21 @@ function say(message: Record<string, unknown>): void {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
-/** Signs in the way the browser does, to obtain a session for enrolment. */
+/**
+ * A session to enrol with.
+ *
+ * Reuses the caller's when it has one. Signing in again would be a second
+ * attempt against the credentials rate limit the control server applies to
+ * everyone, and a browser suite that ran afterwards would pay for it.
+ */
 async function session(): Promise<{ cookie: string; csrf: string }> {
+  const cookie = process.env.DOCKPLANE_SESSION_COOKIE;
+  const csrf = process.env.DOCKPLANE_SESSION_CSRF;
+
+  if (cookie && csrf) {
+    return { cookie, csrf };
+  }
+
   const answer = await fetch(`${origin}/api/v1/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin },
@@ -83,15 +96,15 @@ async function session(): Promise<{ cookie: string; csrf: string }> {
     throw new Error(`sign-in failed: ${answer.status}`);
   }
 
-  const cookie = (answer.headers.getSetCookie() ?? [])
+  const issued = (answer.headers.getSetCookie() ?? [])
     .find((entry) => entry.startsWith('dockplane_session='))
     ?.split(';')[0];
 
-  if (!cookie) {
+  if (!issued) {
     throw new Error('sign-in returned no session cookie');
   }
 
-  return { cookie, csrf: ((await answer.json()) as { csrfToken: string }).csrfToken };
+  return { cookie: issued, csrf: ((await answer.json()) as { csrfToken: string }).csrfToken };
 }
 
 /**

@@ -26,7 +26,7 @@ const api = join(here, '..', '..', 'api');
  * Enrolment and the connection are the real ones, so the host arrives in the
  * interface the same way a real machine's does.
  */
-export async function startAgent(stack, { hostname = 'e2e-docker-01' } = {}) {
+export async function startAgent(stack, { hostname = 'e2e-docker-01', session } = {}) {
   const child = spawn('node', ['--import', 'tsx', join(api, 'test', 'browser-agent.ts')], {
     cwd: api,
     env: {
@@ -37,6 +37,11 @@ export async function startAgent(stack, { hostname = 'e2e-docker-01' } = {}) {
       DOCKPLANE_GATEWAY_PORT: String(stack.gatewayPort),
       DOCKPLANE_AGENT_CA_PEM: await readFile(stack.caCertPath, 'utf8'),
       DOCKPLANE_AGENT_HOSTNAME: hostname,
+      // Handed the caller's session where there is one, so enrolling does not
+      // spend another attempt against the sign-in rate limit.
+      ...(session
+        ? { DOCKPLANE_SESSION_COOKIE: session.cookie, DOCKPLANE_SESSION_CSRF: session.csrfToken }
+        : {}),
     },
     stdio: ['pipe', 'pipe', 'pipe'],
   });

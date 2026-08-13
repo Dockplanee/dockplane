@@ -42,7 +42,10 @@ async function signIn(page) {
 
 async function openWizard(page) {
   await page.goto(`${BASE}/hosts`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: /add host/i }).first().click();
+  await page
+    .getByRole('button', { name: /add host/i })
+    .first()
+    .click();
   await page.locator('#add-host-heading').waitFor({ state: 'visible', timeout: 15_000 });
 }
 
@@ -105,14 +108,17 @@ try {
   check('with a different ticket', Boolean(secondTicket) && firstTicket !== secondTicket);
 
   // The server's word, not the interface's: the old ticket must be spent.
-  const refused = await page.evaluate(async ([base, ticket]) => {
-    const answer = await fetch(`${base}/api/v1/host-setups/bootstrap`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ticket }),
-    });
-    return { status: answer.status, body: await answer.text() };
-  }, [BASE, firstTicket]);
+  const refused = await page.evaluate(
+    async ([base, ticket]) => {
+      const answer = await fetch(`${base}/api/v1/host-setups/bootstrap`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ticket }),
+      });
+      return { status: answer.status, body: await answer.text() };
+    },
+    [BASE, firstTicket],
+  );
 
   check(
     'the replaced ticket is refused by the server',
@@ -154,14 +160,17 @@ try {
   await page.getByRole('button', { name: /cancel this setup/i }).click();
   await page.waitForTimeout(1_500);
 
-  const cancelled = await page.evaluate(async ([base, ticket]) => {
-    const answer = await fetch(`${base}/api/v1/host-setups/bootstrap`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ticket }),
-    });
-    return answer.status;
-  }, [BASE, secondTicket]);
+  const cancelled = await page.evaluate(
+    async ([base, ticket]) => {
+      const answer = await fetch(`${base}/api/v1/host-setups/bootstrap`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ticket }),
+      });
+      return answer.status;
+    },
+    [BASE, secondTicket],
+  );
 
   check('the cancelled ticket is refused too', cancelled >= 400, `HTTP ${cancelled}`);
 
@@ -184,7 +193,5 @@ try {
   await browser.close();
 }
 
-console.log(
-  failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`,
-);
+console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);

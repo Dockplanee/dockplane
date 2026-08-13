@@ -83,7 +83,7 @@ async function until(what, condition, timeoutMs = 90_000) {
 console.log('the test agent and the server behind it');
 
 const session = await signIn({ url: BASE, email: EMAIL, password: PASSWORD });
-const agent = await startAgent(stack);
+const agent = await startAgent(stack, { session });
 
 try {
   // --- the host arrives, because the gateway said so ----------------------

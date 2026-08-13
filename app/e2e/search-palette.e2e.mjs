@@ -78,7 +78,9 @@ async function signIn(page) {
   await page.click('button[type=submit]');
   await page.waitForTimeout(1800);
 
-  const code = page.locator('input[inputmode=numeric], input[name=code], input[autocomplete="one-time-code"]');
+  const code = page.locator(
+    'input[inputmode=numeric], input[name=code], input[autocomplete="one-time-code"]',
+  );
 
   if (await code.count()) {
     if (!TOTP_SECRET) throw new Error('this account has MFA; set DOCKPLANE_TOTP_SECRET');
@@ -103,14 +105,11 @@ async function openPalette(page) {
   await page.waitForTimeout(350);
 }
 
-async function run(engineName, engine, size) {
-  const browser = await engine.launch();
-  const page = await (await browser.newContext({ viewport: { width: size.w, height: size.h } })).newPage();
+async function run(engineName, page, size) {
+  await page.setViewportSize({ width: size.w, height: size.h });
+  console.log(`\n──── ${engineName} ${size.w}x${size.h} ────`);
 
-  try {
-    await signIn(page);
-    console.log(`\n──── ${engineName} ${size.w}x${size.h} ────`);
-
+  {
     // The defect: a closed dialog that is laid out anyway. Checked before the
     // palette has ever been opened in this session.
     for (const path of PAGES) {
@@ -182,19 +181,40 @@ async function run(engineName, engine, size) {
     await openPalette(page);
     const reopened = await page.evaluate(PROBE);
     check('reopens modal', reopened.open && reopened.modal);
+  }
+}
+
+/*
+ * One sign-in per engine, not one per viewport.
+ *
+ * Signing in eight times was eight attempts against the credentials rate limit
+ * the control server applies to everyone, which left almost no room for the
+ * suites that run afterwards — the whole run was one login away from a
+ * throttled sign-in failing a test that had nothing to do with sign-in. The
+ * viewport is a property of the page, so the session outlives it.
+ */
+for (const [name, engine] of [
+  ['firefox', firefox],
+  ['chromium', chromium],
+]) {
+  const browser = await engine.launch();
+
+  try {
+    const page = await (
+      await browser.newContext({ viewport: { width: SIZES[0].w, height: SIZES[0].h } })
+    ).newPage();
+
+    await signIn(page);
+
+    for (const size of SIZES) {
+      await run(name, page, size);
+    }
   } finally {
     await browser.close();
   }
 }
 
-for (const [name, engine] of [
-  ['firefox', firefox],
-  ['chromium', chromium],
-]) {
-  for (const size of SIZES) {
-    await run(name, engine, size);
-  }
-}
-
-console.log(`\n${failures === 0 ? 'search palette: all checks passed' : `search palette: ${failures} failed`}`);
+console.log(
+  `\n${failures === 0 ? 'search palette: all checks passed' : `search palette: ${failures} failed`}`,
+);
 process.exit(failures === 0 ? 0 : 1);
