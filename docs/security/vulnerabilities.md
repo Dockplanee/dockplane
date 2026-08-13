@@ -4,7 +4,7 @@ Every release is scanned, both images on both architectures, and the report for
 each is published as a release asset. This page is the assessment behind those
 numbers: what is in them, what was fixed, and why what remains is still there.
 
-The figures below are from **0.1.0-rc.4**, the last release scanned at the time
+The figures below are from **0.2.0-rc.1**, the last release scanned at the time
 of writing. They are what its published reports contain, not a summary of them.
 
 Nothing is hidden. A finding that cannot be fixed is named, along with the
@@ -12,7 +12,7 @@ reason it is not being treated as a release blocker.
 
 ```bash
 # The reports published with a release
-VERSION=0.1.0
+VERSION=0.2.0-rc.1
 curl -fsSLO "https://github.com/Dockplanee/dockplane/releases/download/v$VERSION/vulnerabilities-control-server-linux-amd64.json"
 ```
 
@@ -42,7 +42,8 @@ version. There is no newer base image to move to: the pinned Node version is
 the newest of its line, and rebuilding produces the same set.
 
 **No finding comes from Dockplane's own dependencies.** The npm tree scans
-clean.
+clean, and so does the Compose compiler, the Go binary this image carries to
+turn a Compose file into a deployment plan.
 
 ### The critical findings
 
@@ -70,14 +71,15 @@ existing one.
 
 Base: `caddy:2.11.4-alpine`.
 
-| | 0.1.0-rc.3 | 0.1.0-rc.4 |
-| --- | --- | --- |
-| Critical | 0 | **0** |
-| High | 10 | **6** |
+| | 0.1.0-rc.3 | 0.1.0-rc.4 | 0.2.0-rc.1 |
+| --- | --- | --- | --- |
+| Critical | 0 | 0 | **0** |
+| High | 10 | 6 | **6** |
 
-Five Alpine package findings were removed by applying the distribution's own
-updates. One was added: `CVE-2026-46600` appeared in the vulnerability database
-between the two releases, in a component that was already there.
+Five Alpine package findings were removed in 0.1.0-rc.4 by applying the
+distribution's own updates. One was added there: `CVE-2026-46600` appeared in
+the vulnerability database between those two releases, in a component that was
+already present. 0.2.0-rc.1 carries the same six, for the reason below.
 
 ### Fixed
 

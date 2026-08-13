@@ -4,8 +4,8 @@ A stack is a Compose file, the environment it needs, and the host it belongs to.
 Dockplane keeps the whole history of what a stack has been configured to be.
 
 A stack can be saved, deployed, moved to another revision and put back to an
-earlier one, from the interface or the API. Starting, stopping and removing a
-stack as a whole are not part of this release.
+earlier one; started, stopped and restarted as a whole; and deleted. All of it
+from the interface or the API.
 
 ## Creating a stack
 
