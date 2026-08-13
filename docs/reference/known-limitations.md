@@ -45,14 +45,24 @@ older release.
 **An agent must reach the control plane at the hostname it was enrolled with.**
 Changing the control plane's domain means re-enrolling the hosts.
 
-**A stack can be deployed once and not changed afterwards.** Redeploying,
-rolling back, starting, stopping or removing a stack is not part of this
-release. A stack that has been deployed stays as it is.
+**Applying a revision interrupts the stack.** Every service is recreated, so a
+stack is briefly down while it is rebuilt. There is no zero-downtime deployment
+and no rolling replacement.
 
-**A partly deployed stack has to be resolved by hand.** If a deployment creates
-some containers and then fails, Dockplane records that it needs attention and
-stops there: nothing is removed and no further deployment is accepted for that
-stack. Untangling it means acting on the host directly.
+**Starting, stopping and removing a stack as a whole are not part of this
+release.** Its containers can be operated individually while the stack is
+settled, and the stack itself can be deployed, redeployed and rolled back.
+
+**Two containers claiming one service have to be resolved by hand.** Dockplane
+refuses to apply anything to a stack in that state, because choosing between
+them means choosing which container to destroy.
+
+**Volumes are never removed.** A volume a revision no longer uses stays on the
+host, as does one left behind by a deployment that failed. Cleaning them up is a
+deliberate operation that does not exist yet.
+
+**A rollback does not restore data.** It deploys an earlier configuration;
+volumes keep whatever is in them.
 
 **Notifications, alerting and scheduled automation are not in this release.**
 

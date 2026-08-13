@@ -50,6 +50,14 @@ export class FakeDockerHost {
   /** Services this host refuses outright, stopping the deployment there. */
   readonly wontCreate = new Set<string>();
 
+  /**
+   * Set to make the host fail an attempt and not put back what it moved.
+   *
+   * The state the server may not resolve on its own: neither the revision that
+   * was running nor the one that was being applied.
+   */
+  leaveHalfApplied = false;
+
   private next = 0;
 
   /** A container that was already there when Dockplane arrived. */
@@ -115,7 +123,7 @@ export class FakeDockerHost {
       case 'container.remove':
         return this.remove(payload);
       case 'stack.deploy':
-        return this.deployStack(payload);
+        return this.applyStack(payload);
       default:
         throw { code: 'CAPABILITY_UNSUPPORTED', message: `no such capability: ${capability}` };
     }
@@ -199,13 +207,29 @@ export class FakeDockerHost {
    * removing anything that was already created — the shape the real agent has,
    * because the server's conclusions are drawn from what is left behind.
    */
-  private deployStack(payload: Record<string, unknown>) {
+  /**
+   * Applies a revision the way the agent does.
+   *
+   * The shape matters more than the detail: what the stack already has is moved
+   * aside before anything new is built, the new containers are created in
+   * dependency order, and if one of them fails the old ones are put back
+   * exactly as they were. The server draws its conclusions from listing this
+   * host afterwards, so a test can arrange a host that half applied a revision
+   * and the server has to notice.
+   */
+  private applyStack(payload: Record<string, unknown>) {
     const plan = payload.plan as StackPlan;
 
     this.stackPlans.push(plan);
 
     if (this.silentlyIgnore.has('stack.deploy')) {
-      return { stackId: plan.stackId, revisionId: plan.revisionId, services: [], complete: false };
+      return {
+        stackId: plan.stackId,
+        revisionId: plan.revisionId,
+        outcome: 'target_applied',
+        services: [],
+        complete: false,
+      };
     }
 
     for (const network of plan.networks ?? []) {
@@ -216,7 +240,38 @@ export class FakeDockerHost {
       this.volumes.add(volume.dockerName);
     }
 
+    // What the stack has now, which is the way back if the target fails.
+    const candidates = [...this.containers.values()].filter(
+      (container) => container.labels['io.dockplane.stack-id'] === plan.stackId,
+    );
+
+    /*
+     * The real agent refuses to apply anything over a host where two containers
+     * claim one service: choosing between them is choosing which of somebody's
+     * containers to destroy. Modelled here because the server's handling of
+     * that refusal is what these tests are about.
+     */
+    const claims = new Set<string>();
+
+    for (const candidate of candidates) {
+      const service = candidate.labels['io.dockplane.stack-service'];
+
+      if (claims.has(service)) {
+        throw {
+          code: 'STACK_STATE_AMBIGUOUS',
+          message: `more than one container is service ${service}`,
+        };
+      }
+
+      claims.add(service);
+    }
+
+    for (const candidate of candidates) {
+      this.containers.delete(candidate.dockerId);
+    }
+
     const services: Record<string, unknown>[] = [];
+    const built: FakeContainer[] = [];
 
     for (const service of order(plan)) {
       if (this.wontCreate.has(service.serviceName)) {
@@ -226,7 +281,7 @@ export class FakeDockerHost {
           errorCode: 'IMAGE_PULL_FAILED',
         });
 
-        return { stackId: plan.stackId, revisionId: plan.revisionId, services, complete: false };
+        return this.undoStack(plan, built, candidates, services, service.serviceName);
       }
 
       const state = this.wontStart.has(service.serviceName) ? 'exited' : 'running';
@@ -247,6 +302,7 @@ export class FakeDockerHost {
       };
 
       this.containers.set(container.dockerId, container);
+      built.push(container);
 
       services.push({
         serviceName: service.serviceName,
@@ -257,15 +313,53 @@ export class FakeDockerHost {
       });
 
       if (state !== 'running') {
-        return { stackId: plan.stackId, revisionId: plan.revisionId, services, complete: false };
+        return this.undoStack(plan, built, candidates, services, service.serviceName);
       }
     }
 
     return {
       stackId: plan.stackId,
       revisionId: plan.revisionId,
+      outcome: 'target_applied',
       services,
       complete: true,
+      observedAt: iso(),
+    };
+  }
+
+  /**
+   * Puts back what the attempt moved aside.
+   *
+   * `leaveHalfApplied` is the state nobody can put back: what was built stays
+   * and what it replaced does not come back, which is what a host looks like
+   * when the agent's own restore did not work.
+   */
+  private undoStack(
+    plan: StackPlan,
+    built: FakeContainer[],
+    candidates: FakeContainer[],
+    services: Record<string, unknown>[],
+    failedService: string,
+  ) {
+    if (!this.leaveHalfApplied) {
+      for (const container of built) {
+        this.containers.delete(container.dockerId);
+      }
+
+      for (const candidate of candidates) {
+        this.containers.set(candidate.dockerId, candidate);
+      }
+    }
+
+    return {
+      stackId: plan.stackId,
+      revisionId: plan.revisionId,
+      outcome: this.leaveHalfApplied
+        ? 'apply_failed_rollback_incomplete'
+        : 'apply_failed_rollback_succeeded',
+      services,
+      complete: false,
+      failedService,
       observedAt: iso(),
     };
   }

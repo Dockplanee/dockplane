@@ -5,10 +5,17 @@ import { Logger } from 'pino';
 import { AuditService } from '../audit/audit.service';
 import { LOGGER } from '../config/tokens';
 import { Database } from '../database/database';
-import { actions, agents, containers, stackDeployments, stacks } from '../database/schema';
+import {
+  actions,
+  agents,
+  containers,
+  stackDeployments,
+  stackRevisions,
+  stacks,
+} from '../database/schema';
 import { DiscoveryService } from '../discovery/discovery.service';
 import { MutationRegistry } from '../operations/mutation-registry';
-import { classifyStackDeployment } from './stack-deployment';
+import { ObservedService, classifyStackApply } from './stack-deployment';
 import { UNRESOLVED_DEPLOYMENT, stackKey } from './stack-deployment.service';
 
 /**
@@ -76,6 +83,7 @@ export class StackRecoveryService implements OnApplicationBootstrap {
         id: stackDeployments.id,
         stackId: stackDeployments.stackId,
         revisionId: stackDeployments.revisionId,
+        fromRevisionId: stackDeployments.fromRevisionId,
         actionId: stackDeployments.actionId,
         name: stacks.name,
       })
@@ -162,20 +170,31 @@ export class StackRecoveryService implements OnApplicationBootstrap {
         dockerId: containers.dockerId,
         state: containers.state,
         stackService: containers.stackService,
+        stackRevisionId: containers.stackRevisionId,
       })
       .from(containers)
       .where(eq(containers.stackId, deployment.stackId));
 
-    const services = rows.map((row) => ({
+    const observed: ObservedService[] = rows.map((row) => ({
       serviceName: row.stackService ?? '',
       containerId: row.id,
       dockerId: row.dockerId,
       state: row.dockerId ? row.state : null,
+      revisionId: row.stackRevisionId,
     }));
 
     // The host was read completely just above, which is the only reason
     // anything may be concluded here at all.
-    const outcome = classifyStackDeployment({ services, snapshotComplete: true });
+    const outcome = classifyStackApply({
+      fromRevisionId: deployment.fromRevisionId,
+      targetRevisionId: deployment.revisionId,
+      targetServices: await this.services(deployment.revisionId),
+      fromServices: deployment.fromRevisionId
+        ? await this.services(deployment.fromRevisionId)
+        : null,
+      observed,
+      snapshotComplete: true,
+    });
 
     if (outcome.kind === 'unknown') {
       return false;
@@ -183,33 +202,31 @@ export class StackRecoveryService implements OnApplicationBootstrap {
 
     const now = new Date();
     const detail = {
-      services: services.map((service) => ({
-        serviceName: service.serviceName,
-        containerId: service.containerId,
-        ...(service.state ? { state: service.state } : {}),
-      })),
+      services: observed
+        .filter((service) => service.dockerId !== null)
+        .map((service) => ({
+          serviceName: service.serviceName,
+          containerId: service.containerId,
+          ...(service.state ? { state: service.state } : {}),
+        })),
     };
+
+    const applied = outcome.kind === 'finalize_target';
+    const attention = outcome.kind === 'needs_attention';
 
     await this.db.client.transaction(async (tx) => {
       await tx
         .update(stackDeployments)
         .set({
-          status: outcome.kind,
+          status: STATUS[outcome.kind],
           detail,
-          // An attempt waiting for a person is not resolved, so it keeps no
-          // resolution time and goes on blocking the stack.
-          resolvedAt: outcome.kind === 'needs_attention' ? null : now,
-          ...(outcome.kind === 'succeeded' ? {} : { failureCode: FAILURE_CODE[outcome.kind] }),
+          resolvedAt: now,
+          ...(applied ? {} : { failureCode: FAILURE_CODE[outcome.kind] }),
           updatedAt: now,
         })
         .where(eq(stackDeployments.id, deployment.id));
 
-      if (outcome.kind === 'succeeded') {
-        /*
-         * Compared against what the stack still is. Another pass, or the
-         * request that started this, may have settled it first — and writing
-         * over that would record the older of two answers.
-         */
+      if (applied) {
         await tx
           .update(stacks)
           .set({
@@ -219,24 +236,32 @@ export class StackRecoveryService implements OnApplicationBootstrap {
             lastDeployedAt: now,
             updatedAt: now,
           })
-          .where(and(eq(stacks.id, deployment.stackId), isNull(stacks.currentRevisionId)));
+          .where(eq(stacks.id, deployment.stackId));
       } else {
+        /*
+         * The stack is what it was. Its confirmed revision is deliberately not
+         * written here: it never changed, and an attempt that did not take has
+         * nothing to say about it.
+         */
         await tx
           .update(stacks)
           .set({
-            status: outcome.kind === 'failed' ? 'not_deployed' : 'needs_attention',
+            status: attention
+              ? 'needs_attention'
+              : deployment.fromRevisionId
+                ? 'running'
+                : 'not_deployed',
             desiredRevisionId: null,
             updatedAt: now,
           })
           .where(eq(stacks.id, deployment.stackId));
       }
 
-      if (outcome.kind === 'failed') {
+      if (!attention) {
         /*
-         * Nothing was created, so the resources allocated for this attempt name
-         * containers that do not exist. Removed only in this branch, and only
-         * because the host was read completely and showed nothing claiming
-         * them.
+         * Resources that name a container the host does not have. Removed only
+         * in these branches, and only because the host was read completely and
+         * showed nothing claiming them.
          */
         await tx.delete(containers).where(unclaimed(deployment.stackId));
       }
@@ -245,17 +270,17 @@ export class StackRecoveryService implements OnApplicationBootstrap {
         await tx
           .update(actions)
           .set({
-            status: outcome.kind === 'succeeded' ? 'succeeded' : 'failed',
+            status: applied ? 'succeeded' : 'failed',
             completedAt: now,
-            ...(outcome.kind === 'succeeded' ? {} : { errorCode: FAILURE_CODE[outcome.kind] }),
+            ...(applied ? {} : { errorCode: FAILURE_CODE[outcome.kind] }),
           })
           .where(eq(actions.id, deployment.actionId));
       }
     });
 
     await this.audit.record({
-      action: outcome.kind === 'succeeded' ? 'stack.deploy.succeeded' : AUDIT[outcome.kind],
-      result: outcome.kind === 'succeeded' ? 'success' : 'failure',
+      action: AUDIT[outcome.kind],
+      result: applied ? 'success' : 'failure',
       actorLabel: 'system',
       targetType: 'stack',
       targetId: deployment.stackId,
@@ -265,16 +290,31 @@ export class StackRecoveryService implements OnApplicationBootstrap {
 
     this.logger.info(
       {
-        event: 'stack_deployment_recovered',
+        event: 'stack_apply_recovered',
         hostId,
         stackId: deployment.stackId,
         deploymentId: deployment.id,
         outcome: outcome.kind,
       },
-      'an unfinished stack deployment was settled from the host',
+      'an unfinished stack revision was settled from the host',
     );
 
     return true;
+  }
+
+  /**
+   * The services a revision describes.
+   *
+   * From its stored summary, which carries names and nothing else — so
+   * recovering an attempt never decrypts a Compose file or an environment.
+   */
+  private async services(revisionId: string): Promise<readonly string[]> {
+    const [revision] = await this.db.client
+      .select({ summary: stackRevisions.summary })
+      .from(stackRevisions)
+      .where(eq(stackRevisions.id, revisionId));
+
+    return revision?.summary ? [...revision.summary.services] : [];
   }
 }
 
@@ -282,6 +322,7 @@ interface Unfinished {
   readonly id: string;
   readonly stackId: string;
   readonly revisionId: string;
+  readonly fromRevisionId: string | null;
   readonly actionId: string | null;
   readonly name: string;
 }
@@ -291,12 +332,27 @@ function unclaimed(stackId: string) {
   return and(eq(containers.stackId, stackId), isNull(containers.dockerId));
 }
 
+/** What each outcome is recorded as. */
+const STATUS = {
+  finalize_target: 'succeeded',
+  finalize_from: 'rolled_back',
+  finalize_not_applied: 'failed',
+  needs_attention: 'needs_attention',
+  unknown: 'interrupted',
+} as const;
+
 const FAILURE_CODE = {
-  failed: 'STACK_DEPLOYMENT_FAILED',
+  finalize_target: null,
+  finalize_from: 'STACK_APPLY_FAILED',
+  finalize_not_applied: 'STACK_APPLY_FAILED',
   needs_attention: 'STACK_DEPLOYMENT_PARTIAL',
+  unknown: null,
 } as const;
 
 const AUDIT = {
-  failed: 'stack.deploy.failed',
+  finalize_target: 'stack.deploy.succeeded',
+  finalize_from: 'stack.apply.rolled_back',
+  finalize_not_applied: 'stack.deploy.failed',
   needs_attention: 'stack.deploy.needs_attention',
+  unknown: 'stack.deploy.interrupted',
 } as const;

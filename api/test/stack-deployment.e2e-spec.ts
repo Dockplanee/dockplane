@@ -16,6 +16,7 @@ import {
   containers,
   events,
   stackDeployments,
+  stackRevisions,
   stacks,
 } from '../src/database/schema';
 import { StackRecoveryService } from '../src/stacks/stack-recovery.service';
@@ -185,6 +186,19 @@ describe('deploying a stack', () => {
     return body === undefined ? call : call.send(body as object);
   };
 
+  /** Revision two of the same stack: `database` is gone and `worker` is new. */
+  const WORKER_COMPOSE = [
+    'services:',
+    '  web:',
+    '    image: nginx:1.27',
+    '  worker:',
+    '    image: busybox:1.36',
+    '    environment:',
+    '      QUEUE_PASSWORD: ${DB_PASSWORD}',
+    'volumes:',
+    '  data: {}',
+  ].join('\n');
+
   const COMPOSE = [
     'services:',
     '  database:',
@@ -228,20 +242,42 @@ describe('deploying a stack', () => {
     return { stackId, revisionId, response };
   };
 
+  /** Saves another revision of a stack, on top of the one given. */
+  const saveRevision = async (stackId: string, baseRevisionId: string, compose: string) => {
+    const response = await api('post', `/api/v1/stacks/${stackId}/revisions`, {
+      baseRevisionId,
+      compose,
+      environment: [{ operation: 'unchanged', key: 'DB_PASSWORD' }],
+    });
+
+    expect(response.status).toBe(201);
+
+    return response.body.revisionId as string;
+  };
+
   const stackRow = async (stackId: string) => {
     const [row] = await db.client.select().from(stacks).where(eq(stacks.id, stackId));
 
     return row;
   };
 
+  /** The newest attempt on a stack. */
   const deploymentRow = async (stackId: string) => {
-    const [row] = await db.client
+    const rows = await db.client
       .select()
       .from(stackDeployments)
-      .where(eq(stackDeployments.stackId, stackId));
+      .where(eq(stackDeployments.stackId, stackId))
+      .orderBy(stackDeployments.startedAt);
 
-    return row;
+    return rows[rows.length - 1];
   };
+
+  const deploymentRows = async (stackId: string) =>
+    db.client
+      .select()
+      .from(stackDeployments)
+      .where(eq(stackDeployments.stackId, stackId))
+      .orderBy(stackDeployments.startedAt);
 
   const stackContainers = async (stackId: string) =>
     db.client.select().from(containers).where(eq(containers.stackId, stackId));
@@ -351,30 +387,20 @@ describe('deploying a stack', () => {
       expect([...host.volumes]).toEqual([`${stack.name}_data`]);
     }, 120_000);
 
-    it('refuses to deploy it a second time', async () => {
+    /*
+     * Applying the revision that is already running would recreate every
+     * container to arrive back where it started.
+     */
+    it('refuses to apply the revision it is already running', async () => {
       const { stackId, revisionId } = await deployed();
+      const attempts = dispatched.filter((capability) => capability === 'stack.deploy').length;
       const again = await deploy(stackId, revisionId);
 
       expect(again.status).toBe(409);
-      expect(again.body.code).toBe('STACK_ALREADY_DEPLOYED');
-    }, 120_000);
-
-    it('refuses a revision that is not the newest', async () => {
-      const { stackId, revisionId } = await saveStack();
-
-      const second = await api('post', `/api/v1/stacks/${stackId}/revisions`, {
-        baseRevisionId: revisionId,
-        compose: COMPOSE.replace('nginx:1.27', 'nginx:1.28'),
-        environment: [{ operation: 'unchanged', key: 'DB_PASSWORD' }],
-      });
-
-      expect(second.status).toBe(201);
-
-      const response = await deploy(stackId, revisionId);
-
-      expect(response.status).toBe(409);
-      expect(response.body.code).toBe('STACK_REVISION_CONFLICT');
-      expect(dispatched).not.toContain('stack.deploy');
+      expect(again.body.code).toBe('STACK_REVISION_ALREADY_DEPLOYED');
+      expect(dispatched.filter((capability) => capability === 'stack.deploy')).toHaveLength(
+        attempts,
+      );
     }, 120_000);
   });
 
@@ -448,7 +474,7 @@ describe('deploying a stack', () => {
       const response = await deploy(stackId, revisionId);
 
       expect(response.status).toBe(409);
-      expect(response.body.code).toBe('STACK_DEPLOYMENT_FAILED');
+      expect(response.body.code).toBe('STACK_APPLY_FAILED');
 
       const stack = await stackRow(stackId);
 
@@ -472,11 +498,13 @@ describe('deploying a stack', () => {
     }, 120_000);
   });
 
-  describe('a deployment that half happened', () => {
-    it('keeps what started, deploys nothing further, and waits for a person', async () => {
+  describe('an attempt that leaves the host half applied', () => {
+    it('says so, changes nothing about the stack, and blocks its containers', async () => {
       const { stackId, revisionId } = await saveStack();
 
+      // The target does not come up and the host cannot be put back.
       host.wontStart.add('web');
+      host.leaveHalfApplied = true;
 
       const response = await deploy(stackId, revisionId);
 
@@ -487,36 +515,301 @@ describe('deploying a stack', () => {
 
       expect(stack.currentRevisionId).toBeNull();
       expect(stack.status).toBe('needs_attention');
+      expect((await deploymentRow(stackId)).status).toBe('needs_attention');
 
-      const deployment = await deploymentRow(stackId);
-
-      expect(deployment.status).toBe('needs_attention');
-      // Unresolved, so the attempt is not over and nothing was tidied away.
-      expect(deployment.resolvedAt).toBeNull();
-
-      const rows = await stackContainers(stackId);
-
-      expect(rows.filter((row) => row.dockerId !== null)).toHaveLength(2);
-      expect(host.containers.size).toBe(2);
-
-      const again = await deploy(stackId, revisionId);
-
-      expect(again.status).toBe(409);
-      expect(again.body.code).toBe('STACK_NEEDS_ATTENTION');
+      // Nothing was removed: what came up is still up.
+      expect(host.containers.size).toBeGreaterThan(0);
     }, 120_000);
 
     it('refuses to start, stop or restart a container of that stack', async () => {
       const { stackId, revisionId } = await saveStack();
 
       host.wontStart.add('web');
+      host.leaveHalfApplied = true;
       await deploy(stackId, revisionId);
 
-      const [row] = await stackContainers(stackId);
+      const [row] = (await stackContainers(stackId)).filter((found) => found.dockerId !== null);
 
       const response = await api('post', `/api/v1/containers/${row.id}/restart`, {});
 
       expect(response.status).toBe(409);
-      expect(response.body.code).toBe('STACK_DEPLOYMENT_CONFLICT');
+      expect(response.body.code).toBe('STACK_NEEDS_ATTENTION');
+    }, 120_000);
+
+    /*
+     * The way out. A stack that needs attention is converged by somebody
+     * choosing a revision and applying it, which is an ordinary new attempt
+     * rather than a retry of the one that failed.
+     */
+    it('is repaired by applying a revision to it deliberately', async () => {
+      const { stackId, revisionId } = await saveStack();
+
+      host.wontStart.add('web');
+      host.leaveHalfApplied = true;
+      await deploy(stackId, revisionId);
+
+      host.wontStart.clear();
+      host.leaveHalfApplied = false;
+
+      const repair = await deploy(stackId, revisionId);
+
+      expect(repair.status).toBe(200);
+      expect(repair.body.kind).toBe('repair');
+
+      const stack = await stackRow(stackId);
+
+      expect(stack.status).toBe('running');
+      expect(stack.currentRevisionId).toBe(revisionId);
+
+      // A second attempt, not a retry of the first.
+      const attempts = await deploymentRows(stackId);
+
+      expect(attempts).toHaveLength(2);
+      expect(attempts[0].status).toBe('needs_attention');
+      expect(attempts[1].status).toBe('succeeded');
+      expect(attempts[1].kind).toBe('repair');
+    }, 120_000);
+
+    /*
+     * Two containers claiming one service. Choosing between them is choosing
+     * which of somebody's containers to destroy, so nothing is applied at all.
+     */
+    it('is not repaired while two containers claim one service', async () => {
+      const { stackId, revisionId } = await deployed();
+      const stack = await stackRow(stackId);
+
+      // A leftover from an earlier revision, still carrying a service that
+      // already has a container. Only the host can be in this state: the
+      // database allows one container per service of a stack.
+      host.seed(`${stack.name}-web-old`, {
+        'io.dockplane.managed': 'true',
+        'io.dockplane.stack-id': stackId,
+        'io.dockplane.stack-service': 'web',
+        'io.dockplane.stack-revision-id': revisionId,
+        'io.dockplane.container-id': 'a-resource-nobody-allocated',
+      });
+
+      const second = await saveRevision(
+        stackId,
+        revisionId,
+        COMPOSE.replace('nginx:1.27', 'nginx:1.28'),
+      );
+
+      const response = await deploy(stackId, second);
+
+      expect(response.status).toBe(409);
+      expect(response.body.code).toBe('STACK_REPAIR_AMBIGUOUS');
+
+      // Nothing was applied: the stack is still what it was.
+      expect((await stackRow(stackId)).currentRevisionId).toBe(revisionId);
+    }, 120_000);
+  });
+
+  describe('moving a running stack to another revision', () => {
+    it('applies it, keeps the service resources and records the new revision', async () => {
+      const { stackId, revisionId } = await deployed();
+      const before = await stackContainers(stackId);
+
+      const second = await saveRevision(
+        stackId,
+        revisionId,
+        COMPOSE.replace('nginx:1.27', 'nginx:1.28'),
+      );
+
+      const response = await deploy(stackId, second);
+
+      expect(response.status).toBe(200);
+      expect(response.body.kind).toBe('redeploy');
+
+      const stack = await stackRow(stackId);
+
+      expect(stack.currentRevisionId).toBe(second);
+      expect(stack.latestRevisionId).toBe(second);
+      expect(stack.status).toBe('running');
+
+      const after = await stackContainers(stackId);
+
+      // The same Dockplane resources, different Docker containers.
+      expect(after.map((row) => row.id).sort()).toEqual(before.map((row) => row.id).sort());
+
+      for (const row of after) {
+        const was = before.find((found) => found.id === row.id)!;
+
+        expect(row.dockerId).not.toBe(was.dockerId);
+        expect(row.stackRevisionId).toBe(second);
+      }
+    }, 120_000);
+
+    /*
+     * Saving is not deploying. A stack goes on running what it was running
+     * until somebody says otherwise.
+     */
+    it('leaves the host alone when a revision is only saved', async () => {
+      const { stackId, revisionId } = await deployed();
+      const attempts = dispatched.filter((capability) => capability === 'stack.deploy').length;
+
+      const second = await saveRevision(
+        stackId,
+        revisionId,
+        COMPOSE.replace('nginx:1.27', 'nginx:1.28'),
+      );
+
+      const stack = await stackRow(stackId);
+
+      expect(stack.latestRevisionId).toBe(second);
+      expect(stack.currentRevisionId).toBe(revisionId);
+      expect(dispatched.filter((capability) => capability === 'stack.deploy')).toHaveLength(
+        attempts,
+      );
+    }, 120_000);
+
+    it('adds and removes services, and gives a new service a new resource', async () => {
+      const { stackId, revisionId } = await deployed();
+      const before = await stackContainers(stackId);
+      const web = before.find((row) => row.stackService === 'web')!;
+
+      const second = await saveRevision(stackId, revisionId, WORKER_COMPOSE);
+      const response = await deploy(stackId, second);
+
+      expect(response.status).toBe(200);
+
+      const after = await stackContainers(stackId);
+
+      expect(after.map((row) => row.stackService).sort()).toEqual(['web', 'worker']);
+
+      // The service that stayed kept its resource; the new one is new.
+      expect(after.find((row) => row.stackService === 'web')!.id).toBe(web.id);
+      expect(after.find((row) => row.stackService === 'worker')!.id).not.toBe(web.id);
+
+      // The volume the removed service used is still there.
+      expect([...host.volumes].some((name) => name.endsWith('_data'))).toBe(true);
+    }, 120_000);
+  });
+
+  describe('going back to an older revision', () => {
+    it('applies it without changing what was last saved', async () => {
+      const { stackId, revisionId } = await deployed();
+
+      const second = await saveRevision(
+        stackId,
+        revisionId,
+        COMPOSE.replace('nginx:1.27', 'nginx:1.28'),
+      );
+
+      expect((await deploy(stackId, second)).status).toBe(200);
+
+      const response = await deploy(stackId, revisionId);
+
+      expect(response.status).toBe(200);
+      expect(response.body.kind).toBe('rollback');
+
+      const stack = await stackRow(stackId);
+
+      // What is running went back; what was saved did not.
+      expect(stack.currentRevisionId).toBe(revisionId);
+      expect(stack.latestRevisionId).toBe(second);
+
+      const revisions = await db.client
+        .select()
+        .from(stackRevisions)
+        .where(eq(stackRevisions.stackId, stackId));
+
+      // No revision was invented to describe the rollback.
+      expect(revisions).toHaveLength(2);
+
+      for (const row of await stackContainers(stackId)) {
+        expect(row.stackRevisionId).toBe(revisionId);
+      }
+    }, 120_000);
+
+    it('is recorded as a rollback rather than as an ordinary deployment', async () => {
+      const { stackId, revisionId } = await deployed();
+
+      const second = await saveRevision(
+        stackId,
+        revisionId,
+        COMPOSE.replace('nginx:1.27', 'nginx:1.28'),
+      );
+
+      await deploy(stackId, second);
+      await deploy(stackId, revisionId);
+
+      const entries = await db.client
+        .select()
+        .from(auditEntries)
+        .where(
+          sql`${auditEntries.action} like 'stack.rollback%' or ${auditEntries.action} = 'stack.rolled_back'`,
+        );
+
+      expect(entries.map((entry) => entry.action).sort()).toEqual([
+        'stack.rollback.requested',
+        'stack.rolled_back',
+      ]);
+    }, 120_000);
+  });
+
+  describe('a revision that does not come up', () => {
+    it('leaves the stack exactly as it was', async () => {
+      const { stackId, revisionId } = await deployed();
+      const before = await stackContainers(stackId);
+
+      const second = await saveRevision(
+        stackId,
+        revisionId,
+        COMPOSE.replace('nginx:1.27', 'nginx:1.28'),
+      );
+
+      host.wontStart.add('web');
+
+      const response = await deploy(stackId, second);
+
+      expect(response.status).toBe(409);
+      expect(response.body.code).toBe('STACK_APPLY_FAILED');
+
+      const stack = await stackRow(stackId);
+
+      expect(stack.currentRevisionId).toBe(revisionId);
+      expect(stack.status).toBe('running');
+
+      const attempt = await deploymentRow(stackId);
+
+      expect(attempt.status).toBe('rolled_back');
+      expect(attempt.fromRevisionId).toBe(revisionId);
+      expect(attempt.revisionId).toBe(second);
+
+      // The same containers as before, still running the revision they were.
+      const after = await stackContainers(stackId);
+
+      expect(after.map((row) => row.dockerId).sort()).toEqual(
+        before.map((row) => row.dockerId).sort(),
+      );
+
+      for (const row of after) {
+        expect(row.stackRevisionId).toBe(revisionId);
+      }
+    }, 120_000);
+
+    it('does not call it a rollback in the record', async () => {
+      const { stackId, revisionId } = await deployed();
+
+      const second = await saveRevision(
+        stackId,
+        revisionId,
+        COMPOSE.replace('nginx:1.27', 'nginx:1.28'),
+      );
+
+      host.wontStart.add('web');
+      await deploy(stackId, second);
+
+      const entries = await db.client
+        .select()
+        .from(auditEntries)
+        .where(sql`${auditEntries.action} like 'stack.%'`);
+
+      const actions = entries.map((entry) => entry.action);
+
+      expect(actions).toContain('stack.apply.rolled_back');
+      expect(actions).not.toContain('stack.rolled_back');
     }, 120_000);
   });
 
@@ -629,6 +922,124 @@ describe('deploying a stack', () => {
 
       expect(deployment.status).toBe('interrupted');
       expect((await stackRow(stackId)).currentRevisionId).toBeNull();
+    }, 120_000);
+  });
+
+  describe('an answer that never came back during a transition', () => {
+    it('settles on the new revision when the host turns out to have applied it', async () => {
+      const { stackId, revisionId } = await deployed();
+
+      const second = await saveRevision(
+        stackId,
+        revisionId,
+        COMPOSE.replace('nginx:1.27', 'nginx:1.28'),
+      );
+
+      dropAfter.add('stack.deploy');
+
+      const response = await deploy(stackId, second);
+
+      expect(response.status).toBe(503);
+      expect(response.body.code).toBe('OPERATION_OUTCOME_UNKNOWN');
+      expect((await stackRow(stackId)).currentRevisionId).toBe(revisionId);
+
+      await reconnect();
+      await stackRecovery.recoverHost(hostId);
+
+      const stack = await stackRow(stackId);
+
+      expect(stack.currentRevisionId).toBe(second);
+      expect(stack.status).toBe('running');
+      expect((await deploymentRow(stackId)).status).toBe('succeeded');
+    }, 120_000);
+
+    it('leaves the stack as it was when the host turns out not to have applied it', async () => {
+      const { stackId, revisionId } = await deployed();
+
+      const second = await saveRevision(
+        stackId,
+        revisionId,
+        COMPOSE.replace('nginx:1.27', 'nginx:1.28'),
+      );
+
+      // The request never reaches the host, so nothing about the stack changed.
+      dropOn.add('stack.deploy');
+      await deploy(stackId, second);
+
+      await reconnect();
+      await stackRecovery.recoverHost(hostId);
+
+      const stack = await stackRow(stackId);
+
+      expect(stack.currentRevisionId).toBe(revisionId);
+      expect(stack.status).toBe('running');
+      expect((await deploymentRow(stackId)).status).toBe('rolled_back');
+    }, 120_000);
+
+    it('needs attention when the host turns out to hold some of each', async () => {
+      const { stackId, revisionId } = await deployed();
+
+      const second = await saveRevision(
+        stackId,
+        revisionId,
+        COMPOSE.replace('nginx:1.27', 'nginx:1.28'),
+      );
+
+      host.wontStart.add('web');
+      host.leaveHalfApplied = true;
+      dropAfter.add('stack.deploy');
+
+      await deploy(stackId, second);
+      await reconnect();
+      await stackRecovery.recoverHost(hostId);
+
+      const stack = await stackRow(stackId);
+
+      expect(stack.status).toBe('needs_attention');
+      // What the stack is has not changed: nothing was confirmed.
+      expect(stack.currentRevisionId).toBe(revisionId);
+      expect((await deploymentRow(stackId)).status).toBe('needs_attention');
+    }, 120_000);
+  });
+
+  describe('a revision that differs only in a secret', () => {
+    /*
+     * Nothing observable distinguishes the two revisions except the label the
+     * agent stamps, which is the reason every service is recreated rather than
+     * only the ones whose configuration changed.
+     */
+    it('is applied, and is recognised afterwards by its label alone', async () => {
+      const { stackId, revisionId } = await deployed();
+
+      const response = await api('post', `/api/v1/stacks/${stackId}/revisions`, {
+        baseRevisionId: revisionId,
+        compose: COMPOSE,
+        environment: [{ operation: 'set-secret', key: 'DB_PASSWORD', value: `${CANARY}-two` }],
+      });
+
+      expect(response.status).toBe(201);
+
+      const second = response.body.revisionId as string;
+
+      expect((await deploy(stackId, second)).status).toBe(200);
+
+      const stack = await stackRow(stackId);
+
+      expect(stack.currentRevisionId).toBe(second);
+
+      for (const row of await stackContainers(stackId)) {
+        expect(row.stackRevisionId).toBe(second);
+      }
+
+      const rows = await Promise.all([
+        db.client.select().from(auditEntries),
+        db.client.select().from(events),
+        db.client.select().from(actions),
+        db.client.select().from(stackDeployments),
+        stackContainers(stackId),
+      ]);
+
+      expect(JSON.stringify(rows)).not.toContain(CANARY);
     }, 120_000);
   });
 

@@ -3,7 +3,13 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { AppError } from '../common/errors';
 import { Database } from '../database/database';
-import { actions, containerDesiredConfigs, containers, stackDeployments } from '../database/schema';
+import {
+  actions,
+  containerDesiredConfigs,
+  containers,
+  stackDeployments,
+  stacks,
+} from '../database/schema';
 
 /**
  * The operations that leave something unfinished behind.
@@ -123,38 +129,58 @@ export class PendingMutationGuard {
   }
 
   /**
-   * Refuses an operation on a container whose stack is mid-deployment.
+   * Refuses an operation on a container whose stack is not settled.
    *
-   * A stack's containers are created, started and observed as one thing. While
-   * a deployment of that stack has not resolved, stopping or replacing one of
-   * them changes the state the deployment is about to be judged against — and a
-   * deployment that concluded from a container somebody else had just stopped
-   * would record something that never happened.
+   * Two states, and the same reason for both. While an attempt to apply a
+   * revision has not resolved, stopping or replacing one container changes the
+   * state that attempt is about to be judged against — a conclusion drawn from
+   * a container somebody else had just stopped would record something that
+   * never happened.
+   *
+   * And a stack that needs attention is a host somebody is about to be asked to
+   * make sense of. Whoever resolves it does so by applying a revision, and that
+   * decision is made from what is there; changing what is there underneath them
+   * is how a repair converges on the wrong thing.
    *
    * A container that belongs to no stack is unaffected, which is every
    * container that existed before stacks could be deployed.
    */
   async assertStackSettled(containerId: string): Promise<void> {
-    const [deploying] = await this.db.client
-      .select({ id: stackDeployments.id })
+    const [row] = await this.db.client
+      .select({ stackId: containers.stackId })
       .from(containers)
-      .innerJoin(stackDeployments, eq(stackDeployments.stackId, containers.stackId))
+      .where(eq(containers.id, containerId));
+
+    if (!row?.stackId) {
+      return;
+    }
+
+    const [unresolved] = await this.db.client
+      .select({ id: stackDeployments.id })
+      .from(stackDeployments)
       .where(
         and(
-          eq(containers.id, containerId),
-          inArray(stackDeployments.status, [
-            'pending',
-            'running',
-            'interrupted',
-            'needs_attention',
-          ]),
+          eq(stackDeployments.stackId, row.stackId),
+          inArray(stackDeployments.status, ['pending', 'running', 'interrupted']),
         ),
       );
 
-    if (deploying) {
+    if (unresolved) {
       throw AppError.conflict(
         'STACK_DEPLOYMENT_CONFLICT',
-        'A deployment of this container’s stack has not been resolved yet.',
+        'An attempt to apply a revision to this container’s stack has not been resolved yet.',
+      );
+    }
+
+    const [stack] = await this.db.client
+      .select({ status: stacks.status })
+      .from(stacks)
+      .where(eq(stacks.id, row.stackId));
+
+    if (stack?.status === 'needs_attention') {
+      throw AppError.conflict(
+        'STACK_NEEDS_ATTENTION',
+        'This container’s stack is neither one revision nor another. Apply a revision to it before operating its containers individually.',
       );
     }
   }

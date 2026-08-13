@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { Logger } from 'pino';
 
 import { AgentDispatchService } from '../agents/agent-dispatch.service';
 import { AgentConnectionManager } from '../agents/connection-manager.service';
-import { AuditService } from '../audit/audit.service';
+import { AuditAction, AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/authenticated-request';
 import { SecretBox } from '../common/crypto';
 import { AppError } from '../common/errors';
@@ -26,17 +26,21 @@ import { DiscoveryService } from '../discovery/discovery.service';
 import { EventsService } from '../events/events.service';
 import { MutationRegistry } from '../operations/mutation-registry';
 import { ComposeCompilerService, StackDeploymentPlan } from './compose-compiler.service';
-import { StackDeploymentOutcome, classifyStackDeployment } from './stack-deployment';
+import { ObservedService, StackApplyOutcome, classifyStackApply } from './stack-deployment';
 import { AgentStackPlan, agentPlanFor, containerNames } from './stack-plan';
 
-/** What the caller is told about a deployment. */
+/** What the caller is told about an attempt that succeeded. */
 export interface DeploymentOutcome {
   readonly deploymentId: string;
   readonly stackId: string;
   readonly revisionId: string;
+  readonly kind: ApplyKind;
   readonly status: 'succeeded';
   readonly services: readonly { serviceName: string; state: string | null }[];
 }
+
+/** Why a revision is being applied. All four do the same thing. */
+export type ApplyKind = 'initial' | 'redeploy' | 'rollback' | 'repair';
 
 interface RequestContext {
   readonly sourceIp?: string;
@@ -45,30 +49,37 @@ interface RequestContext {
 }
 
 /**
- * Putting a stack on a host for the first time.
+ * Applying a revision of a stack to its host.
  *
- * The shape of this is the container management service's, for the same
- * reasons: what is intended is written and committed before an agent is asked
- * for anything, the agent is asked outside any transaction, and what actually
- * happened is established by reading the host rather than by believing the
- * reply. A deployment creates several containers instead of one, which changes
- * how much can be half-done and nothing about the order.
+ * Deploying a stack for the first time, moving it to a newer revision, putting
+ * it back to an older one and converging one that was left half-applied are the
+ * same operation: make this revision the thing running. They differ in what the
+ * host already holds, which is read rather than assumed, and in the word an
+ * operator sees in the history afterwards.
  *
- * Three things are specific to a stack.
+ * The shape is the container management service's, for the same reasons. What
+ * is intended is written and committed before an agent is asked for anything,
+ * the agent is asked outside any transaction, and what actually happened is
+ * established by reading the host rather than by believing the reply.
  *
- * The revision is compiled again, here, from the source and environment that
- * were stored. A plan is never persisted — it carries resolved secrets — so the
- * only way to deploy what a revision means is to produce the plan afresh.
+ * Four rules run through the rest.
  *
- * The containers are allocated before the dispatch, one per service, and the
- * agent stamps their identifiers onto what it creates. That is what makes a
- * deployment that lost its answer answerable: the containers on the host say
- * which service of which stack they are.
+ * The revision is compiled again, every time, from the source and environment
+ * that were stored. No plan is persisted — a plan carries resolved values,
+ * secrets included — so a rollback compiles the old revision afresh, and one
+ * that no longer compiles is refused before the host is touched.
  *
- * A partial deployment is a real outcome. Some services running and some not is
- * not tidied away and not rolled back: containers that started may already have
- * written to a volume, so the attempt is recorded as needing attention and the
- * stack is not marked as deployed.
+ * `currentRevisionId` is what was confirmed, not what was asked for. It changes
+ * only when the target has been read back off the host, and it stays where it
+ * is when an attempt fails.
+ *
+ * `latestRevisionId` is never changed here. Deploying an older revision does
+ * not rewrite what was saved: the history stays honest, and the stack simply
+ * reports that what is running is not the newest thing saved.
+ *
+ * Nothing is removed to tidy up. A host that ends up neither one revision nor
+ * the other needs a person, and the containers on it may already have written
+ * to a volume.
  */
 @Injectable()
 export class StackDeploymentService {
@@ -86,12 +97,13 @@ export class StackDeploymentService {
   ) {}
 
   /**
-   * Deploys a revision of a stack that has never run.
+   * Applies a revision of a stack.
    *
-   * Only the first deployment. A stack that already has a deployed revision is
-   * refused here rather than being quietly turned into an update: replacing
-   * what is running is a different operation with different consequences, and
-   * it does not exist yet.
+   * Any revision the stack has, not only its newest: going back to an older one
+   * is the whole of what a rollback is. What is refused is applying the
+   * revision that is already running to a stack that is running it happily —
+   * there would be nothing to do, and recreating every container to achieve
+   * nothing is not a no-op.
    */
   async deploy(
     stackId: string,
@@ -100,48 +112,54 @@ export class StackDeploymentService {
     context: RequestContext,
   ): Promise<DeploymentOutcome> {
     const stack = await this.find(stackId);
+    const target = await this.revision(stackId, revisionId);
+    const from = stack.currentRevisionId
+      ? await this.revision(stackId, stack.currentRevisionId)
+      : null;
 
-    if (stack.currentRevisionId) {
+    const kind = kindOf(stack, target, from);
+
+    if (kind === null) {
       throw AppError.conflict(
-        'STACK_ALREADY_DEPLOYED',
-        'This stack is already deployed. Changing what is running is not something this version can do.',
+        'STACK_REVISION_ALREADY_DEPLOYED',
+        'This stack is already running that revision.',
       );
     }
 
-    if (stack.latestRevisionId !== revisionId) {
-      throw AppError.conflict(
-        'STACK_REVISION_CONFLICT',
-        'That is not the newest revision of this stack. Reload it and deploy again.',
-      );
-    }
-
-    const revision = await this.revision(stackId, revisionId);
     const agentId = await this.connectedAgent(stack.hostId);
 
     /*
      * Two guards, answering different questions.
      *
-     * The lock answers "is a deployment of this stack running right now"; the
-     * unresolved attempt in the database answers "did one never finish". A
-     * restart clears the first and leaves the second exactly as it was, which
-     * is the case that matters: the containers a half-finished deployment
-     * created are still on the host.
+     * The lock answers "is an attempt running right now"; the unresolved
+     * attempt in the database answers "did one never finish". A restart clears
+     * the first and leaves the second exactly as it was, which is the case that
+     * matters: the containers a half-finished attempt created are still on the
+     * host.
+     *
+     * A stack that needs attention is not blocked here. Applying a revision to
+     * it deliberately is the only way out, and that is this call.
      */
     await this.assertNoUnresolvedDeployment(stackId);
 
     const release = this.mutations.acquire(stackKey(stackId), 'deploy');
 
     try {
-      const plan = await this.compile(stack.name, revision);
+      const plan = await this.compile(stack.name, target);
       const names = containerNames(plan);
 
-      await this.assertNamesAreFree(stack.hostId, names);
+      const existing = await this.stackContainers(stackId);
+
+      await this.assertNamesAreFree(stack.hostId, names, existing);
 
       const prepared = await this.prepare({
         stack,
-        revisionId,
+        target,
+        from,
+        kind,
         plan,
         names,
+        existing,
         actor,
         context,
       }).catch((error: unknown) => {
@@ -149,7 +167,7 @@ export class StackDeploymentService {
       });
 
       await this.audit.record({
-        action: 'stack.deploy.requested',
+        action: AUDIT_REQUESTED[kind],
         result: 'success',
         actorUserId: actor.id,
         actorLabel: actor.email,
@@ -164,10 +182,14 @@ export class StackDeploymentService {
       return await this.run({
         deploymentId: prepared.deploymentId,
         actionId: prepared.actionId,
+        kind,
         stackId,
         stackName: stack.name,
         hostId: stack.hostId,
         revisionId,
+        fromRevisionId: from?.id ?? null,
+        targetServices: plan.services.map((service) => service.serviceName),
+        fromServices: summaryServices(from),
         agentId,
         containers: prepared.containers,
         payload: agentPlanFor({
@@ -175,6 +197,9 @@ export class StackDeploymentService {
           revisionId,
           plan,
           containers: prepared.containers,
+          // The volumes the stack was already using. An absent one of those is
+          // a volume that has gone, not a volume this revision introduces.
+          existingVolumes: summaryVolumes(from),
         }),
         actor,
         context,
@@ -187,36 +212,34 @@ export class StackDeploymentService {
   /**
    * Dispatches, then establishes what happened.
    *
-   * The reply is not what decides the outcome. An agent that says a deployment
-   * completed and a host with two of three containers running disagree about
-   * something the host is closer to.
+   * The reply is not what decides the outcome. An agent that says it put the
+   * host back and a host showing half of each revision disagree about something
+   * the host is closer to.
    */
-  private async run(deployment: DispatchedDeployment): Promise<DeploymentOutcome> {
+  private async run(attempt: DispatchedApply): Promise<DeploymentOutcome> {
     let failure: AppError | undefined;
 
     try {
-      await this.dispatch.request(deployment.agentId, 'stack.deploy', {
-        plan: deployment.payload,
-      });
+      await this.dispatch.request(attempt.agentId, 'stack.deploy', { plan: attempt.payload });
     } catch (error) {
       const code = error instanceof AppError ? error.code : 'DOCKER_OPERATION_FAILED';
 
       if (UNKNOWN_OUTCOME.has(code)) {
-        return await this.interrupted(deployment, code);
+        return await this.interrupted(attempt, code);
       }
 
       /*
        * A refusal the agent was able to state. Docker may still have been
-       * changed — a deployment that failed on its third service created two
+       * changed — an attempt that failed on its third service created two
        * containers first — so the host is read before anything is concluded,
        * exactly as it is after a success.
        */
       failure = error instanceof AppError ? error : undefined;
     }
 
-    const observed = await this.observe(deployment);
+    const observed = await this.observe(attempt);
 
-    return await this.settle(deployment, observed, failure);
+    return await this.settle(attempt, observed, failure);
   }
 
   /**
@@ -226,131 +249,102 @@ export class StackDeploymentService {
    * unresolved, which keeps the stack blocked, and the next complete discovery
    * of that host settles it.
    */
-  private async interrupted(deployment: DispatchedDeployment, code: string): Promise<never> {
+  private async interrupted(attempt: DispatchedApply, code: string): Promise<never> {
     this.logger.warn(
       {
-        event: 'stack_deployment_outcome_unknown',
-        stackId: deployment.stackId,
-        hostId: deployment.hostId,
-        deploymentId: deployment.deploymentId,
+        event: 'stack_apply_outcome_unknown',
+        stackId: attempt.stackId,
+        hostId: attempt.hostId,
+        deploymentId: attempt.deploymentId,
         reason: code,
       },
-      'a stack deployment was dispatched and its outcome is not known',
+      'a stack revision was dispatched and its outcome is not known',
     );
 
     await this.db.client
       .update(stackDeployments)
       .set({ status: 'interrupted', failureCode: code, updatedAt: new Date() })
-      .where(eq(stackDeployments.id, deployment.deploymentId));
+      .where(eq(stackDeployments.id, attempt.deploymentId));
 
     await this.audit.record({
       action: 'stack.deploy.interrupted',
       result: 'failure',
-      actorUserId: deployment.actor.id,
-      actorLabel: deployment.actor.email,
+      actorUserId: attempt.actor.id,
+      actorLabel: attempt.actor.email,
       targetType: 'stack',
-      targetId: deployment.stackId,
-      targetLabel: deployment.stackName,
-      reasonCode: deployment.deploymentId,
-      sourceIp: deployment.context.sourceIp,
-      userAgent: deployment.context.userAgent,
+      targetId: attempt.stackId,
+      targetLabel: attempt.stackName,
+      reasonCode: attempt.deploymentId,
+      sourceIp: attempt.context.sourceIp,
+      userAgent: attempt.context.userAgent,
     });
 
     throw new AppError(
       'OPERATION_OUTCOME_UNKNOWN',
-      'The request reached the host but its result did not come back. Dockplane will establish what happened from the host and will not repeat the deployment; the stack accepts no further deployments until then.',
+      'The request reached the host but its result did not come back. Dockplane will establish what happened from the host and will not repeat the operation; the stack accepts no further deployments until then.',
       503,
     );
   }
 
-  /** Reads the host and compares it with what the deployment was to produce. */
-  private async observe(deployment: DispatchedDeployment) {
-    const snapshotComplete = await this.resync(deployment.hostId);
+  /** Reads the host and compares it with the two states that were established. */
+  private async observe(attempt: DispatchedApply) {
+    const snapshotComplete = await this.resync(attempt.hostId);
+    const rows = await this.stackContainers(attempt.stackId);
 
-    const rows = await this.db.client
-      .select({
-        id: containers.id,
-        dockerId: containers.dockerId,
-        state: containers.state,
-      })
-      .from(containers)
-      .where(eq(containers.stackId, deployment.stackId));
-
-    /*
-     * Keyed by the resource this attempt allocated, not by the service name.
-     * The question being asked is whether the container this deployment set out
-     * to create exists — and a row that is the same service but a different
-     * resource is a different container.
-     */
-    const byResource = new Map(rows.map((row) => [row.id, row]));
-
-    const services = [...deployment.containers.entries()].map(([serviceName, containerId]) => {
-      const row = byResource.get(containerId);
-
-      return {
-        serviceName,
-        containerId,
-        dockerId: row?.dockerId ?? null,
-        state: row?.dockerId ? (row.state ?? null) : null,
-      };
-    });
+    const observed: ObservedService[] = rows.map((row) => ({
+      serviceName: row.stackService ?? '',
+      containerId: row.id,
+      dockerId: row.dockerId,
+      state: row.dockerId ? row.state : null,
+      revisionId: row.stackRevisionId,
+    }));
 
     return {
       snapshotComplete,
-      services,
-      outcome: classifyStackDeployment({ services, snapshotComplete }),
+      observed,
+      outcome: classifyStackApply({
+        fromRevisionId: attempt.fromRevisionId,
+        targetRevisionId: attempt.revisionId,
+        targetServices: attempt.targetServices,
+        fromServices: attempt.fromServices,
+        observed,
+        snapshotComplete,
+      }),
     };
   }
 
-  /** Writes what was established, and only then calls the stack deployed. */
+  /** Writes what was established, and only then calls the revision applied. */
   private async settle(
-    deployment: DispatchedDeployment,
+    attempt: DispatchedApply,
     observed: {
       snapshotComplete: boolean;
-      services: {
-        serviceName: string;
-        containerId: string;
-        dockerId: string | null;
-        state: string | null;
-      }[];
-      outcome: StackDeploymentOutcome;
+      observed: readonly ObservedService[];
+      outcome: StackApplyOutcome;
     },
     failure: AppError | undefined,
   ): Promise<DeploymentOutcome> {
     const detail = {
-      services: observed.services.map((service) => ({
-        serviceName: service.serviceName,
-        containerId: service.containerId,
-        ...(service.state ? { state: service.state } : {}),
-      })),
+      services: observed.observed
+        .filter((service) => service.dockerId !== null)
+        .map((service) => ({
+          serviceName: service.serviceName,
+          containerId: service.containerId,
+          ...(service.state ? { state: service.state } : {}),
+        })),
     };
 
     this.logger.info(
       {
-        event: 'stack_deployment_reconciled',
-        stackId: deployment.stackId,
-        hostId: deployment.hostId,
-        deploymentId: deployment.deploymentId,
+        event: 'stack_apply_reconciled',
+        stackId: attempt.stackId,
+        hostId: attempt.hostId,
+        deploymentId: attempt.deploymentId,
+        kind: attempt.kind,
         snapshotComplete: observed.snapshotComplete,
         outcome: observed.outcome.kind,
       },
-      'a stack deployment was reconciled against the host',
+      'a stack revision was reconciled against the host',
     );
-
-    if (observed.outcome.kind === 'succeeded') {
-      await this.recordSuccess(deployment, detail);
-
-      return {
-        deploymentId: deployment.deploymentId,
-        stackId: deployment.stackId,
-        revisionId: deployment.revisionId,
-        status: 'succeeded',
-        services: observed.services.map((service) => ({
-          serviceName: service.serviceName,
-          state: service.state,
-        })),
-      };
-    }
 
     if (observed.outcome.kind === 'unknown') {
       /*
@@ -358,101 +352,140 @@ export class StackDeploymentService {
        * dispatch whose answer never came: the attempt stays unresolved and
        * nothing is repeated.
        */
-      return await this.interrupted(deployment, 'HOST_NOT_READABLE');
+      return await this.interrupted(attempt, 'HOST_NOT_READABLE');
     }
 
-    if (observed.outcome.kind === 'failed') {
-      await this.recordFailure(deployment, detail, failure, observed.outcome.reason);
+    if (observed.outcome.kind === 'finalize_target') {
+      await this.recordApplied(attempt, detail);
+
+      return {
+        deploymentId: attempt.deploymentId,
+        stackId: attempt.stackId,
+        revisionId: attempt.revisionId,
+        kind: attempt.kind,
+        status: 'succeeded',
+        services: observed.observed
+          .filter((service) => service.dockerId !== null)
+          .map((service) => ({ serviceName: service.serviceName, state: service.state })),
+      };
+    }
+
+    if (observed.outcome.kind === 'needs_attention') {
+      await this.recordNeedsAttention(attempt, detail, observed.outcome.reason);
 
       throw new AppError(
-        failure?.code ?? 'STACK_DEPLOYMENT_FAILED',
-        failure?.message ?? 'The stack was not deployed. The host is as it was.',
+        'STACK_DEPLOYMENT_PARTIAL',
+        'This stack is now neither the revision it was nor the one it was going to. Nothing was removed; it accepts no container operations until somebody applies a revision to it.',
         409,
       );
     }
 
-    await this.recordNeedsAttention(deployment, detail, observed.outcome.reason);
+    // The host is as it was: either the attempt never took, or the agent put it
+    // back. Both are the same thing to the stack, which has not changed.
+    await this.recordNotApplied(attempt, detail, failure);
+
+    /*
+     * The host said its own containers do not add up — two of them claiming one
+     * service. Reported as what it means for the operator rather than as what
+     * the agent called it: nothing can be applied to this stack until somebody
+     * decides which container is the real one.
+     */
+    if (failure?.code === 'STACK_STATE_AMBIGUOUS') {
+      throw AppError.conflict(
+        'STACK_REPAIR_AMBIGUOUS',
+        'More than one container on this host claims to be the same service of this stack. Dockplane will not choose between them; resolve it on the host and try again.',
+      );
+    }
 
     throw new AppError(
-      'STACK_DEPLOYMENT_PARTIAL',
-      'Part of this stack is running and part of it is not. Nothing was removed; the stack is not recorded as deployed until somebody resolves it.',
+      failure?.code ?? 'STACK_APPLY_FAILED',
+      failure?.message ??
+        (attempt.fromRevisionId
+          ? 'The revision was not applied. The stack is as it was.'
+          : 'The stack was not deployed. The host is as it was.'),
       409,
     );
   }
 
-  /** The only place a stack becomes deployed. */
-  private async recordSuccess(
-    deployment: DispatchedDeployment,
-    detail: DeploymentDetail,
-  ): Promise<void> {
+  /** The only place a stack's confirmed revision changes. */
+  private async recordApplied(attempt: DispatchedApply, detail: DeploymentDetail): Promise<void> {
     const now = new Date();
 
     await this.db.client.transaction(async (tx) => {
       await tx
         .update(stackDeployments)
         .set({ status: 'succeeded', detail, resolvedAt: now, updatedAt: now })
-        .where(eq(stackDeployments.id, deployment.deploymentId));
+        .where(eq(stackDeployments.id, attempt.deploymentId));
 
       /*
-       * Set from the deployment that was confirmed, and compared against the
-       * revision this attempt was deploying. A second attempt that finished
-       * first would have set it already, and overwriting it would record the
-       * older of two answers.
+       * Set from what was confirmed, and compared against what the stack was.
+       * Another pass may have settled this attempt first, and writing over that
+       * would record the older of two answers.
+       *
+       * `latestRevisionId` is deliberately untouched: applying an older
+       * revision does not un-save the newer ones.
        */
       await tx
         .update(stacks)
         .set({
-          currentRevisionId: deployment.revisionId,
+          currentRevisionId: attempt.revisionId,
           desiredRevisionId: null,
           status: 'running',
           lastDeployedAt: now,
           updatedAt: now,
         })
-        .where(and(eq(stacks.id, deployment.stackId), isNull(stacks.currentRevisionId)));
+        .where(eq(stacks.id, attempt.stackId));
 
-      if (deployment.actionId) {
+      /*
+       * Services this revision no longer has. Their containers are gone from
+       * the host — that is what "exactly the target" means — so the resources
+       * that named them go too. A service added again later is a new resource,
+       * which is the honest answer: nothing connects the two.
+       */
+      await tx.delete(containers).where(orphanedServices(attempt));
+
+      if (attempt.actionId) {
         await tx
           .update(actions)
           .set({ status: 'succeeded', completedAt: now })
-          .where(eq(actions.id, deployment.actionId));
+          .where(eq(actions.id, attempt.actionId));
       }
     });
 
     await this.audit.record({
-      action: 'stack.deploy.succeeded',
+      action: AUDIT_SUCCEEDED[attempt.kind],
       result: 'success',
-      actorUserId: deployment.actor.id,
-      actorLabel: deployment.actor.email,
+      actorUserId: attempt.actor.id,
+      actorLabel: attempt.actor.email,
       targetType: 'stack',
-      targetId: deployment.stackId,
-      targetLabel: deployment.stackName,
-      reasonCode: deployment.deploymentId,
-      sourceIp: deployment.context.sourceIp,
-      userAgent: deployment.context.userAgent,
+      targetId: attempt.stackId,
+      targetLabel: attempt.stackName,
+      reasonCode: attempt.deploymentId,
+      sourceIp: attempt.context.sourceIp,
+      userAgent: attempt.context.userAgent,
     });
 
     await this.events.record({
-      hostId: deployment.hostId,
+      hostId: attempt.hostId,
       type: 'stack.deployed',
-      resource: `stack:${deployment.stackId}`,
-      message: `${deployment.stackName} was deployed by ${deployment.actor.email}.`,
-      correlationId: deployment.deploymentId,
+      resource: `stack:${attempt.stackId}`,
+      message: `${attempt.stackName} is running the revision ${attempt.actor.email} applied.`,
+      correlationId: attempt.deploymentId,
     });
   }
 
   /**
-   * Nothing was created, so nothing is left behind.
+   * The attempt did not take and the host is as it was.
    *
-   * The container resources allocated for this attempt are removed, because
-   * each one holds a name on the host and represents a container that does not
-   * exist. They are only ever removed when the host was read completely and
-   * showed nothing claiming them.
+   * Either nothing was built, or the agent put back what it moved. The stack is
+   * what it was before, so nothing about it changes — only the record of the
+   * attempt, and the resources that were allocated for services this stack does
+   * not have.
    */
-  private async recordFailure(
-    deployment: DispatchedDeployment,
+  private async recordNotApplied(
+    attempt: DispatchedApply,
     detail: DeploymentDetail,
     failure: AppError | undefined,
-    reason: string,
   ): Promise<void> {
     const now = new Date();
 
@@ -460,71 +493,68 @@ export class StackDeploymentService {
       await tx
         .update(stackDeployments)
         .set({
-          status: 'failed',
+          status: attempt.fromRevisionId ? 'rolled_back' : 'failed',
           detail,
-          failureCode: failure?.code ?? 'STACK_DEPLOYMENT_FAILED',
+          failureCode: failure?.code ?? 'STACK_APPLY_FAILED',
           resolvedAt: now,
           updatedAt: now,
         })
-        .where(eq(stackDeployments.id, deployment.deploymentId));
+        .where(eq(stackDeployments.id, attempt.deploymentId));
 
       await tx
         .update(stacks)
-        .set({ status: 'not_deployed', desiredRevisionId: null, updatedAt: now })
-        .where(eq(stacks.id, deployment.stackId));
+        .set({
+          status: attempt.fromRevisionId ? 'running' : 'not_deployed',
+          desiredRevisionId: null,
+          updatedAt: now,
+        })
+        .where(eq(stacks.id, attempt.stackId));
 
-      await tx
-        .delete(containers)
-        .where(
-          and(
-            eq(containers.stackId, deployment.stackId),
-            isNull(containers.dockerId),
-            inArray(containers.id, [...deployment.containers.values()]),
-          ),
-        );
+      // Resources allocated for this attempt that no container claims. Only
+      // ever removed when the host was read completely and showed none.
+      await tx.delete(containers).where(unclaimed(attempt.stackId));
 
-      if (deployment.actionId) {
+      if (attempt.actionId) {
         await tx
           .update(actions)
           .set({ status: 'failed', completedAt: now, errorCode: failure?.code ?? null })
-          .where(eq(actions.id, deployment.actionId));
+          .where(eq(actions.id, attempt.actionId));
       }
     });
 
     await this.audit.record({
-      action: 'stack.deploy.failed',
+      action: attempt.fromRevisionId ? 'stack.apply.rolled_back' : 'stack.deploy.failed',
       result: 'failure',
-      actorUserId: deployment.actor.id,
-      actorLabel: deployment.actor.email,
+      actorUserId: attempt.actor.id,
+      actorLabel: attempt.actor.email,
       targetType: 'stack',
-      targetId: deployment.stackId,
-      targetLabel: deployment.stackName,
-      reasonCode: deployment.deploymentId,
-      sourceIp: deployment.context.sourceIp,
-      userAgent: deployment.context.userAgent,
+      targetId: attempt.stackId,
+      targetLabel: attempt.stackName,
+      reasonCode: attempt.deploymentId,
+      sourceIp: attempt.context.sourceIp,
+      userAgent: attempt.context.userAgent,
     });
 
     await this.events.record({
-      hostId: deployment.hostId,
+      hostId: attempt.hostId,
       type: 'stack.deployment.failed',
       severity: 'warning',
-      resource: `stack:${deployment.stackId}`,
-      message: `${deployment.stackName} was not deployed: ${reason}.`,
-      correlationId: deployment.deploymentId,
+      resource: `stack:${attempt.stackId}`,
+      message: `${attempt.stackName} was not changed: the revision did not come up.`,
+      correlationId: attempt.deploymentId,
     });
   }
 
   /**
-   * Part of it exists.
+   * The host is neither one revision nor the other.
    *
    * Nothing is removed — not the containers that started, not the volumes they
-   * may already have written to, and not the resources allocated for the
-   * services that never started, because those name what was expected. The
-   * attempt stays unresolved, which is what keeps a second deployment from
-   * being started over the top of it.
+   * may already have written to, and not the resources that name what was
+   * expected. The stack says it needs attention, which blocks container
+   * operations on it, and the way out is for somebody to apply a revision.
    */
   private async recordNeedsAttention(
-    deployment: DispatchedDeployment,
+    attempt: DispatchedApply,
     detail: DeploymentDetail,
     reason: string,
   ): Promise<void> {
@@ -537,66 +567,73 @@ export class StackDeploymentService {
           status: 'needs_attention',
           detail,
           failureCode: 'STACK_DEPLOYMENT_PARTIAL',
+          resolvedAt: now,
           updatedAt: now,
         })
-        .where(eq(stackDeployments.id, deployment.deploymentId));
+        .where(eq(stackDeployments.id, attempt.deploymentId));
 
       await tx
         .update(stacks)
-        .set({ status: 'needs_attention', updatedAt: now })
-        .where(eq(stacks.id, deployment.stackId));
+        .set({ status: 'needs_attention', desiredRevisionId: null, updatedAt: now })
+        .where(eq(stacks.id, attempt.stackId));
 
-      if (deployment.actionId) {
+      if (attempt.actionId) {
         await tx
           .update(actions)
-          .set({
-            status: 'failed',
-            completedAt: now,
-            errorCode: 'STACK_DEPLOYMENT_PARTIAL',
-          })
-          .where(eq(actions.id, deployment.actionId));
+          .set({ status: 'failed', completedAt: now, errorCode: 'STACK_DEPLOYMENT_PARTIAL' })
+          .where(eq(actions.id, attempt.actionId));
       }
     });
 
     await this.audit.record({
       action: 'stack.deploy.needs_attention',
       result: 'failure',
-      actorUserId: deployment.actor.id,
-      actorLabel: deployment.actor.email,
+      actorUserId: attempt.actor.id,
+      actorLabel: attempt.actor.email,
       targetType: 'stack',
-      targetId: deployment.stackId,
-      targetLabel: deployment.stackName,
-      reasonCode: deployment.deploymentId,
-      sourceIp: deployment.context.sourceIp,
-      userAgent: deployment.context.userAgent,
+      targetId: attempt.stackId,
+      targetLabel: attempt.stackName,
+      reasonCode: attempt.deploymentId,
+      sourceIp: attempt.context.sourceIp,
+      userAgent: attempt.context.userAgent,
     });
 
     await this.events.record({
-      hostId: deployment.hostId,
+      hostId: attempt.hostId,
       type: 'stack.deployment.failed',
       severity: 'critical',
-      resource: `stack:${deployment.stackId}`,
-      message: `${deployment.stackName} is partly deployed: ${reason}.`,
-      correlationId: deployment.deploymentId,
+      resource: `stack:${attempt.stackId}`,
+      message: `${attempt.stackName} needs attention: ${reason}.`,
+      correlationId: attempt.deploymentId,
     });
   }
 
   /**
-   * Writes the attempt, the action and one container resource per service.
+   * Writes the attempt, the action and the container resource of every service.
    *
-   * Short, and committed before anything is dispatched. The container rows are
-   * what a deployment that never came back is found by: each carries the name
-   * it claimed and the service it is, and the agent stamps its identifier onto
-   * the container it builds.
+   * Short, and committed before anything is dispatched. A service the stack
+   * already has keeps its resource — that is what makes an operator's container
+   * the same thing across revisions — and a service this revision introduces
+   * gets a new one. A service that is being removed keeps its row until the
+   * target is confirmed, because until then it is the way back.
    */
   private async prepare(input: {
-    stack: { id: string; name: string; hostId: string };
-    revisionId: string;
+    stack: StackRow;
+    target: RevisionRow;
+    from: RevisionRow | null;
+    kind: ApplyKind;
     plan: StackDeploymentPlan;
     names: Map<string, string>;
+    existing: readonly ContainerRow[];
     actor: AuthenticatedUser;
     context: RequestContext;
   }) {
+    const held = new Map(
+      input.existing
+        .filter((row) => row.stackService !== null)
+        .map((row) => [row.stackService!, row]),
+    );
+
     return await this.db.client.transaction(async (tx) => {
       const [action] = await tx
         .insert(actions)
@@ -618,9 +655,10 @@ export class StackDeploymentService {
         .insert(stackDeployments)
         .values({
           stackId: input.stack.id,
-          revisionId: input.revisionId,
+          revisionId: input.target.id,
+          fromRevisionId: input.from?.id ?? null,
           hostId: input.stack.hostId,
-          kind: 'initial',
+          kind: input.kind,
           status: 'running',
           actionId: action.id,
           startedBy: input.actor.id,
@@ -630,6 +668,13 @@ export class StackDeploymentService {
       const allocated = new Map<string, string>();
 
       for (const service of input.plan.services) {
+        const existing = held.get(service.serviceName);
+
+        if (existing) {
+          allocated.set(service.serviceName, existing.id);
+          continue;
+        }
+
         const [container] = await tx
           .insert(containers)
           .values({
@@ -650,7 +695,7 @@ export class StackDeploymentService {
       await tx
         .update(stacks)
         .set({
-          desiredRevisionId: input.revisionId,
+          desiredRevisionId: input.target.id,
           status: 'deploying',
           updatedAt: new Date(),
         })
@@ -665,9 +710,9 @@ export class StackDeploymentService {
    *
    * Never a plan read back from the database, because none is stored: a plan
    * carries resolved values including secrets. Compiling here also means a
-   * revision that has become undeployable — an image reference that no longer
-   * parses, a variable that was removed — is refused before anything is
-   * written, rather than failing on the host.
+   * revision that has become undeployable — including an older one somebody is
+   * rolling back to — is refused before anything is touched, rather than
+   * failing on the host.
    */
   private async compile(projectName: string, revision: RevisionRow) {
     const environment = await this.db.client
@@ -700,21 +745,45 @@ export class StackDeploymentService {
     return result.plan;
   }
 
+  /** Every container this stack is on record as having. */
+  private async stackContainers(stackId: string) {
+    return await this.db.client
+      .select({
+        id: containers.id,
+        dockerId: containers.dockerId,
+        name: containers.name,
+        state: containers.state,
+        stackService: containers.stackService,
+        stackRevisionId: containers.stackRevisionId,
+      })
+      .from(containers)
+      .where(eq(containers.stackId, stackId));
+  }
+
   /**
-   * Refuses a deployment whose containers would collide with something.
+   * Refuses a revision whose containers would collide with something.
    *
-   * The agent checks this again on the host, where the answer is authoritative
-   * and where volumes and networks are checked too. This one exists so that an
-   * operator is told what is in the way before an attempt is written down and a
-   * host is asked to pull images for it.
+   * This stack's own containers are not a collision: they are what is being
+   * replaced, and the agent moves them aside before the new ones are created.
+   * The agent checks the host again, where the answer is authoritative and
+   * where volumes and networks are checked too; this exists so an operator is
+   * told what is in the way before an attempt is written down.
    */
-  private async assertNamesAreFree(hostId: string, names: ReadonlyMap<string, string>) {
-    const existing = await this.db.client
-      .select({ name: containers.name, dockerId: containers.dockerId })
+  private async assertNamesAreFree(
+    hostId: string,
+    names: ReadonlyMap<string, string>,
+    existing: readonly ContainerRow[],
+  ) {
+    const ours = new Set(existing.map((row) => row.id));
+
+    const found = await this.db.client
+      .select({ id: containers.id, name: containers.name, dockerId: containers.dockerId })
       .from(containers)
       .where(eq(containers.hostId, hostId));
 
-    const taken = new Map(existing.map((row) => [row.name.toLowerCase(), row]));
+    const taken = new Map(
+      found.filter((row) => !ours.has(row.id)).map((row) => [row.name.toLowerCase(), row]),
+    );
 
     for (const name of names.values()) {
       const collision = taken.get(name.toLowerCase());
@@ -731,17 +800,17 @@ export class StackDeploymentService {
   }
 
   /**
-   * Refuses a stack whose last deployment never resolved.
+   * Refuses a stack whose last attempt never resolved.
    *
    * Read from the database rather than from memory, because the case this
-   * exists for is a control server that was restarted while a deployment was in
+   * exists for is a control server that was restarted while an attempt was in
    * flight. The database refuses a second unresolved attempt as well; this is
    * here so the caller is told what is happening rather than shown a constraint
    * violation.
    */
   private async assertNoUnresolvedDeployment(stackId: string): Promise<void> {
     const [unresolved] = await this.db.client
-      .select({ id: stackDeployments.id, status: stackDeployments.status })
+      .select({ id: stackDeployments.id })
       .from(stackDeployments)
       .where(
         and(
@@ -750,27 +819,18 @@ export class StackDeploymentService {
         ),
       );
 
-    if (!unresolved) {
-      return;
-    }
-
-    if (unresolved.status === 'needs_attention') {
+    if (unresolved) {
       throw AppError.conflict(
-        'STACK_NEEDS_ATTENTION',
-        'Part of this stack was deployed and part of it was not. Somebody has to resolve that before it can be deployed again.',
+        'STACK_DEPLOYMENT_CONFLICT',
+        'An attempt to apply a revision to this stack has not been resolved yet.',
       );
     }
-
-    throw AppError.conflict(
-      'STACK_DEPLOYMENT_CONFLICT',
-      'A deployment of this stack has not been resolved yet.',
-    );
   }
 
   /**
    * Reads the host again, and says whether the answer was complete.
    *
-   * Completeness is the point of asking. Every conclusion about a deployment
+   * Completeness is the point of asking. Every conclusion about an attempt
    * turns on a container being there or not being there, and a pass that
    * stopped halfway establishes neither.
    */
@@ -789,11 +849,11 @@ export class StackDeploymentService {
     } catch (error) {
       this.logger.warn(
         {
-          event: 'stack_deployment_sync_failed',
+          event: 'stack_apply_sync_failed',
           hostId,
           reason: error instanceof Error ? error.message : 'unknown',
         },
-        'the host could not be read while reconciling a stack deployment',
+        'the host could not be read while reconciling a stack revision',
       );
 
       return false;
@@ -846,7 +906,7 @@ export class StackDeploymentService {
     if (!this.connections.isConnected(agent.id)) {
       throw AppError.conflict(
         'AGENT_OFFLINE',
-        'The agent is not connected, so the stack cannot be deployed now.',
+        'The agent is not connected, so the stack cannot be changed now.',
       );
     }
 
@@ -854,17 +914,30 @@ export class StackDeploymentService {
   }
 }
 
+type StackRow = typeof stacks.$inferSelect;
 type RevisionRow = typeof stackRevisions.$inferSelect;
+type ContainerRow = {
+  id: string;
+  dockerId: string | null;
+  name: string;
+  state: string;
+  stackService: string | null;
+  stackRevisionId: string | null;
+};
 
 type DeploymentDetail = NonNullable<typeof stackDeployments.$inferInsert.detail>;
 
-interface DispatchedDeployment {
+interface DispatchedApply {
   readonly deploymentId: string;
   readonly actionId: string | null;
+  readonly kind: ApplyKind;
   readonly stackId: string;
   readonly stackName: string;
   readonly hostId: string;
   readonly revisionId: string;
+  readonly fromRevisionId: string | null;
+  readonly targetServices: readonly string[];
+  readonly fromServices: readonly string[] | null;
   readonly agentId: string;
   /** Service name to the container resource allocated for it. */
   readonly containers: ReadonlyMap<string, string>;
@@ -873,13 +946,73 @@ interface DispatchedDeployment {
   readonly context: RequestContext;
 }
 
-/** The statuses that mean a deployment is not over. */
-export const UNRESOLVED_DEPLOYMENT = [
-  'pending',
-  'running',
-  'interrupted',
-  'needs_attention',
-] as const;
+/** The service names a revision describes, from its own summary. */
+function summaryServices(revision: RevisionRow | null): readonly string[] | null {
+  return revision?.summary ? [...revision.summary.services] : null;
+}
+
+/** The volume keys a revision describes, from its own summary. */
+function summaryVolumes(revision: RevisionRow | null): readonly string[] {
+  return revision?.summary ? [...revision.summary.volumes] : [];
+}
+
+/** Resources of this stack that no container on the host claims. */
+function unclaimed(stackId: string) {
+  return and(eq(containers.stackId, stackId), isNull(containers.dockerId));
+}
+
+/**
+ * Resources for services the applied revision does not have.
+ *
+ * Guarded against the empty case deliberately: a condition that narrowed to
+ * nothing would delete every container of the stack, and a delete that means
+ * "everything" when it was meant to mean "the leftovers" is the kind of thing
+ * that only shows up once.
+ */
+function orphanedServices(attempt: DispatchedApply) {
+  const kept = [...attempt.containers.values()];
+
+  if (kept.length === 0) {
+    return sql`false`;
+  }
+
+  return and(eq(containers.stackId, attempt.stackId), ...kept.map((id) => ne(containers.id, id)));
+}
+
+/**
+ * Which of the four this is, and null when there is nothing to do.
+ *
+ * Nothing to do means the stack is running that revision and has nothing wrong
+ * with it. A stack that needs attention is never nothing to do, even when the
+ * revision asked for is the one it is supposed to be running: that is exactly
+ * what repairing it means.
+ *
+ * Rollback and redeploy do the same thing and differ only in which direction
+ * the revision numbers go, which is the word an operator reads afterwards.
+ */
+function kindOf(stack: StackRow, target: RevisionRow, from: RevisionRow | null): ApplyKind | null {
+  if (stack.status === 'needs_attention') {
+    return 'repair';
+  }
+
+  if (from === null) {
+    return 'initial';
+  }
+
+  if (from.id === target.id) {
+    return null;
+  }
+
+  return target.number < from.number ? 'rollback' : 'redeploy';
+}
+
+/** The statuses that mean an attempt is not over. */
+export const UNRESOLVED_DEPLOYMENT = ['pending', 'running', 'interrupted'] as const;
+
+/** A stack's key in the mutation registry, which containers also live in. */
+export function stackKey(stackId: string): string {
+  return `stack:${stackId}`;
+}
 
 /**
  * Turns a lost race into an answer rather than a constraint violation.
@@ -895,7 +1028,7 @@ function claimed(error: unknown): unknown {
   if (constraint === 'stack_deployments_unresolved_unique') {
     return AppError.conflict(
       'STACK_DEPLOYMENT_CONFLICT',
-      'A deployment of this stack was started elsewhere and has not been resolved yet.',
+      'An attempt to apply a revision to this stack was started elsewhere and has not been resolved yet.',
     );
   }
 
@@ -909,11 +1042,6 @@ function claimed(error: unknown): unknown {
   return error;
 }
 
-/** A stack's key in the mutation registry, which containers also live in. */
-export function stackKey(stackId: string): string {
-  return `stack:${stackId}`;
-}
-
 /**
  * The failures that say nothing about the host.
  *
@@ -922,3 +1050,17 @@ export function stackKey(stackId: string): string {
  * connection may have carried away the answer to something that happened.
  */
 const UNKNOWN_OUTCOME = new Set(['AGENT_REQUEST_TIMEOUT', 'AGENT_NOT_CONNECTED']);
+
+const AUDIT_REQUESTED: Record<ApplyKind, AuditAction> = {
+  initial: 'stack.deploy.requested',
+  redeploy: 'stack.redeploy.requested',
+  rollback: 'stack.rollback.requested',
+  repair: 'stack.repair.requested',
+};
+
+const AUDIT_SUCCEEDED: Record<ApplyKind, AuditAction> = {
+  initial: 'stack.deploy.succeeded',
+  redeploy: 'stack.redeployed',
+  rollback: 'stack.rolled_back',
+  repair: 'stack.repaired',
+};

@@ -85,6 +85,24 @@ export type AuditAction =
   | 'stack.deploy.failed'
   | 'stack.deploy.interrupted'
   | 'stack.deploy.needs_attention'
+  /*
+   * The same operation under the words an operator would use for it: moving a
+   * running stack to another revision, putting it back to an older one, and
+   * converging one that was left half-applied. The entry names the stack and
+   * the attempt, and nothing out of the Compose file.
+   */
+  | 'stack.redeploy.requested'
+  | 'stack.redeployed'
+  | 'stack.rollback.requested'
+  | 'stack.rolled_back'
+  | 'stack.repair.requested'
+  | 'stack.repaired'
+  /*
+   * The attempt did not take and the host was put back as it was. Deliberately
+   * not "rolled back to a revision": nothing was rolled back except this
+   * attempt, and the stack is what it always was.
+   */
+  | 'stack.apply.rolled_back'
   | 'container.recovery.promoted'
   | 'container.recovery.discarded'
   | 'container.recovery.removed'

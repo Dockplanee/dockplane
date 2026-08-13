@@ -7,7 +7,7 @@ a migration story, not something that happens because a struct was edited.
 | | Value | Changes when |
 | --- | --- | --- |
 | Protocol version | **1** | The agent gateway's message format changes in a way an older agent cannot read |
-| Schema version | **0013_stack_deployments** | A migration is added |
+| Schema version | **0014_stack_revision_transitions** | A migration is added |
 | Backup format version | **1** | The layout of a backup directory changes |
 
 ## Where each one lives

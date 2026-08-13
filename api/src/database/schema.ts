@@ -281,6 +281,14 @@ export const containers = pgTable(
      */
     stackId: uuid('stack_id'),
     stackService: text('stack_service'),
+    /**
+     * The revision this container says it is running.
+     *
+     * Read from the label the agent stamped on it, and the only thing that can
+     * answer it: two revisions of a service may differ in nothing observable —
+     * a changed secret leaves no trace in anything this projection carries.
+     */
+    stackRevisionId: text('stack_revision_id'),
     dockerCreatedAt: timestamp('docker_created_at', { withTimezone: true }),
     startedAt: timestamp('started_at', { withTimezone: true }),
     /** Summary-level extras from discovery: the Compose service and status. */
@@ -629,14 +637,31 @@ export const stackDeployments = pgTable(
     stackId: uuid('stack_id')
       .notNull()
       .references(() => stacks.id, { onDelete: 'cascade' }),
-    /** The revision this attempt was deploying, not the stack's newest. */
+    /** The revision this attempt was applying, not the stack's newest. */
     revisionId: uuid('revision_id')
       .notNull()
       .references(() => stackRevisions.id, { onDelete: 'cascade' }),
+    /**
+     * What the stack was confirmed to be running when this was requested.
+     *
+     * The last established state, not what the host happened to look like: a
+     * stack that needs attention has a host that disagrees with itself, and an
+     * attempt has to be judged against something that was actually known.
+     *
+     * Null for the first deployment of a stack.
+     */
+    fromRevisionId: uuid('from_revision_id').references(() => stackRevisions.id, {
+      onDelete: 'set null',
+    }),
     hostId: uuid('host_id')
       .notNull()
       .references(() => hosts.id, { onDelete: 'cascade' }),
-    /** `initial` is the only kind so far. */
+    /**
+     * Why this attempt was made: `initial`, `redeploy`, `rollback` or `repair`.
+     *
+     * All four do the same thing — apply a revision — and the word is what an
+     * operator reads in the history afterwards.
+     */
     kind: text('kind').notNull().default('initial'),
     status: text('status').notNull().default('pending'),
     actionId: uuid('action_id'),
@@ -664,14 +689,17 @@ export const stackDeployments = pgTable(
     index('stack_deployments_stack_idx').on(table.stackId),
     index('stack_deployments_host_idx').on(table.hostId),
     /*
-     * One unfinished deployment per stack.
+     * One unfinished attempt per stack.
      *
      * The in-memory lock covers one running process; this covers a restart,
-     * where the lock is empty and the half-deployed containers are still there.
+     * where the lock is empty and the half-applied containers are still there.
+     *
+     * Needing attention is not unfinished. It is an answer, and the way out of
+     * it is to apply a revision deliberately — which is another attempt.
      */
     uniqueIndex('stack_deployments_unresolved_unique')
       .on(table.stackId)
-      .where(sql`status IN ('pending', 'running', 'interrupted', 'needs_attention')`),
+      .where(sql`status IN ('pending', 'running', 'interrupted')`),
   ],
 );
 

@@ -1,6 +1,6 @@
 import { StackDeploymentPlan } from '../src/stacks/compose-compiler.service';
-import { classifyStackDeployment } from '../src/stacks/stack-deployment';
-import { agentPlanFor, containerNames } from '../src/stacks/stack-plan';
+import { classifyStackApply } from '../src/stacks/stack-deployment';
+import { STACK_PLAN_VERSION, agentPlanFor, containerNames } from '../src/stacks/stack-plan';
 
 /**
  * What a deployment turned out to be, and what an agent is asked for.
@@ -8,51 +8,118 @@ import { agentPlanFor, containerNames } from '../src/stacks/stack-plan';
  * Both are pure functions, so every case here is a table rather than a
  * scenario somebody has to reproduce with a broken Docker daemon.
  */
-describe('deciding what a deployment did', () => {
+describe('deciding what an attempt did', () => {
   const service = (
     serviceName: string,
-    dockerId: string | null,
+    revisionId: string | null,
     state: string | null = 'running',
-  ) => ({ serviceName, containerId: `resource-${serviceName}`, dockerId, state });
-
-  it('is a success only when every service is running', () => {
-    expect(
-      classifyStackDeployment({
-        services: [service('web', 'a'), service('database', 'b')],
-        snapshotComplete: true,
-      }),
-    ).toEqual({ kind: 'succeeded' });
+  ) => ({
+    serviceName,
+    containerId: `resource-${serviceName}`,
+    dockerId: revisionId === null ? null : `docker-${serviceName}`,
+    state: revisionId === null ? null : state,
+    revisionId,
   });
 
-  it('is a failure when the host has nothing of the stack on it', () => {
-    const outcome = classifyStackDeployment({
-      services: [service('web', null, null), service('database', null, null)],
+  const classify = (input: Partial<Parameters<typeof classifyStackApply>[0]>) =>
+    classifyStackApply({
+      fromRevisionId: 'revision-a',
+      targetRevisionId: 'revision-b',
+      targetServices: ['web', 'database'],
+      fromServices: ['web', 'database'],
+      observed: [],
       snapshotComplete: true,
+      ...input,
     });
 
-    expect(outcome.kind).toBe('failed');
+  it('is the target when exactly the target is running', () => {
+    expect(
+      classify({ observed: [service('web', 'revision-b'), service('database', 'revision-b')] }),
+    ).toEqual({ kind: 'finalize_target' });
   });
 
   /*
-   * The case the whole design is for. Something exists, so the host is not as
-   * it was, and nothing may be removed on the strength of a partial answer.
+   * The revision the stack came from, whether because the attempt never started
+   * or because the agent put the host back. Both mean the same thing: the stack
+   * is what it was.
    */
-  it('needs attention when part of it exists', () => {
-    const outcome = classifyStackDeployment({
-      services: [service('database', 'a'), service('web', null, null)],
-      snapshotComplete: true,
-    });
-
-    expect(outcome.kind).toBe('needs_attention');
+  it('is the revision it came from when that is what is running', () => {
+    expect(
+      classify({ observed: [service('web', 'revision-a'), service('database', 'revision-a')] })
+        .kind,
+    ).toBe('finalize_from');
   });
 
-  it('needs attention when a container was created and did not start', () => {
-    const outcome = classifyStackDeployment({
-      services: [service('database', 'a'), service('web', 'b', 'exited')],
-      snapshotComplete: true,
-    });
+  it('accepts a service the operator had stopped as part of where it came from', () => {
+    expect(
+      classify({
+        observed: [service('web', 'revision-a'), service('database', 'revision-a', 'exited')],
+      }).kind,
+    ).toBe('finalize_from');
+  });
 
-    expect(outcome.kind).toBe('needs_attention');
+  /* The target has to be running. That is the bar a deployment succeeds at. */
+  it('is not the target when one of its services is not running', () => {
+    expect(
+      classify({
+        observed: [service('web', 'revision-b'), service('database', 'revision-b', 'exited')],
+      }).kind,
+    ).toBe('needs_attention');
+  });
+
+  it('is nothing applied when there was nothing before and nothing now', () => {
+    expect(classify({ fromRevisionId: null, fromServices: null, observed: [] }).kind).toBe(
+      'finalize_not_applied',
+    );
+  });
+
+  /*
+   * The case the whole design is for: the host is neither one thing nor the
+   * other, so nothing may be removed on the strength of a partial answer.
+   */
+  it('needs attention when the host holds some of each revision', () => {
+    expect(
+      classify({ observed: [service('web', 'revision-b'), service('database', 'revision-a')] })
+        .kind,
+    ).toBe('needs_attention');
+  });
+
+  it('needs attention when a service is missing entirely', () => {
+    expect(classify({ observed: [service('web', 'revision-b')] }).kind).toBe('needs_attention');
+  });
+
+  it('needs attention when a running stack has vanished', () => {
+    expect(classify({ observed: [] }).kind).toBe('needs_attention');
+  });
+
+  /*
+   * Two containers claiming one service is what a crash between building the
+   * target and removing what it replaced leaves behind. Which one is real was
+   * never established.
+   */
+  it('needs attention when two containers are the same service', () => {
+    expect(
+      classify({
+        observed: [
+          service('web', 'revision-b'),
+          { ...service('web', 'revision-a'), containerId: 'resource-web-old' },
+          service('database', 'revision-b'),
+        ],
+      }).kind,
+    ).toBe('needs_attention');
+  });
+
+  it('does not mistake a service added by the target for the old revision', () => {
+    expect(
+      classify({
+        targetServices: ['web', 'database', 'worker'],
+        observed: [
+          service('web', 'revision-b'),
+          service('database', 'revision-b'),
+          service('worker', 'revision-b'),
+        ],
+      }).kind,
+    ).toBe('finalize_target');
   });
 
   /*
@@ -60,12 +127,12 @@ describe('deciding what a deployment did', () => {
    * conclusion above turns on exactly that.
    */
   it('concludes nothing from a reading that did not finish', () => {
-    for (const services of [
-      [service('web', 'a'), service('database', 'b')],
-      [service('web', null, null)],
-    ]) {
-      expect(classifyStackDeployment({ services, snapshotComplete: false }).kind).toBe('unknown');
-    }
+    expect(
+      classify({
+        observed: [service('web', 'revision-b'), service('database', 'revision-b')],
+        snapshotComplete: false,
+      }).kind,
+    ).toBe('unknown');
   });
 });
 
@@ -141,9 +208,9 @@ describe('the plan an agent is asked for', () => {
     expect(services.map((service) => service.containerId)).toEqual(['resource-web', 'resource-db']);
   });
 
-  it('carries the stack and the revision it is deploying', () => {
+  it('carries the stack and the revision it is applying', () => {
     expect(built()).toMatchObject({
-      planVersion: 1,
+      planVersion: STACK_PLAN_VERSION,
       stackId: 'stack-1',
       revisionId: 'revision-1',
       projectName: 'shop',
@@ -177,6 +244,28 @@ describe('the plan an agent is asked for', () => {
     });
 
     expect(built.services[0].spec.healthcheck).toEqual({ test: ['NONE'] });
+  });
+
+  /*
+   * Only the control server knows which volumes the stack was already using, so
+   * only it can tell the agent which ones must already be there. A volume this
+   * revision introduces is created; one that should exist and does not is a
+   * volume that has gone.
+   */
+  it('marks the volumes the stack was already using', () => {
+    const marked = agentPlanFor({
+      stackId: 'stack-1',
+      revisionId: 'revision-1',
+      plan: plan(),
+      containers: new Map([
+        ['web', 'resource-web'],
+        ['database', 'resource-db'],
+      ]),
+      existingVolumes: ['data'],
+    });
+
+    expect(marked.volumes[0]).toMatchObject({ name: 'data', mustExist: true });
+    expect(built().volumes[0].mustExist).toBeUndefined();
   });
 
   it('refuses a plan whose services have no container name', () => {

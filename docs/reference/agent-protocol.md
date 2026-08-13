@@ -194,6 +194,12 @@ volumes they need and the order the services start in. It does not carry a
 Compose file: Compose is read by the control server, and the agent has no parser
 for one.
 
+The plan it carries has a version of its own, separate from the protocol's. A
+plan describes a revision to *apply* — the agent may find the stack already
+running and has to move it — and an agent that speaks an older plan version
+refuses one it does not recognise rather than reading a newer server's
+intention into an older operation.
+
 Both sides hold the list. A capability the server will not dispatch is also one
 the agent refuses to run, and a REST caller cannot pass a capability name
 through to an agent — it names one from the catalog or nothing at all.

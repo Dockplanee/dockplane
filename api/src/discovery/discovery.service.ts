@@ -46,6 +46,16 @@ const DOCKPLANE_DESIRED_CONFIG_ID = 'io.dockplane.desired-config-id';
 const DOCKPLANE_STACK_ID = 'io.dockplane.stack-id';
 const DOCKPLANE_STACK_SERVICE = 'io.dockplane.stack-service';
 
+/**
+ * Which revision of its stack a container is running.
+ *
+ * The only thing that can answer it. Two revisions of a service may differ in
+ * nothing this projection carries — a changed secret leaves no observable
+ * trace — so the container is asked, and it answers with the label the agent
+ * stamped on it when it built it.
+ */
+const DOCKPLANE_STACK_REVISION_ID = 'io.dockplane.stack-revision-id';
+
 /** A service name is Compose's, and Compose's rule is what is accepted. */
 const SERVICE_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$/;
 
@@ -471,7 +481,7 @@ export class DiscoveryService {
     rowId: string | null,
     known: ReadonlySet<string>,
     heldBy: Map<string, string>,
-  ): { stackId: string | null; stackService: string | null } {
+  ): { stackId: string | null; stackService: string | null; stackRevisionId: string | null } {
     const claim = this.observedStack(item, hostId);
 
     if (!claim.stackId || !claim.stackService) {
@@ -487,7 +497,7 @@ export class DiscoveryService {
      * attribute it to.
      */
     if (!known.has(claim.stackId)) {
-      return { stackId: null, stackService: null };
+      return { stackId: null, stackService: null, stackRevisionId: null };
     }
 
     const key = serviceKey(claim.stackId, claim.stackService);
@@ -503,7 +513,7 @@ export class DiscoveryService {
         'more than one container claims to be the same service of a stack',
       );
 
-      return { stackId: null, stackService: null };
+      return { stackId: null, stackService: null, stackRevisionId: null };
     }
 
     // Claimed for the rest of this pass whether or not the row exists yet: two
@@ -527,8 +537,8 @@ export class DiscoveryService {
   private observedStack(
     item: ContainerSummary,
     hostId: string,
-  ): { stackId: string | null; stackService: string | null } {
-    const none = { stackId: null, stackService: null };
+  ): { stackId: string | null; stackService: string | null; stackRevisionId: string | null } {
+    const none = { stackId: null, stackService: null, stackRevisionId: null };
 
     if (item.labels?.[DOCKPLANE_MANAGED] !== 'true') {
       return none;
@@ -554,7 +564,19 @@ export class DiscoveryService {
       return none;
     }
 
-    return { stackId, stackService: service };
+    /*
+     * The revision is read only when the rest of the identity holds, and a
+     * malformed one is recorded as none rather than as written: it decides
+     * whether a stack is considered to be running a revision, and a
+     * host-written string in that column would be the host deciding it.
+     */
+    const revision = item.labels?.[DOCKPLANE_STACK_REVISION_ID];
+
+    return {
+      stackId,
+      stackService: service,
+      stackRevisionId: revision && UUID.test(revision) ? revision : null,
+    };
   }
 
   /*

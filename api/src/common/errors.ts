@@ -79,6 +79,11 @@ export const ERROR_CODES = [
    * that can see all three.
    */
   'STACK_RESOURCE_CONFLICT',
+  /*
+   * The containers of a stack on its host do not add up: two of them claim the
+   * same service. Reported by the agent, which is the side that can see them.
+   */
+  'STACK_STATE_AMBIGUOUS',
   'CONTAINER_CREATE_FAILED',
   'CONTAINER_REMOVE_FAILED',
   /*
@@ -125,6 +130,25 @@ export const ERROR_CODES = [
    * consequences and is refused rather than approximated.
    */
   'STACK_ALREADY_DEPLOYED',
+  /* The stack is already running the revision somebody asked for. */
+  'STACK_REVISION_ALREADY_DEPLOYED',
+  /*
+   * More than one container claims to be the same service of a stack. Nothing
+   * may be applied over that, and choosing between them is a person's job.
+   */
+  'STACK_REPAIR_AMBIGUOUS',
+  /* The revision did not come up. What the stack is has not changed. */
+  'STACK_APPLY_FAILED',
+  /*
+   * The revision did not come up and putting the host back did not fully work.
+   * Reported by the agent, and never used to claim a rollback succeeded.
+   */
+  'STACK_ROLLBACK_INCOMPLETE',
+  /*
+   * A volume the stack was using is not on the host. Never replaced with an
+   * empty one of the same name.
+   */
+  'VOLUME_MISSING',
   /* A deployment of this stack is running, or one never finished. */
   'STACK_DEPLOYMENT_CONFLICT',
   /*

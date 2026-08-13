@@ -153,6 +153,8 @@ const AGENT_ERROR_CODES = new Set<string>([
   'INVALID_CONTAINER_SPEC',
   'REPLACEMENT_FAILED',
   'STACK_RESOURCE_CONFLICT',
+  'STACK_STATE_AMBIGUOUS',
+  'VOLUME_MISSING',
   'COMPOSE_PROJECT_NOT_FOUND',
   'VALIDATION_FAILED',
   'AGENT_CAPABILITY_FAILED',
@@ -189,6 +191,10 @@ const AGENT_ERROR_MESSAGES: Record<string, string> = {
   REPLACEMENT_FAILED: 'The replacement did not start, so the original container was put back.',
   STACK_RESOURCE_CONFLICT:
     'A container, volume or network on this host has a name this stack needs and was not created by it.',
+  STACK_STATE_AMBIGUOUS:
+    'The containers of this stack on the host do not say clearly which revision it is running.',
+  VOLUME_MISSING:
+    'A volume this stack was using is not on the host. Dockplane will not create an empty one in its place.',
   COMPOSE_PROJECT_NOT_FOUND: 'The Compose project no longer exists on its host.',
   VALIDATION_FAILED: 'The host rejected the request as invalid.',
   AGENT_CAPABILITY_FAILED: 'The operation failed on the host.',

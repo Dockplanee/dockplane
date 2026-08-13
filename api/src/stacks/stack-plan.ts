@@ -29,7 +29,12 @@ export interface AgentStackPlan {
   readonly revisionId: string;
   readonly projectName: string;
   readonly networks: readonly { name: string; dockerName: string; driver?: string }[];
-  readonly volumes: readonly { name: string; dockerName: string; driver?: string }[];
+  readonly volumes: readonly {
+    name: string;
+    dockerName: string;
+    driver?: string;
+    mustExist?: boolean;
+  }[];
   readonly services: readonly AgentStackService[];
 }
 
@@ -41,8 +46,15 @@ interface AgentStackService {
   readonly spec: Record<string, unknown>;
 }
 
-/** The plan shape this build and the agent agree on. */
-export const STACK_PLAN_VERSION = 1;
+/**
+ * The plan shape this build and the agent agree on.
+ *
+ * Two, because a plan is now something to apply rather than only to create: the
+ * agent may find the stack already running and has to move it. An agent that
+ * speaks version one would read a newer server's intention into an older
+ * operation, so it refuses the plan instead.
+ */
+export const STACK_PLAN_VERSION = 2;
 
 /** The name a service's container will be given on the host. */
 export function containerNames(plan: StackDeploymentPlan): Map<string, string> {
@@ -79,6 +91,16 @@ export function agentPlanFor(input: {
   readonly revisionId: string;
   readonly plan: StackDeploymentPlan;
   readonly containers: ReadonlyMap<string, string>;
+  /**
+   * The volume keys the stack was already using.
+   *
+   * Only this side knows them: they come from the summary of the revision that
+   * is running, and they are what tells the agent the difference between a
+   * volume this revision introduces and one that should be on the host and is
+   * not. The second is a volume that has gone, and a deployment must not paper
+   * over it with an empty one of the same name.
+   */
+  readonly existingVolumes?: readonly string[];
 }): AgentStackPlan {
   const { plan } = input;
 
@@ -91,6 +113,7 @@ export function agentPlanFor(input: {
   );
 
   const names = containerNames(plan);
+  const alreadyUsed = new Set(input.existingVolumes ?? []);
 
   return {
     planVersion: STACK_PLAN_VERSION,
@@ -106,6 +129,7 @@ export function agentPlanFor(input: {
       name: volume.name,
       dockerName: volumeNames.get(volume.name)!,
       ...(volume.driver ? { driver: volume.driver } : {}),
+      ...(alreadyUsed.has(volume.name) ? { mustExist: true } : {}),
     })),
     services: plan.services.map((service) => {
       const containerId = input.containers.get(service.serviceName);
