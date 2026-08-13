@@ -18,6 +18,7 @@ import {
   containers,
   hosts,
   stackDeployments,
+  stackOperations,
   stackRevisionEnvironment,
   stackRevisions,
   stacks,
@@ -27,6 +28,7 @@ import { EventsService } from '../events/events.service';
 import { MutationRegistry } from '../operations/mutation-registry';
 import { ComposeCompilerService, StackDeploymentPlan } from './compose-compiler.service';
 import { ObservedService, StackApplyOutcome, classifyStackApply } from './stack-deployment';
+import { UNRESOLVED_OPERATION } from './stack-lifecycle.service';
 import { AgentStackPlan, agentPlanFor, containerNames } from './stack-plan';
 
 /** What the caller is told about an attempt that succeeded. */
@@ -823,6 +825,32 @@ export class StackDeploymentService {
       throw AppError.conflict(
         'STACK_DEPLOYMENT_CONFLICT',
         'An attempt to apply a revision to this stack has not been resolved yet.',
+      );
+    }
+
+    /*
+     * And an operation that never finished, which is the other half of the same
+     * rule. A stop whose outcome nobody established leaves a host that a
+     * deployment would then be judged against.
+     *
+     * Two tables, because they are two different things — no revision is
+     * applied by a restart — and one guard, because a stack has one state and
+     * only one thing may be changing it.
+     */
+    const [operating] = await this.db.client
+      .select({ id: stackOperations.id })
+      .from(stackOperations)
+      .where(
+        and(
+          eq(stackOperations.stackId, stackId),
+          inArray(stackOperations.status, [...UNRESOLVED_OPERATION]),
+        ),
+      );
+
+    if (operating) {
+      throw AppError.conflict(
+        'STACK_OPERATION_CONFLICT',
+        'An operation on this stack has not been resolved yet.',
       );
     }
   }

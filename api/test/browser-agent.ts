@@ -261,6 +261,9 @@ const SUPPORTED = [
   'container.remove',
   'compose.list',
   'stack.deploy',
+  'stack.start',
+  'stack.stop',
+  'stack.restart',
 ] as const;
 
 function checkProtocol(): string[] {
@@ -302,6 +305,7 @@ const commands: Record<string, (command: Command) => Promise<unknown> | unknown>
   stackBehaviour(command: Command) {
     host.wontStart.clear();
     host.wontCreate.clear();
+    host.wontStop.clear();
     host.leaveHalfApplied = false;
 
     for (const service of (command.wontStart ?? []) as string[]) {
@@ -310,6 +314,11 @@ const commands: Record<string, (command: Command) => Promise<unknown> | unknown>
 
     for (const service of (command.wontCreate ?? []) as string[]) {
       host.wontCreate.add(service);
+    }
+
+    /* A service that refuses to stop, which is how a stack ends up half moved. */
+    for (const service of (command.wontStop ?? []) as string[]) {
+      host.wontStop.add(service);
     }
 
     host.leaveHalfApplied = Boolean(command.leaveHalfApplied);

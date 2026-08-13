@@ -577,6 +577,16 @@ export const stackRevisions = pgTable(
       readonly services: readonly string[];
       readonly networks: readonly string[];
       readonly volumes: readonly string[];
+      /**
+       * Which services wait for which, by name.
+       *
+       * Part of the revision rather than something to work out later: starting
+       * and stopping a deployed stack has to follow the dependencies, and it
+       * deliberately does not compile the Compose source to find them — that
+       * would put a compiler and a decryption key in the path of stopping a
+       * stack during an incident.
+       */
+      readonly dependsOn?: Readonly<Record<string, readonly string[]>>;
     } | null>(),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -698,6 +708,94 @@ export const stackDeployments = pgTable(
      * it is to apply a revision deliberately — which is another attempt.
      */
     uniqueIndex('stack_deployments_unresolved_unique')
+      .on(table.stackId)
+      .where(sql`status IN ('pending', 'running', 'interrupted')`),
+  ],
+);
+
+/**
+ * Starting, stopping or restarting a stack that is already deployed.
+ *
+ * Separate from a deployment because it is a different thing: no revision is
+ * applied, no container is created or recreated, and neither the newest saved
+ * revision nor the deployed one changes. Recording it as a deployment would make
+ * the history say a revision was applied when none was.
+ *
+ * What it shares with a deployment is why the row exists at all. An operation
+ * whose answer never came back leaves a host in a state nobody has established,
+ * and the record of it is what keeps the stack blocked across a restart of the
+ * control server — the moment the in-memory lock is gone.
+ */
+export const stackOperations = pgTable(
+  'stack_operations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    stackId: uuid('stack_id')
+      .notNull()
+      .references(() => stacks.id, { onDelete: 'cascade' }),
+    /**
+     * The revision that was deployed when this was requested.
+     *
+     * An operation is for the containers of one revision. If the host turns out
+     * to be running another, the two sides disagree about what is deployed and
+     * no lifecycle operation may proceed on that basis.
+     */
+    revisionId: uuid('revision_id')
+      .notNull()
+      .references(() => stackRevisions.id, { onDelete: 'cascade' }),
+    hostId: uuid('host_id')
+      .notNull()
+      .references(() => hosts.id, { onDelete: 'cascade' }),
+    /** `start`, `stop` or `restart`. */
+    type: text('type').notNull(),
+    status: text('status').notNull().default('pending'),
+    actionId: uuid('action_id'),
+    startedBy: uuid('started_by').references(() => users.id, { onDelete: 'set null' }),
+    /**
+     * What each service looked like immediately before the operation.
+     *
+     * The only way to tell afterwards whether a restart happened. A restart
+     * keeps the container, its image, its configuration and its identifier;
+     * everything an observer could compare is the same before and after except
+     * when Docker last started it.
+     *
+     * Identifiers and a timestamp. Nothing from a configuration, and nothing
+     * that could carry a value out of an environment.
+     */
+    fingerprint: jsonb('fingerprint').$type<{
+      readonly services: readonly {
+        readonly serviceName: string;
+        readonly containerId: string;
+        readonly dockerId: string;
+        readonly startedAt: string | null;
+      }[];
+    } | null>(),
+    /** What happened to each service. Names, states and codes. */
+    detail: jsonb('detail').$type<{
+      readonly services: readonly {
+        readonly serviceName: string;
+        readonly containerId: string;
+        readonly state?: string;
+      }[];
+    } | null>(),
+    failureCode: text('failure_code'),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    index('stack_operations_stack_idx').on(table.stackId),
+    index('stack_operations_host_idx').on(table.hostId),
+    /*
+     * One unfinished operation per stack, for the same reason a deployment has
+     * one: the in-memory lock covers a running process, and this covers the
+     * restart that clears it.
+     *
+     * A deployment and an operation block each other too. That is not something
+     * an index across two tables can say, so the guard every mutation goes
+     * through reads both.
+     */
+    uniqueIndex('stack_operations_unresolved_unique')
       .on(table.stackId)
       .where(sql`status IN ('pending', 'running', 'interrupted')`),
   ],

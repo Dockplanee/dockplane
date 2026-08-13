@@ -18,6 +18,7 @@ import { AuthenticatedRequest, AuthenticatedUser } from '../auth/authenticated-r
 import { CurrentUser } from '../auth/current-user.decorator';
 import { ComposeCompilerService } from './compose-compiler.service';
 import { StackDeploymentService } from './stack-deployment.service';
+import { StackLifecycleService } from './stack-lifecycle.service';
 import { StackService } from './stack.service';
 
 /**
@@ -155,6 +156,7 @@ export class StacksController {
     private readonly compiler: ComposeCompilerService,
     private readonly stacks: StackService,
     private readonly deployments: StackDeploymentService,
+    private readonly lifecycle: StackLifecycleService,
   ) {}
 
   @Post()
@@ -255,6 +257,52 @@ export class StacksController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.deployments.deploy(id, body.revisionId, user, context(request));
+  }
+
+  /**
+   * Starts, stops or restarts what is already deployed.
+   *
+   * Three routes rather than one that takes the operation, matching both the
+   * capability the agent offers and the container endpoints beside them. None
+   * of them takes a body: the stack is the subject, the server resolves which
+   * containers that means, and there is no field in which a caller could name
+   * one of its own.
+   *
+   * The deployed revision does not change here, and neither does the newest
+   * saved one. Starting a stack whose newest revision has never been deployed
+   * starts what is deployed — the saved changes stay saved.
+   */
+  @Post(':id/start')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('stacks.deploy')
+  async start(
+    @Param('id', new ZodValidationPipe(idSchema)) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.lifecycle.run('start', id, user, context(request));
+  }
+
+  @Post(':id/stop')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('stacks.deploy')
+  async stop(
+    @Param('id', new ZodValidationPipe(idSchema)) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.lifecycle.run('stop', id, user, context(request));
+  }
+
+  @Post(':id/restart')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('stacks.deploy')
+  async restart(
+    @Param('id', new ZodValidationPipe(idSchema)) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.lifecycle.run('restart', id, user, context(request));
   }
 
   @Post('validate')

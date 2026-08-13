@@ -106,6 +106,13 @@
       "when": 1787261081825,
       "tag": "0014_stack_revision_transitions",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1787347481825,
+      "tag": "0015_stack_operations",
+      "breakpoints": true
     }
   ]
 }

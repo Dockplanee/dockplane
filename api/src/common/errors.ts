@@ -166,6 +166,30 @@ export const ERROR_CODES = [
   'STACK_DEPLOYMENT_PARTIAL',
   'STACK_NEEDS_ATTENTION',
   /*
+   * A stack that has never been deployed. Starting, stopping and restarting act
+   * on containers that exist, and nothing here creates one: a stack with no
+   * deployed revision has nothing to move between running and stopped.
+   */
+  'STACK_NOT_DEPLOYED',
+  /* An operation on this stack is running, or one never finished. */
+  'STACK_OPERATION_CONFLICT',
+  /*
+   * A service the stack should have has no container on the host. Never
+   * answered by creating one: that is deploying a revision.
+   */
+  'STACK_SERVICE_MISSING',
+  /* The stack did not reach the state that was asked for. */
+  'STACK_START_FAILED',
+  'STACK_STOP_FAILED',
+  'STACK_RESTART_FAILED',
+  /*
+   * Some services moved and others did not.
+   *
+   * Nothing is undone to tidy that up — a container that stopped may be the one
+   * holding a lock somebody needs — and the stack waits for a person.
+   */
+  'STACK_LIFECYCLE_PARTIAL',
+  /*
    * Something on the host already has a name the stack needs. Never resolved by
    * renaming or removing whatever is in the way — it belongs to somebody.
    */

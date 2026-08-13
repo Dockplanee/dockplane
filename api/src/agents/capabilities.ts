@@ -36,6 +36,9 @@ export const CAPABILITIES = [
   'container.replace',
   'container.remove',
   'stack.deploy',
+  'stack.start',
+  'stack.stop',
+  'stack.restart',
 ] as const;
 
 /**
@@ -70,6 +73,9 @@ export const MUTATING_CAPABILITIES = [
   'container.replace',
   'container.remove',
   'stack.deploy',
+  'stack.start',
+  'stack.stop',
+  'stack.restart',
 ] as const;
 
 export type MutatingCapability = (typeof MUTATING_CAPABILITIES)[number];
@@ -124,6 +130,14 @@ export const CAPABILITY_TIMEOUT_MS: Record<Capability, number> = {
    * request open. The agent's own ceiling for this capability is the same.
    */
   'stack.deploy': 900_000,
+  /*
+   * Moving a deployed stack between running and stopped pulls nothing and
+   * builds nothing, so it is bounded by what Docker waits for: the engine's own
+   * stop timeout, once per service, plus the time containers take to come up.
+   */
+  'stack.start': 300_000,
+  'stack.stop': 300_000,
+  'stack.restart': 600_000,
   /*
    * A stream's timeout covers being accepted, not being finished. A follow
    * stream runs until something ends it, and how long that may be is a stream

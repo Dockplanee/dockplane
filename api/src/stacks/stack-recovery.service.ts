@@ -10,13 +10,17 @@ import {
   agents,
   containers,
   stackDeployments,
+  stackOperations,
   stackRevisions,
   stacks,
 } from '../database/schema';
+import { DetailService } from '../discovery/detail.service';
 import { DiscoveryService } from '../discovery/discovery.service';
 import { MutationRegistry } from '../operations/mutation-registry';
 import { ObservedService, classifyStackApply } from './stack-deployment';
 import { UNRESOLVED_DEPLOYMENT, stackKey } from './stack-deployment.service';
+import { ObservedRuntime, StackLifecycleKind, classifyStackLifecycle } from './stack-lifecycle';
+import { UNRESOLVED_OPERATION } from './stack-lifecycle.service';
 
 /**
  * Finishing a deployment whose owner is gone.
@@ -42,6 +46,7 @@ export class StackRecoveryService implements OnApplicationBootstrap {
     private readonly db: Database,
     private readonly mutations: MutationRegistry,
     private readonly discovery: DiscoveryService,
+    private readonly detail: DetailService,
     private readonly audit: AuditService,
     @Inject(LOGGER) private readonly logger: Logger,
   ) {}
@@ -96,14 +101,20 @@ export class StackRecoveryService implements OnApplicationBootstrap {
         ),
       );
 
-    if (unfinished.length === 0) {
+    const operations = await this.unfinishedOperations(hostId);
+
+    if (unfinished.length === 0 && operations.length === 0) {
       return 0;
     }
 
     if (!(await this.readCompletely(hostId))) {
       this.logger.info(
-        { event: 'stack_recovery_deferred', hostId, unresolved: unfinished.length },
-        'unfinished stack deployments were left as they are: the host could not be read completely',
+        {
+          event: 'stack_recovery_deferred',
+          hostId,
+          unresolved: unfinished.length + operations.length,
+        },
+        'unfinished stack work was left as it is: the host could not be read completely',
       );
 
       return 0;
@@ -122,6 +133,16 @@ export class StackRecoveryService implements OnApplicationBootstrap {
       }
     }
 
+    for (const operation of operations) {
+      if (this.mutations.isBusy(stackKey(operation.stackId))) {
+        continue;
+      }
+
+      if (await this.settleOperation(operation, hostId)) {
+        recovered += 1;
+      }
+    }
+
     this.logger.info(
       {
         event: 'stack_recovery_pass',
@@ -133,6 +154,205 @@ export class StackRecoveryService implements OnApplicationBootstrap {
     );
 
     return recovered;
+  }
+
+  /** Operations on this host's stacks that never resolved. */
+  private async unfinishedOperations(hostId: string): Promise<readonly UnfinishedOperation[]> {
+    const rows = await this.db.client
+      .select({
+        id: stackOperations.id,
+        stackId: stackOperations.stackId,
+        revisionId: stackOperations.revisionId,
+        type: stackOperations.type,
+        fingerprint: stackOperations.fingerprint,
+        actionId: stackOperations.actionId,
+        name: stacks.name,
+      })
+      .from(stackOperations)
+      .innerJoin(stacks, eq(stacks.id, stackOperations.stackId))
+      .where(
+        and(
+          eq(stackOperations.hostId, hostId),
+          inArray(stackOperations.status, [...UNRESOLVED_OPERATION]),
+        ),
+      );
+
+    return rows.map((row) => ({ ...row, type: row.type as StackLifecycleKind }));
+  }
+
+  /**
+   * Settles one operation whose answer never came back.
+   *
+   * A start and a stop are settled from the state the host is in. A restart is
+   * not: the stack it was asked to restart was running before and is running
+   * now, and nothing else about the containers changed. It is settled against
+   * the record of what each service looked like at the moment it was
+   * dispatched, and a restart that cannot be demonstrated is not concluded to
+   * have happened.
+   */
+  private async settleOperation(
+    operation: UnfinishedOperation,
+    hostId: string,
+  ): Promise<boolean> {
+    const observed = await this.observedRuntime(
+      operation.stackId,
+      operation.type === 'restart',
+    );
+
+    const outcome = classifyStackLifecycle({
+      operation: operation.type,
+      revisionId: operation.revisionId,
+      expectedServices: await this.services(operation.revisionId),
+      observed,
+      fingerprint: operation.fingerprint?.services,
+      // Read completely just above, which is the only reason anything may be
+      // concluded here at all.
+      snapshotComplete: true,
+    });
+
+    if (outcome.kind === 'unknown') {
+      return false;
+    }
+
+    const now = new Date();
+    const applied = outcome.kind === 'applied';
+    const attention = outcome.kind === 'needs_attention';
+
+    await this.db.client.transaction(async (tx) => {
+      await tx
+        .update(stackOperations)
+        .set({
+          status: OPERATION_STATUS[outcome.kind],
+          detail: {
+            services: observed
+              .filter((service) => service.dockerId !== null)
+              .map((service) => ({
+                serviceName: service.serviceName,
+                containerId: service.containerId,
+                ...(service.state ? { state: service.state } : {}),
+              })),
+          },
+          resolvedAt: now,
+          ...(applied
+            ? {}
+            : {
+                failureCode: attention
+                  ? 'STACK_LIFECYCLE_PARTIAL'
+                  : OPERATION_FAILED[operation.type],
+              }),
+          updatedAt: now,
+        })
+        .where(eq(stackOperations.id, operation.id));
+
+      /*
+       * The revision the stack is running is never written here. An operation
+       * does not deploy anything, so whatever it turned out to have done, what
+       * is deployed is what was deployed.
+       */
+      if (applied || attention) {
+        await tx
+          .update(stacks)
+          .set({
+            status: attention ? 'needs_attention' : RUNTIME_STATUS[operation.type],
+            updatedAt: now,
+          })
+          .where(eq(stacks.id, operation.stackId));
+      }
+
+      if (operation.actionId) {
+        await tx
+          .update(actions)
+          .set({
+            status: applied ? 'succeeded' : 'failed',
+            completedAt: now,
+            ...(applied
+              ? {}
+              : {
+                  errorCode: attention
+                    ? 'STACK_LIFECYCLE_PARTIAL'
+                    : OPERATION_FAILED[operation.type],
+                }),
+          })
+          .where(eq(actions.id, operation.actionId));
+      }
+    });
+
+    await this.audit.record({
+      action: applied
+        ? OPERATION_AUDIT[operation.type]
+        : attention
+          ? 'stack.operation.needs_attention'
+          : OPERATION_AUDIT_FAILED[operation.type],
+      result: applied ? 'success' : 'failure',
+      actorLabel: 'system',
+      targetType: 'stack',
+      targetId: operation.stackId,
+      targetLabel: operation.name,
+      reasonCode: operation.id,
+    });
+
+    this.logger.info(
+      {
+        event: 'stack_operation_recovered',
+        hostId,
+        stackId: operation.stackId,
+        operationId: operation.id,
+        operation: operation.type,
+        outcome: outcome.kind,
+      },
+      'an unfinished stack operation was settled from the host',
+    );
+
+    return true;
+  }
+
+  /**
+   * The stack's services as the host shows them.
+   *
+   * Start times only for a restart, because only a restart needs them and each
+   * one costs an inspect.
+   */
+  private async observedRuntime(
+    stackId: string,
+    withStartTimes: boolean,
+  ): Promise<readonly ObservedRuntime[]> {
+    const rows = await this.db.client
+      .select({
+        id: containers.id,
+        dockerId: containers.dockerId,
+        state: containers.state,
+        stackService: containers.stackService,
+        stackRevisionId: containers.stackRevisionId,
+      })
+      .from(containers)
+      .where(eq(containers.stackId, stackId));
+
+    const observed: ObservedRuntime[] = [];
+
+    for (const row of rows) {
+      let startedAt: string | null = null;
+
+      if (withStartTimes && row.dockerId) {
+        try {
+          const detail = await this.detail.containerDetail(row.id, { force: true });
+
+          startedAt = detail.detail?.startedAt ?? null;
+        } catch {
+          startedAt = null;
+        }
+      }
+
+      observed.push({
+        serviceName: row.stackService ?? '',
+        containerId: row.id,
+        dockerId: row.dockerId,
+        state: row.dockerId ? row.state : null,
+        revisionId: row.stackRevisionId,
+        startedAt,
+      });
+    }
+
+    return observed;
   }
 
   /** Reads the host, and says whether the answer was complete. */
@@ -326,6 +546,50 @@ interface Unfinished {
   readonly actionId: string | null;
   readonly name: string;
 }
+
+interface UnfinishedOperation {
+  readonly id: string;
+  readonly stackId: string;
+  readonly revisionId: string;
+  readonly type: StackLifecycleKind;
+  readonly fingerprint: typeof stackOperations.$inferSelect.fingerprint;
+  readonly actionId: string | null;
+  readonly name: string;
+}
+
+/** What each outcome of an operation is recorded as. */
+const OPERATION_STATUS = {
+  applied: 'succeeded',
+  not_applied: 'failed',
+  needs_attention: 'needs_attention',
+  unknown: 'interrupted',
+} as const;
+
+/** The same codes the live path records, so one vocabulary describes both. */
+const OPERATION_FAILED: Record<StackLifecycleKind, string> = {
+  start: 'STACK_START_FAILED',
+  stop: 'STACK_STOP_FAILED',
+  restart: 'STACK_RESTART_FAILED',
+};
+
+/** What the stack is once an operation is known to have done what it said. */
+const RUNTIME_STATUS: Record<StackLifecycleKind, string> = {
+  start: 'running',
+  stop: 'stopped',
+  restart: 'running',
+};
+
+const OPERATION_AUDIT = {
+  start: 'stack.started',
+  stop: 'stack.stopped',
+  restart: 'stack.restarted',
+} as const;
+
+const OPERATION_AUDIT_FAILED = {
+  start: 'stack.start.failed',
+  stop: 'stack.stop.failed',
+  restart: 'stack.restart.failed',
+} as const;
 
 /** Resources of this stack that no container on the host claims. */
 function unclaimed(stackId: string) {

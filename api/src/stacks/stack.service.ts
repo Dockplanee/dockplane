@@ -15,6 +15,7 @@ import {
   containers,
   hosts,
   stackDeployments,
+  stackOperations,
   stackRevisionEnvironment,
   stackRevisions,
   stacks,
@@ -311,7 +312,7 @@ export class StackService {
    * offering an operation that would be refused.
    */
   private async unresolvedStacks(stackId?: string): Promise<Set<string>> {
-    const rows = await this.db.client
+    const deployments = await this.db.client
       .select({ stackId: stackDeployments.stackId })
       .from(stackDeployments)
       .where(
@@ -321,7 +322,23 @@ export class StackService {
         ),
       );
 
-    return new Set(rows.map((row) => row.stackId));
+    /*
+     * And operations, which leave a stack in exactly the same condition: the
+     * host was asked for something and nobody has established what came of it.
+     * Two tables because they are two different things; one answer, because a
+     * stack an operator may not touch is a stack an operator may not touch.
+     */
+    const operations = await this.db.client
+      .select({ stackId: stackOperations.stackId })
+      .from(stackOperations)
+      .where(
+        and(
+          inArray(stackOperations.status, ['pending', 'running', 'interrupted']),
+          ...(stackId ? [eq(stackOperations.stackId, stackId)] : []),
+        ),
+      );
+
+    return new Set([...deployments, ...operations].map((row) => row.stackId));
   }
 
   /** What has been saved, newest first. No source and no values. */
@@ -443,6 +460,11 @@ export class StackService {
         services: result.plan.services.map((service) => service.serviceName),
         networks: result.plan.networks.map((network) => network.name),
         volumes: result.plan.volumes.map((volume) => volume.name),
+        dependsOn: Object.fromEntries(
+          result.plan.services
+            .filter((service) => (service.dependsOn ?? []).length > 0)
+            .map((service) => [service.serviceName, [...service.dependsOn!]]),
+        ),
       },
     };
   }
@@ -461,7 +483,14 @@ export class StackService {
       number: number;
       compose: string;
       environment: readonly StoredVariable[];
-      compiled: { summary: { services: string[]; networks: string[]; volumes: string[] } };
+      compiled: {
+        summary: {
+          services: string[];
+          networks: string[];
+          volumes: string[];
+          dependsOn: Record<string, string[]>;
+        };
+      };
       actorId: string;
     },
   ) {
@@ -591,8 +620,15 @@ function present(
     latestRevision: row.revision
       ? { id: row.revision.id, number: row.revision.number, summary: row.revision.summary }
       : null,
-    /* Nothing has been deployed yet, and this says so rather than implying it. */
-    runningRevision: row.running
+    /*
+     * The revision this stack is deployed with. Null when it has never been.
+     *
+     * Deployed rather than running: a stack that has been stopped is still
+     * deployed with the revision it was deployed with, and starting it again
+     * deploys nothing. Calling this the running revision would make a stopped
+     * stack look like it was running something.
+     */
+    deployedRevision: row.running
       ? { id: row.running.id, number: row.running.number, summary: row.running.summary }
       : null,
     deployedRevisionId: row.stack.currentRevisionId,

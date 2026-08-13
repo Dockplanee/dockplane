@@ -103,6 +103,24 @@ export type AuditAction =
    * attempt, and the stack is what it always was.
    */
   | 'stack.apply.rolled_back'
+  /*
+   * Moving a deployed stack between running and stopped.
+   *
+   * Recorded apart from applying a revision because it is a different claim:
+   * nothing was deployed, and the revision the stack is running is the one it
+   * was running before.
+   */
+  | 'stack.start.requested'
+  | 'stack.started'
+  | 'stack.start.failed'
+  | 'stack.stop.requested'
+  | 'stack.stopped'
+  | 'stack.stop.failed'
+  | 'stack.restart.requested'
+  | 'stack.restarted'
+  | 'stack.restart.failed'
+  | 'stack.operation.interrupted'
+  | 'stack.operation.needs_attention'
   | 'container.recovery.promoted'
   | 'container.recovery.discarded'
   | 'container.recovery.removed'

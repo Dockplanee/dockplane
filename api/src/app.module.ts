@@ -21,6 +21,7 @@ import { RecoveryFinalizer } from './containers/recovery-finalizer';
 import { RecoveryOrchestrator } from './containers/recovery.orchestrator';
 import { ComposeCompilerService } from './stacks/compose-compiler.service';
 import { StackDeploymentService } from './stacks/stack-deployment.service';
+import { StackLifecycleService } from './stacks/stack-lifecycle.service';
 import { StackRecoveryService } from './stacks/stack-recovery.service';
 import { StacksController } from './stacks/stacks.controller';
 import { StackService } from './stacks/stack.service';
@@ -140,6 +141,7 @@ import { SecretBox } from './common/crypto';
     ComposeCompilerService,
     StackService,
     StackDeploymentService,
+    StackLifecycleService,
     StackRecoveryService,
     LifecycleService,
     LogStreamService,

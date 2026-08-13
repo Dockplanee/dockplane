@@ -18,6 +18,14 @@ export interface FakeContainer {
   image: string;
   state: string;
   labels: Record<string, string>;
+  /**
+   * When this container was last started, as Docker reports it.
+   *
+   * Modelled because the real engine behaves this way and the product depends
+   * on it: restarting a container changes nothing else an observer can see, so
+   * this is the only evidence that a restart happened at all.
+   */
+  startedAt?: string;
 }
 
 export class FakeDockerHost {
@@ -49,6 +57,14 @@ export class FakeDockerHost {
 
   /** Services this host refuses outright, stopping the deployment there. */
   readonly wontCreate = new Set<string>();
+
+  /** Services that refuse to stop, which is how a stack ends up half stopped. */
+  readonly wontStop = new Set<string>();
+
+  /** Every lifecycle operation this host was asked to perform, in order. */
+  readonly stackOperations: { operation: string; plan: StackLifecyclePlan }[] = [];
+
+  private starts = 0;
 
   /**
    * Set to make the host fail an attempt and not put back what it moved.
@@ -124,6 +140,12 @@ export class FakeDockerHost {
         return this.remove(payload);
       case 'stack.deploy':
         return this.applyStack(payload);
+      case 'stack.start':
+        return this.runStackLifecycle('start', payload);
+      case 'stack.stop':
+        return this.runStackLifecycle('stop', payload);
+      case 'stack.restart':
+        return this.runStackLifecycle('restart', payload);
       default:
         throw { code: 'CAPABILITY_UNSUPPORTED', message: `no such capability: ${capability}` };
     }
@@ -291,6 +313,9 @@ export class FakeDockerHost {
         name: service.containerName,
         image: service.spec.image,
         state,
+        // A running container always has one, which is what a restart later
+        // has to be able to be compared against.
+        ...(state === 'running' ? { startedAt: this.nextStart() } : {}),
         labels: {
           ...(service.spec.labels ?? {}),
           'io.dockplane.managed': 'true',
@@ -364,6 +389,136 @@ export class FakeDockerHost {
     };
   }
 
+  /**
+   * Starting, stopping and restarting a deployed stack.
+   *
+   * The real agent's rules, because the server's behaviour is only meaningful
+   * against them: the containers are found by the identity Dockplane gave them,
+   * a service that is missing or claimed twice stops the operation before
+   * anything moves, and services go up in dependency order and down in reverse.
+   */
+  private runStackLifecycle(operation: string, payload: Record<string, unknown>) {
+    const plan = payload.plan as StackLifecyclePlan;
+
+    this.stackOperations.push({ operation, plan });
+
+    const resolved = new Map<string, FakeContainer>();
+
+    for (const service of plan.services) {
+      const claims = [...this.containers.values()].filter(
+        (container) =>
+          container.labels['io.dockplane.stack-id'] === plan.stackId &&
+          container.labels['io.dockplane.stack-service'] === service.serviceName,
+      );
+
+      if (claims.length > 1) {
+        throw {
+          code: 'STACK_STATE_AMBIGUOUS',
+          message: `more than one container is service ${service.serviceName}`,
+        };
+      }
+
+      if (claims.length === 0) {
+        throw {
+          code: 'STACK_SERVICE_MISSING',
+          message: `${service.serviceName} is not on the host`,
+        };
+      }
+
+      if (claims[0].labels['io.dockplane.container-id'] !== service.containerId) {
+        throw {
+          code: 'STACK_STATE_AMBIGUOUS',
+          message: `${service.serviceName} is held by a container with another identity`,
+        };
+      }
+
+      resolved.set(service.serviceName, claims[0]);
+    }
+
+    const order = lifecycleOrder(plan);
+    let moved = false;
+
+    if (operation === 'stop' || operation === 'restart') {
+      for (const name of [...order].reverse()) {
+        const container = resolved.get(name)!;
+
+        if (container.state !== 'running') {
+          continue;
+        }
+
+        if (this.wontStop.has(name)) {
+          return this.partialLifecycle(operation, plan, resolved, name, moved);
+        }
+
+        container.state = 'exited';
+        moved = true;
+      }
+    }
+
+    if (operation === 'start' || operation === 'restart') {
+      for (const name of order) {
+        const container = resolved.get(name)!;
+
+        if (container.state === 'running') {
+          continue;
+        }
+
+        if (this.wontStart.has(name)) {
+          return this.partialLifecycle(operation, plan, resolved, name, moved);
+        }
+
+        container.state = 'running';
+        container.startedAt = this.nextStart();
+        moved = true;
+      }
+    }
+
+    return {
+      stackId: plan.stackId,
+      revisionId: plan.revisionId,
+      operation,
+      outcome: 'completed',
+      services: [...resolved.entries()].map(([serviceName, container]) => ({
+        serviceName,
+        dockerId: container.dockerId,
+        state: container.state,
+        startedAt: container.startedAt,
+      })),
+    };
+  }
+
+  /**
+   * An operation that stopped partway.
+   *
+   * Nothing is put back: the point of the state is that the host is neither
+   * where it was nor where it was going, and the server has to establish that
+   * for itself.
+   */
+  private partialLifecycle(
+    operation: string,
+    plan: StackLifecyclePlan,
+    resolved: Map<string, FakeContainer>,
+    failedService: string,
+    moved: boolean,
+  ): never {
+    throw {
+      code: moved ? 'STACK_LIFECYCLE_INCOMPLETE' : 'DOCKER_OPERATION_FAILED',
+      message: `${failedService} would not move`,
+      detail: {
+        stackId: plan.stackId,
+        operation,
+        services: [...resolved.keys()],
+      },
+    };
+  }
+
+  /** Monotonic, as Docker's own start times are. */
+  private nextStart(): string {
+    this.starts += 1;
+
+    return new Date(Date.UTC(2026, 0, 1, 0, 0, this.starts)).toISOString();
+  }
+
   /** The labels the agent applies from what the server resolved, never from the spec. */
   private identity(payload: Record<string, unknown>): Record<string, string> {
     const spec = payload.spec as { labels?: Record<string, string> };
@@ -390,6 +545,7 @@ export class FakeDockerHost {
           status: 'Up 1 second',
           health: 'none',
           restartCount: 0,
+          startedAt: container.startedAt,
           ports: [],
           networks: [],
           mounts: [],
@@ -436,6 +592,38 @@ export interface StackPlan {
       env?: { key: string; value: string }[];
     };
   }[];
+}
+
+/** What the server sends to start, stop or restart a deployed stack. */
+export interface StackLifecyclePlan {
+  planVersion: number;
+  stackId: string;
+  revisionId: string;
+  services: { serviceName: string; containerId: string; dependsOn?: string[] }[];
+}
+
+/** The order services are started in, dependencies first. */
+function lifecycleOrder(plan: StackLifecyclePlan): string[] {
+  const remaining = [...plan.services];
+  const started = new Set<string>();
+  const sorted: string[] = [];
+
+  while (remaining.length > 0) {
+    const index = remaining.findIndex((service) =>
+      (service.dependsOn ?? []).every((dependency) => started.has(dependency)),
+    );
+
+    if (index === -1) {
+      return [...sorted, ...remaining.map((service) => service.serviceName)];
+    }
+
+    const [next] = remaining.splice(index, 1);
+
+    started.add(next.serviceName);
+    sorted.push(next.serviceName);
+  }
+
+  return sorted;
 }
 
 /** Dependencies before dependants, which is the order the agent starts in. */

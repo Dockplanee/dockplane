@@ -8,6 +8,7 @@ import {
   containerDesiredConfigs,
   containers,
   stackDeployments,
+  stackOperations,
   stacks,
 } from '../database/schema';
 
@@ -169,6 +170,30 @@ export class PendingMutationGuard {
       throw AppError.conflict(
         'STACK_DEPLOYMENT_CONFLICT',
         'An attempt to apply a revision to this container’s stack has not been resolved yet.',
+      );
+    }
+
+    /*
+     * The same rule for an operation on the whole stack.
+     *
+     * A stack stop and a container start running against each other would leave
+     * a host that neither of them describes, and the one that finished second
+     * would be recorded as what happened.
+     */
+    const [operating] = await this.db.client
+      .select({ id: stackOperations.id })
+      .from(stackOperations)
+      .where(
+        and(
+          eq(stackOperations.stackId, row.stackId),
+          inArray(stackOperations.status, ['pending', 'running', 'interrupted']),
+        ),
+      );
+
+    if (operating) {
+      throw AppError.conflict(
+        'STACK_OPERATION_CONFLICT',
+        'An operation on this container’s stack has not been resolved yet.',
       );
     }
 
