@@ -37,7 +37,6 @@ export const PERMISSIONS = [
   'users.read',
   'users.manage',
   'roles.read',
-  'roles.manage',
   'sessions.read',
   'sessions.revoke',
 ] as const;

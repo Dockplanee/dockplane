@@ -14,14 +14,6 @@
  * carefully: an operator who should be able to restart a stuck service would
  * also be able to stop one for good.
  *
- * `stacks.secrets.reveal` is separate from every other stack permission for the
- * same reason `containers.logs` is separate from `containers.read`. Being able
- * to change a stack's configuration is a different question from being able to
- * read the credentials it was configured with, and one does not imply the
- * other.
- *
- * `stacks.adopt` is separate from `stacks.create` because adopting changes who
- * is responsible for something that already exists and is already running.
  */
 export const PERMISSIONS = {
   'hosts.read': 'View Docker hosts and their reported state',
@@ -39,8 +31,6 @@ export const PERMISSIONS = {
   'stacks.update': 'Change a stack’s Compose source or environment',
   'stacks.deploy': 'Deploy, redeploy, start, stop or restart a stack',
   'stacks.delete': 'Remove a stack',
-  'stacks.adopt': 'Take an existing Compose project under Dockplane’s management',
-  'stacks.secrets.reveal': 'Read the value of a stack secret',
   'agents.read': 'View enrolled agents',
   'agents.enroll': 'Create agent enrollment tokens',
   'agents.revoke': 'Revoke an agent credential',
@@ -48,7 +38,6 @@ export const PERMISSIONS = {
   'users.read': 'View users',
   'users.manage': 'Create, modify and deactivate users',
   'roles.read': 'View roles and their permissions',
-  'roles.manage': 'Create and modify roles',
   'sessions.read': 'View active sessions',
   'sessions.revoke': 'Revoke sessions',
 } as const;

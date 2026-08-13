@@ -157,15 +157,22 @@ containers.start    start a container
 containers.stop     stop a container
 containers.restart  restart a container
 containers.logs     read and follow container output
+containers.create   create a container
+containers.update   change a container's configuration, which recreates it
+containers.delete   remove a container
 compose.read        view discovered Compose projects
+stacks.read         view stacks and their revisions
+stacks.create       create a stack
+stacks.update       change a stack's Compose source or environment
+stacks.deploy       deploy, redeploy, start, stop or restart a stack
+stacks.delete       remove a stack
 agents.read         view enrolled agents
 agents.enroll       create agent enrollment tokens
 agents.revoke       revoke an agent credential
 audit.read          read the audit log
 users.read          view users
-users.manage        create, modify and deactivate users
+users.manage        create, modify and deactivate users, and assign roles
 roles.read          view roles and their permissions
-roles.manage        create and modify roles
 sessions.read       view sessions of other accounts
 sessions.revoke     revoke sessions of other accounts
 ```
