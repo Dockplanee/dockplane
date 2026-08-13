@@ -83,8 +83,6 @@ fi
 if [[ -z "${DOCKPLANE_COMMIT:-}" && -n "$(git status --porcelain 2>/dev/null)" ]]; then
 	COMMIT="${COMMIT}-dirty"
 fi
-BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
 # Reproducible: the bundle's timestamps come from the commit rather than from
 # the clock, so packing the same commit twice produces the same archive. This
 # refuses rather than falling back to the clock, because an archive that is
@@ -95,6 +93,14 @@ if [[ -z "$SOURCE_DATE_EPOCH" ]]; then
 	echo "no commit date: build from a git checkout, or set SOURCE_DATE_EPOCH" >&2
 	exit 4
 fi
+
+# The date the release says it was built, which is the commit's and not the
+# clock's for the same reason. It is written into the manifest and into every
+# image label, so a wall-clock reading is enough on its own to make two builds
+# of one commit differ — which is how it was found. GNU and BSD date disagree
+# about how to be given an epoch; both are asked.
+BUILD_DATE="${DOCKPLANE_BUILD_DATE:-$(date -u -d "@$SOURCE_DATE_EPOCH" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null ||
+	date -u -r "$SOURCE_DATE_EPOCH" +%Y-%m-%dT%H:%M:%SZ)}"
 
 OUT="${OUT:-$REPO_ROOT/dist/release}"
 mkdir -p "$OUT"
