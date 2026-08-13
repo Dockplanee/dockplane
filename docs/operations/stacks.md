@@ -290,6 +290,73 @@ where every service is the same container, running, and started later than it
 had been. A restart that cannot be demonstrated is recorded as one that did not
 happen.
 
+## Deleting a stack
+
+Deleting a stack removes its service containers from the host and removes its
+saved configuration — every revision, every environment variable and the
+encrypted Compose source — from Dockplane.
+
+The order is containers first, configuration second. The configuration is what
+identifies the containers, so it is the last thing to go and it goes only after
+the host has been read and shows nothing claiming to be the stack.
+
+### Named volumes are kept
+
+**Deleting a stack is not deleting your data.** Every named volume the stack
+used stays on the host with its contents, and the confirmation lists them by
+name so it is clear what remains.
+
+There is no option to remove them. Not a checkbox, not a request field, not a
+flag — `docker compose down -v` is deliberately not an operation this product
+has. Removing a volume is a separate, explicit act against that volume.
+
+### Networks are kept
+
+Dockplane does not remove the networks a stack created. A network left behind by
+a deleted stack is an ordinary Docker network that nothing is using; removing it
+is a manual step for now.
+
+### A new stack of the same name is a new stack
+
+Creating a stack with the name of one that was deleted produces a **different**
+Dockplane identity. The volumes and networks left behind carry the old
+identity, so the new stack does not adopt them: deploying it stops with an
+ownership conflict rather than mounting data that belonged to something else.
+
+That is the intended answer. Reusing the data means deciding, deliberately, to
+attach that volume to the new stack.
+
+### What cannot be deleted
+
+A stack that needs attention. Its host does not say clearly which containers are
+the stack's, and that is exactly when a destructive operation must not proceed.
+Apply a revision to it first. There is no force delete.
+
+A stack with an unresolved deployment or operation, for the same reason
+everything else is refused then: only one thing may be deciding what a stack is.
+
+A stack whose deployed service has no container on the host. Dockplane cannot
+say what removing it would remove, so it refuses rather than guessing.
+
+### Nothing is read that does not have to be
+
+Deleting a stack decrypts nothing — not the Compose source, not the environment,
+not a single secret — and runs no compiler. A stack whose configuration can no
+longer be compiled is still one an operator can remove.
+
+### When only part of it is removed
+
+If some containers are gone and others are not, nothing is rebuilt and nothing
+is deleted from Dockplane. The stack needs attention, and its configuration
+stays, because that is what somebody resolving it will work from.
+
+### When the answer does not come back
+
+Dockplane says so rather than reporting the stack deleted, sends nothing again,
+and settles the deletion from the host the next time it is read completely. If
+the containers are gone, the configuration is then removed; if they are all
+still there, the deletion is recorded as one that did not happen.
+
 ## Validation
 
 A revision is checked by Dockplane's Compose compiler before it is stored, so a

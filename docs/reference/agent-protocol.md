@@ -176,6 +176,7 @@ stack.deploy
 stack.start
 stack.stop
 stack.restart
+stack.remove
 container.logs
 ```
 
@@ -203,6 +204,11 @@ which of them waits for which. No image, no specification and nothing that could
 create a container — these move containers that already exist. Three named
 operations rather than one that takes the word to perform, for the same reason
 the container operations are three.
+
+`stack.remove` carries the same identities and removes the containers that hold
+them. It has no volume field and no force field: removing a volume is not
+something a request may ask for, which is what keeps deleting a stack from
+deleting the data it was using.
 
 The plan it carries has a version of its own, separate from the protocol's. A
 plan describes a revision to *apply* — the agent may find the stack already

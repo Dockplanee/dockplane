@@ -49,9 +49,9 @@ Changing the control plane's domain means re-enrolling the hosts.
 stack is briefly down while it is rebuilt. There is no zero-downtime deployment
 and no rolling replacement.
 
-**Starting, stopping and removing a stack as a whole are not part of this
-release.** Its containers can be operated individually while the stack is
-settled, and the stack itself can be deployed, redeployed and rolled back.
+**A stack's networks are not removed when it is deleted.** Deleting a stack
+takes away its service containers and its saved configuration; the networks it
+created stay on the host, and removing them is a manual step.
 
 **A stack secret cannot be read back.** Dockplane stores it encrypted and shows
 only that it is set. Changing or removing it is possible; revealing it is not.
@@ -64,9 +64,15 @@ it.
 refuses to apply anything to a stack in that state, because choosing between
 them means choosing which container to destroy.
 
-**Volumes are never removed.** A volume a revision no longer uses stays on the
-host, as does one left behind by a deployment that failed. Cleaning them up is a
-deliberate operation that does not exist yet.
+**Volumes are never removed.** Not by a revision that stops using one, not by a
+deployment that failed, and not by deleting the stack itself — deleting a stack
+is not deleting its data. Cleaning a volume up is a deliberate operation that
+does not exist yet.
+
+**A volume left behind by a deleted stack is not reused by a new one.** The
+volume still carries the deleted stack's identity, so a new stack of the same
+name stops with an ownership conflict rather than mounting data that belonged to
+something else.
 
 **A rollback does not restore data.** It deploys an earlier configuration;
 volumes keep whatever is in them.
