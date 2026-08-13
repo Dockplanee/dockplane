@@ -28,6 +28,7 @@ import { StatusBadge } from '../../ui/status-badge/status-badge';
 import { TabBar } from '../../ui/tabs/tab-bar';
 import { StackApply } from './stack-apply';
 import { StackApplyDialog } from './stack-apply-dialog';
+import { StackDelete } from './stack-delete';
 import { StackOperate } from './stack-operate';
 import { StackStore } from './stack-store';
 
@@ -59,13 +60,14 @@ const TABS = [
   ],
   templateUrl: './stack-detail.html',
   styleUrl: './stack-detail.css',
-  providers: [StackStore, StackApply, StackOperate],
+  providers: [StackStore, StackApply, StackOperate, StackDelete],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StackDetail {
   protected readonly store = inject(StackStore);
   protected readonly apply = inject(StackApply);
   protected readonly operate = inject(StackOperate);
+  protected readonly remove = inject(StackDelete);
   private readonly permissions = inject(Permissions);
   private readonly page = inject(PageContext);
 
@@ -133,6 +135,18 @@ export class StackDetail {
   });
 
   private readonly operationDialog = viewChild<ConfirmDialog>('operationDialog');
+  private readonly deleteDialog = viewChild<ConfirmDialog>('deleteDialog');
+
+  /**
+   * The volumes a deletion keeps, listed by name.
+   *
+   * Shown because "delete" reads as "delete everything" to anybody who has run
+   * `docker compose down -v`, and the whole point of this operation is that it
+   * does not.
+   */
+  protected readonly retainedVolumes = computed(() =>
+    this.remove.retainedVolumes().map((name) => ({ label: 'Volume kept', value: name })),
+  );
 
   constructor() {
     effect(() => {
@@ -147,7 +161,7 @@ export class StackDetail {
     });
 
     /*
-     * The dialog follows what is waiting to be confirmed rather than being
+     * The dialogs follow what is waiting to be confirmed rather than being
      * opened by the button. One source of truth for whether a confirmation is
      * open, which is what stops a dismissed dialog leaving an operation
      * half-requested behind it.
@@ -160,6 +174,20 @@ export class StackDetail {
       }
 
       if (this.operate.pending()) {
+        dialog.open();
+      } else {
+        dialog.close();
+      }
+    });
+
+    effect(() => {
+      const dialog = this.deleteDialog();
+
+      if (!dialog) {
+        return;
+      }
+
+      if (this.remove.open()) {
         dialog.open();
       } else {
         dialog.close();

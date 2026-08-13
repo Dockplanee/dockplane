@@ -32,6 +32,19 @@
         </button>
       }
 
+      @if (remove.available()) {
+        <button
+          type="button"
+          dpButton
+          variant="danger"
+          [disabled]="!!remove.blocked()"
+          [attr.title]="remove.blocked() || null"
+          (click)="remove.request()"
+        >
+          Delete stack
+        </button>
+      }
+
       @if (applicable(); as target) {
         <button
           type="button"
@@ -103,14 +116,14 @@
     </div>
   }
 
-  @if (apply.unresolved() || operate.unresolved(); as message) {
+  @if (apply.unresolved() || operate.unresolved() || remove.unresolved(); as message) {
     <div class="notice" role="status">
       <h3 class="notice__title">The result has not been confirmed</h3>
       <p>{{ message }}</p>
     </div>
   }
 
-  @if (apply.failure() || operate.failure(); as message) {
+  @if (apply.failure() || operate.failure() || remove.failure(); as message) {
     <div class="notice notice--critical" role="alert">
       <p>{{ message }}</p>
     </div>
@@ -121,6 +134,24 @@
   <router-outlet />
 
   <dp-stack-apply-dialog />
+
+  <!-- Built only where deleting is offered: a confirmation for something that
+       may not be done is a confirmation nobody should be able to reach. -->
+  @if (remove.available()) {
+    <dp-confirm-dialog
+      #deleteDialog
+      destructive
+      [heading]="remove.heading()"
+      [description]="remove.description()"
+      [details]="retainedVolumes()"
+      [confirmLabel]="'Delete stack'"
+      [confirmationPhrase]="remove.confirmationPhrase()"
+      [consequence]="'The saved configuration and revision history are deleted. Named volumes are kept.'"
+      [pending]="remove.busy()"
+      (confirmed)="remove.confirm()"
+      (dismissed)="remove.cancel()"
+    />
+  }
 
   <dp-confirm-dialog
     #operationDialog

@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 
 import { relativeTime } from '../../core/format';
+import { PageContext } from '../../core/page-context';
 import { Permissions } from '../../core/permissions';
 import { DockplaneApi } from '../../data/dockplane-api';
 import { STACK_STATE_LABELS, STACK_STATE_TONES, Stack, stackState } from '../../domain/stacks';
@@ -189,5 +190,14 @@ export class StackList {
     const revision = stack.deployedRevision ?? stack.latestRevision;
 
     return revision?.summary ? String(revision.summary.services.length) : '—';
+  }
+
+  constructor() {
+    /*
+     * The heading belongs to whichever view is showing, and this one never
+     * claimed it. Arriving here from a stack — most sharply after deleting one
+     * — left the shell still naming the stack that had just been left behind.
+     */
+    inject(PageContext).set({ title: 'Stacks', subtitle: 'Stacks Dockplane deploys and manages' });
   }
 }

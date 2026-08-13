@@ -29,6 +29,7 @@ export const PERMISSIONS = [
   'stacks.create',
   'stacks.update',
   'stacks.deploy',
+  'stacks.delete',
   'agents.read',
   'agents.enroll',
   'agents.revoke',

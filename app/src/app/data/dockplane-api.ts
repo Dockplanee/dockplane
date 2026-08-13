@@ -155,6 +155,14 @@ export abstract class DockplaneApi {
    */
   abstract operateStack(stackId: string, operation: StackOperation): Observable<OperationOutcome>;
 
+  /**
+   * Deletes a stack.
+   *
+   * No options: there is no field in which a caller could ask for a volume to
+   * be removed, which is what keeps deleting a stack from deleting data.
+   */
+  abstract deleteStack(stackId: string): Observable<StackDeletion>;
+
   abstract agents(): Observable<readonly Agent[]>;
   abstract createEnrollmentToken(intendedHostname?: string): Observable<EnrollmentToken>;
   abstract revokeAgent(id: string, reason: string): Observable<void>;
@@ -263,6 +271,13 @@ export interface ApplyOutcome {
   readonly revisionId: string;
   readonly kind: string;
   readonly status: string;
+}
+
+/** What came of deleting a stack, including what was deliberately kept. */
+export interface StackDeletion {
+  readonly stackId: string;
+  readonly status: string;
+  readonly retainedVolumes: readonly string[];
 }
 
 /** What came of starting, stopping or restarting a stack. */

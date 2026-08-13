@@ -5,6 +5,7 @@ import {
   ApplyOutcome,
   ComposeValidation,
   OperationOutcome,
+  StackDeletion,
   CreateStackRequest,
   SaveRevisionRequest,
   SavedRevision,
@@ -76,6 +77,10 @@ export interface TestData {
   applyFailure?: unknown;
   /** Set to make starting, stopping or restarting fail the way the server would. */
   operationFailure?: unknown;
+  /** Set to make deleting a stack fail the way the server would. */
+  deleteFailure?: unknown;
+  /** What a deletion reports it kept. */
+  retainedVolumes?: readonly string[];
 }
 
 /**
@@ -288,6 +293,18 @@ export class TestApi extends DockplaneApi {
     this.requests.push(request);
 
     return of({ stackId, revisionId: 'revision-2', revisionNumber: 2 });
+  }
+
+  deleteStack(stackId: string): Observable<StackDeletion> {
+    this.calls.push(`deleteStack:${stackId}`);
+
+    return this.data.deleteFailure
+      ? throwError(() => this.data.deleteFailure)
+      : of({
+          stackId,
+          status: 'deleted',
+          retainedVolumes: this.data.retainedVolumes ?? [],
+        });
   }
 
   operateStack(stackId: string, operation: StackOperation): Observable<OperationOutcome> {

@@ -3,8 +3,10 @@ import {
   Component,
   ElementRef,
   booleanAttribute,
+  computed,
   input,
   output,
+  signal,
   viewChild,
 } from '@angular/core';
 
@@ -46,6 +48,24 @@ export interface ConfirmDetail {
         <p class="consequence">{{ consequence() }}</p>
       }
 
+      <!--
+        Typing the name is for the operations somebody must not perform by
+        reflex. It is a deliberate pause, not a security control: whoever may
+        do this may do it, and the point is that they meant to.
+      -->
+      @if (confirmationPhrase(); as phrase) {
+        <label class="phrase">
+          <span>Type <strong>{{ phrase }}</strong> to confirm.</span>
+          <input
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            [value]="typed()"
+            (input)="typed.set($any($event.target).value)"
+          />
+        </label>
+      }
+
       <footer>
         <button type="button" dpButton variant="secondary" [disabled]="pending()" (click)="close()">
           Cancel
@@ -54,7 +74,7 @@ export interface ConfirmDetail {
           type="button"
           dpButton
           [variant]="destructive() ? 'danger' : 'primary'"
-          [disabled]="pending()"
+          [disabled]="pending() || !phraseMatches()"
           (click)="confirmed.emit()"
         >
           {{ pending() ? 'Working…' : confirmLabel() }}
@@ -111,6 +131,24 @@ export interface ConfirmDetail {
       text-align: right;
     }
 
+    .phrase {
+      display: block;
+      margin-top: 0.875rem;
+      font-size: 0.8125rem;
+    }
+
+    .phrase input {
+      width: 100%;
+      margin-top: 0.375rem;
+      padding: 0.5rem;
+      border: 1px solid var(--dp-line-strong);
+      border-radius: var(--dp-radius-sm);
+      background-color: var(--dp-surface-inset);
+      color: var(--dp-fg);
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+    }
+
     .consequence {
       margin-top: 0.875rem;
       padding: 0.625rem 0.75rem;
@@ -138,14 +176,33 @@ export class ConfirmDialog {
   readonly destructive = input(false, { transform: booleanAttribute });
   readonly consequence = input('This cannot be undone.');
   readonly pending = input(false, { transform: booleanAttribute });
+  /**
+   * What has to be typed before the action may be taken.
+   *
+   * Absent for the ordinary case. Set for the ones where a mistaken click
+   * costs something that cannot be clicked back.
+   */
+  readonly confirmationPhrase = input<string | undefined>(undefined);
 
   readonly confirmed = output<void>();
   readonly dismissed = output<void>();
 
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
+  protected readonly typed = signal('');
+
+  /** Whether the confirming action may be taken at all. */
+  protected readonly phraseMatches = computed(() => {
+    const phrase = this.confirmationPhrase();
+
+    return !phrase || this.typed().trim() === phrase;
+  });
+
   open(): void {
     const element = this.dialog().nativeElement;
+
+    // A dialog that opened before keeps nothing from last time.
+    this.typed.set('');
 
     if (element.open) {
       return;

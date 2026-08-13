@@ -108,7 +108,7 @@ function captureRequests(page) {
       return;
     }
 
-    if (request.method() !== 'POST') {
+    if (request.method() !== 'POST' && request.method() !== 'DELETE') {
       return;
     }
 
@@ -120,7 +120,7 @@ function captureRequests(page) {
       body = {};
     }
 
-    sent.push({ url: request.url(), body });
+    sent.push({ url: request.url(), method: request.method(), body });
   });
 
   return sent;
@@ -813,6 +813,125 @@ async function run() {
         () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
       )),
     );
+
+    console.log('\n== deleting a stack that never ran ==');
+
+    /*
+     * A second stack, saved and never deployed, so the first one is still there
+     * for the deletion that has to go through a host.
+     */
+    await page.goto(`${BASE}/stacks/new`, { waitUntil: 'networkidle' });
+    await fillCreateForm(page, {
+      hostId,
+      name: `draft${RUN}`,
+      compose: COMPOSE('nginx:1.27'),
+      secret: SECOND_CANARY,
+    });
+
+    await page.click('button:has-text("Create stack")');
+    await page.waitForURL(/\/stacks\/[0-9a-f-]{36}/);
+
+    const draftUrl = page.url().replace(/\/overview$/, '');
+    const removesBeforeDraft = (await agent.state()).received.filter(
+      (capability) => capability === 'stack.remove',
+    ).length;
+
+    await clickWhenEnabled(page, 'button:has-text("Delete stack")');
+    await until('the confirmation', async () => await page.locator('dialog[open]').count());
+
+    const draftDialog = await page.locator('dialog[open]').innerText();
+
+    check('the dialog says the configuration is deleted', draftDialog.includes('revision history'));
+    check(
+      'and asks for no typed confirmation when nothing is deployed',
+      !draftDialog.includes('to confirm'),
+    );
+
+    await page.locator('dialog[open] button:has-text("Delete stack")').click();
+    await page.waitForURL(/\/stacks$/);
+
+    check(
+      'a stack that never ran needs no host',
+      (await agent.state()).received.filter((capability) => capability === 'stack.remove')
+        .length === removesBeforeDraft,
+    );
+
+    const draftGone = await fetch(`${draftUrl.replace(`${BASE}/stacks`, `${BASE}/api/v1/stacks`)}`, {
+      headers: { cookie: session.cookie },
+    });
+
+    check('and it is gone from the API', draftGone.status === 404, String(draftGone.status));
+    // The list is fetched when the page opens, so this waits for the fetch
+    // rather than for the navigation that triggered it.
+    const draftListed = await until(
+      'the deleted stack to leave the list',
+      async () => !(await page.locator('body').innerText()).includes(`draft${RUN}`),
+      15_000,
+    ).catch(() => false);
+
+    check(
+      'and from the list',
+      draftListed === true,
+      draftListed === true ? '' : (await page.locator('body').innerText()).slice(0, 300),
+    );
+
+    console.log('\n== deleting a deployed stack ==');
+
+    await page.goto(stackUrl, { waitUntil: 'networkidle' });
+
+    const removesBefore = (await agent.state()).received.filter(
+      (capability) => capability === 'stack.remove',
+    ).length;
+
+    await clickWhenEnabled(page, 'button:has-text("Delete stack")');
+    await until('the confirmation', async () => await page.locator('dialog[open]').count());
+
+    const deleteDialog = await page.locator('dialog[open]').innerText();
+
+    check('the dialog names the volumes it keeps', deleteDialog.includes('data'));
+    check('and says data in them is not deleted', deleteDialog.includes('no data in them is deleted'));
+    check('and asks for the stack name', deleteDialog.includes('to confirm'));
+
+    // The confirming action stays out of reach until the name is typed.
+    const confirmButton = page.locator('dialog[open] button:has-text("Delete stack")');
+
+    check('deleting is not offered before the name is typed', !(await confirmButton.isEnabled()));
+
+    await page.locator('dialog[open] input[type="text"]').fill(stackName);
+
+    check('and is offered once it is', await confirmButton.isEnabled());
+
+    await confirmButton.click();
+    await page.waitForURL(/\/stacks$/);
+
+    const state = await agent.state();
+    const removes = state.received.filter((capability) => capability === 'stack.remove').length;
+
+    check('the removal reached the host exactly once', removes === removesBefore + 1, String(removes));
+
+    const remaining = state.containers.filter(
+      (container) => container.labels?.['io.dockplane.stack-id'],
+    );
+
+    check('the stack service containers are gone from the host', remaining.length === 0);
+    const listed = await until(
+      'the deleted stack to leave the list',
+      async () => !(await page.locator('body').innerText()).includes(stackName),
+      15_000,
+    ).catch(() => false);
+
+    check(
+      'the stack is gone from the list',
+      listed === true,
+      listed === true ? '' : (await page.locator('body').innerText()).slice(0, 300),
+    );
+
+    const stackGone = await fetch(`${BASE}/api/v1/stacks/${stackUrl.split('/').pop()}`, {
+      headers: { cookie: session.cookie },
+    });
+
+    check('and from the API', stackGone.status === 404, String(stackGone.status));
+
   } finally {
     await browser.close();
     await agent.stop();

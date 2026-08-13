@@ -64,6 +64,7 @@ import {
   MfaSetup,
   ApplyOutcome,
   OperationOutcome,
+  StackDeletion,
   ComposeValidation,
   CreateStackRequest,
   SaveRevisionRequest,
@@ -286,6 +287,10 @@ export class RealDockplaneApi extends DockplaneApi {
 
   operateStack(stackId: string, operation: StackOperation): Observable<OperationOutcome> {
     return this.api.post<OperationOutcome>(`/api/v1/stacks/${stackId}/${operation}`, {});
+  }
+
+  deleteStack(stackId: string): Observable<StackDeletion> {
+    return this.api.delete<StackDeletion>(`/api/v1/stacks/${stackId}`);
   }
 
   agents(): Observable<readonly Agent[]> {

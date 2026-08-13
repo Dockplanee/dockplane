@@ -279,3 +279,96 @@ describe('operating one stack', () => {
     expect(violations.join('\n\n')).toBe('');
   });
 });
+
+/**
+ * Deleting a stack, as the interface offers it.
+ *
+ * The states where it is not offered are the point. A stack whose host does not
+ * say clearly which containers are its own is one where a destructive action
+ * must not be a click away, and the dialog's job is to say what survives —
+ * because "delete" reads as "delete everything" to anybody who has run
+ * `docker compose down -v`.
+ */
+describe('deleting one stack', () => {
+  const render = (
+    overrides: Partial<Stack>,
+    permissions: string[] = ['stacks.read', 'stacks.delete'],
+  ) =>
+    renderView(StackDetail, {
+      params: { id: 'stack-1' },
+      data: { stacks: [stack(overrides)] },
+      permissions: permissions as never,
+    });
+
+  it('offers deleting to somebody who may', async () => {
+    const fixture = await render({});
+
+    expect(textOf(fixture)).toContain('Delete stack');
+  });
+
+  it('does not offer it to somebody who may not', async () => {
+    const fixture = await render({}, ['stacks.read', 'stacks.deploy']);
+
+    expect(textOf(fixture)).not.toContain('Delete stack');
+  });
+
+  it('does not offer it while the stack needs attention', async () => {
+    const fixture = await render({ status: 'needs_attention' });
+
+    expect(textOf(fixture)).not.toContain('Delete stack');
+  });
+
+  it('does not offer it while the stack is being reconciled', async () => {
+    const fixture = await render({ reconciling: true });
+
+    expect(textOf(fixture)).not.toContain('Delete stack');
+  });
+
+  it('offers it for a stack that has never been deployed', async () => {
+    const fixture = await render({ deployedRevision: null, status: 'not_deployed' });
+
+    expect(textOf(fixture)).toContain('Delete stack');
+  });
+
+  /* The sentence an operator needs before they can decide anything. */
+  it('says the volumes are kept and their data is not deleted', async () => {
+    const fixture = await render({});
+
+    expect(textOf(fixture)).toContain('Named volumes are kept');
+    expect(textOf(fixture)).toContain('no data in them is deleted');
+  });
+
+  it('names the volumes it keeps', async () => {
+    const fixture = await render({
+      deployedRevision: {
+        id: 'revision-2',
+        number: 2,
+        summary: { services: ['web'], networks: [], volumes: ['db-data', 'uploads'] },
+      },
+    });
+
+    expect(textOf(fixture)).toContain('db-data');
+    expect(textOf(fixture)).toContain('uploads');
+  });
+
+  /* A deployed stack has to be named back before the action is offered. */
+  it('asks for the stack name before deleting a deployed one', async () => {
+    const fixture = await render({});
+
+    expect(textOf(fixture)).toContain('to confirm');
+    expect(textOf(fixture)).toContain('shop');
+  });
+
+  it('does not ask for it when nothing is deployed', async () => {
+    const fixture = await render({ deployedRevision: null, status: 'not_deployed' });
+
+    expect(textOf(fixture)).not.toContain('to confirm');
+  });
+
+  it('has no accessibility violations', async () => {
+    const fixture = await render({});
+    const { violations } = await checkAccessibility(fixture);
+
+    expect(violations.join('\n\n')).toBe('');
+  });
+});
