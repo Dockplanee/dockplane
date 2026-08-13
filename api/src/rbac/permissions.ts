@@ -57,12 +57,7 @@ export type Permission = keyof typeof PERMISSIONS;
 
 export const PERMISSION_KEYS = Object.keys(PERMISSIONS) as Permission[];
 
-const READ_ONLY: Permission[] = [
-  'hosts.read',
-  'containers.read',
-  'compose.read',
-  'stacks.read',
-];
+const READ_ONLY: Permission[] = ['hosts.read', 'containers.read', 'compose.read', 'stacks.read'];
 
 /*
  * Operator carries restart but not stop.

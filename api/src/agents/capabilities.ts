@@ -172,8 +172,7 @@ const AGENT_ERROR_MESSAGES: Record<string, string> = {
   CONTAINER_NAME_IN_USE: 'A container of that name already exists on this host.',
   IMAGE_NOT_FOUND: 'The image could not be found or pulled on this host.',
   INVALID_CONTAINER_SPEC: 'The host rejected the container configuration as invalid.',
-  REPLACEMENT_FAILED:
-    'The replacement did not start, so the original container was put back.',
+  REPLACEMENT_FAILED: 'The replacement did not start, so the original container was put back.',
   COMPOSE_PROJECT_NOT_FOUND: 'The Compose project no longer exists on its host.',
   VALIDATION_FAILED: 'The host rejected the request as invalid.',
   AGENT_CAPABILITY_FAILED: 'The operation failed on the host.',

@@ -1,21 +1,32 @@
 # Container Operations
 
-Dockplane can start, stop and restart a container it has discovered. These are
-the only operations that change a managed host.
+Dockplane can start, stop and restart a container it has discovered, and can
+create, change and remove a container it manages itself. These are the only
+operations that change a managed host.
 
-Remove, exec, a shell, log streaming, Compose deploy or down, image pull and
-volume or network changes are not implemented. They are not hidden behind a
-permission or a flag; no code exists to perform them.
+Exec, a shell, image pull and volume or network changes are not implemented.
+They are not hidden behind a permission or a flag; no code exists to perform
+them.
 
 ## What a request contains
 
 An operator names a container and an operation. Nothing else travels:
 
 ```text
-POST /api/v1/containers/:id/start      requires containers.start
-POST /api/v1/containers/:id/stop       requires containers.stop
-POST /api/v1/containers/:id/restart    requires containers.restart
+POST   /api/v1/containers/:id/start    requires containers.start
+POST   /api/v1/containers/:id/stop     requires containers.stop
+POST   /api/v1/containers/:id/restart  requires containers.restart
+POST   /api/v1/containers              requires containers.create
+PUT    /api/v1/containers/:id          requires containers.update
+DELETE /api/v1/containers/:id          requires containers.delete
 ```
+
+A container is described in Dockplane's own fields — image, ports, mounts,
+environment, networks, restart policy, labels, healthcheck — and never as a
+Docker API payload. A field that is not in that list cannot be asked for, which
+is what keeps privileged mode, host namespaces, devices and arbitrary
+capabilities off the remote surface entirely. The host is named as a Dockplane
+resource; the agent and the Docker identifier are not named at all.
 
 There is one route per operation rather than one route taking an operation
 name. A single endpoint would make the set of things Dockplane can do to a host
@@ -25,10 +36,30 @@ capability would arrive already reachable.
 The host, the agent and the Docker identifier are derived by the server from
 the container. A browser never chooses which machine an operation lands on.
 
+## Changing a container
+
+Docker cannot change a running container's ports, mounts or environment, so
+changing one means replacing it. Dockplane does that as one operation: it holds
+what the container is supposed to be, applies what the operator changed, and
+sends the whole configuration — so two edits cannot interleave into something
+nobody asked for, and nothing is merged on a host.
+
+The container keeps its identity. Docker gives the replacement a new identifier;
+the Dockplane container, its history and its address stay the same.
+
+Volumes are never removed, with a replacement or with a removal, named or
+anonymous. There is no field to set and no default to get wrong.
+
+Secrets are stored encrypted under a key the database does not contain, and are
+never sent back to a browser. A form that has not been shown a value says the
+value is unchanged, and the server carries the stored one across.
+
 ## Permissions
 
 Each operation has its own permission — `containers.start`, `containers.stop`,
-`containers.restart` — so restart can be granted without granting stop. See
+`containers.restart`, `containers.create`, `containers.update`,
+`containers.delete` — so restart can be granted without granting stop, and
+changing a container's configuration does not imply being able to delete it. See
 [Roles and Permissions](../security/authentication.md).
 
 The interface offers a control only where it could succeed, but that is a
@@ -49,6 +80,11 @@ on the machine it was aimed at.
 | `CONTAINER_ALREADY_STOPPED` | Stop, on a container that is not running. |
 | `DOCKER_PERMISSION_DENIED` | The Docker daemon refused the agent. |
 | `DOCKER_UNAVAILABLE` | The Docker daemon could not be reached. |
+| `CONTAINER_NAME_IN_USE` | Another container on that host already has the name. |
+| `CONTAINER_NOT_MANAGED` | Dockplane did not create it, so it will not change or remove it. |
+| `MANAGED_BY_STACK` | It belongs to a Compose project, and its configuration comes from there. |
+| `VALIDATION_FAILED` | The specification is not one Dockplane accepts. |
+| `OPERATION_OUTCOME_UNKNOWN` | The request reached the host and its result did not come back. |
 | `DOCKER_OPERATION_FAILED` | Anything else Docker reported. |
 
 Nothing is queued. An operation runs against a connected agent or it is
@@ -59,6 +95,19 @@ Operations are serialised per container, not globally, so one slow restart does
 not block a fleet. A second operation on the same container is refused rather
 than queued — with two in flight, neither the operator nor the audit trail
 could say which one produced the state that resulted.
+
+## When the result does not come back
+
+A request can reach a host and its answer can be lost — to a timeout, or to a
+connection that dies while Docker is working. Dockplane does not report that as
+a failure, because it is not one: the container may have been created, replaced
+or removed exactly as asked.
+
+It answers `OPERATION_OUTCOME_UNKNOWN`, records the attempt in the audit trail
+as interrupted rather than failed, and leaves the operation open. The container
+accepts no further changes until the next complete reading of its host settles
+what happened. Nothing is repeated: a retried request is refused rather than
+starting a second change on top of a first that may already have taken.
 
 ## A container whose last change never finished
 
