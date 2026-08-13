@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, model } from '@angular/core';
 
 import { Host } from '../../domain/inventory';
-import { isReporting } from '../../domain/status';
 import { Button } from '../../ui/button';
 import {
   ContainerFormModel,
@@ -61,9 +60,16 @@ export class ContainerForm {
     return this.problems().find((entry) => entry.field === field)?.message;
   }
 
-  /** A host that is not reporting cannot carry out a create, so it is not offered. */
+  /**
+   * Whether a create could reach this host.
+   *
+   * The agent's connection, not the freshness of the last observation. They
+   * differ for the whole window between a host connecting and its first
+   * discovery pass finishing — during which the control server would happily
+   * carry out a create and this form was refusing to offer one.
+   */
   protected reachable(host: Host): boolean {
-    return isReporting(host.status);
+    return host.agentStatus === 'connected';
   }
 
   protected patch(change: Partial<ContainerFormModel>): void {

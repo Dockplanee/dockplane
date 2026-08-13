@@ -47,7 +47,7 @@ import { OutcomeNotice } from './outcome-notice';
 
     <div class="layout">
       <dp-panel class="form">
-        <form (ngSubmit)="submit()">
+        <form (submit)="submit($event)">
           <dp-container-form
             [(model)]="form"
             mode="create"
@@ -144,7 +144,14 @@ export class ContainerCreate {
   protected readonly portOf = portText;
   protected readonly mountOf = mountText;
 
-  protected submit(): void {
+  protected submit(event: Event): void {
+    /*
+     * The browser's own submit is prevented rather than relied on. A form that
+     * navigates puts every field it holds into the address bar, and one of
+     * these fields is a secret.
+     */
+    event.preventDefault();
+
     if (this.busy()) {
       return;
     }

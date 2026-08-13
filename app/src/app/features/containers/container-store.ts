@@ -39,9 +39,20 @@ export class ContainerStore {
     initialValue: '',
   });
 
-  readonly container = toSignal(this.target.pipe(switchMap((id) => this.api.container(id))), {
-    initialValue: undefined,
-  });
+  /**
+   * The container, or nothing when it is no longer one.
+   *
+   * A read that fails is not an error to report here. The commonest way for it
+   * to fail is that somebody has just removed the container while its page was
+   * open — the view says so, and an exception would only add noise to a page
+   * that is already handling it.
+   */
+  readonly container = toSignal(
+    this.target.pipe(
+      switchMap((id) => this.api.container(id).pipe(catchError(() => of(undefined)))),
+    ),
+    { initialValue: undefined },
+  );
 
   readonly detail = toSignal(
     this.target.pipe(

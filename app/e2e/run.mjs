@@ -28,6 +28,7 @@ const SUITES = [
   ['agent harness', 'agent-harness.e2e.mjs'],
   ['search palette', 'search-palette.e2e.mjs'],
   ['add host wizard', 'add-host-wizard.e2e.mjs'],
+  ['container management', 'container-management.e2e.mjs'],
 ];
 
 function runSuite(file, environment) {

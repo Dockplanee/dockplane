@@ -145,16 +145,23 @@
     (dismissed)="dismiss()"
   />
 
-  <dp-confirm-dialog
-    #removeDialog
-    [heading]="'Delete ' + container.name + '?'"
-    description="This container will be removed. Volumes will be kept, and running containers are stopped gracefully before removal."
-    confirmLabel="Delete container"
-    [details]="removalDetails()"
-    [pending]="removing()"
-    (confirmed)="remove()"
-    (dismissed)="dismissRemoval()"
-  />
+  <!--
+    Only where removal is offered. A dialog that exists but cannot be opened is
+    still a delete control in the page, and an operator reading the markup —
+    or a test asserting there is none — would be right to call that wrong.
+  -->
+  @if (canDelete()) {
+    <dp-confirm-dialog
+      #removeDialog
+      [heading]="'Delete ' + container.name + '?'"
+      description="This container will be removed. Volumes will be kept, and running containers are stopped gracefully before removal."
+      confirmLabel="Delete container"
+      [details]="removalDetails()"
+      [pending]="removing()"
+      (confirmed)="remove()"
+      (dismissed)="dismissRemoval()"
+    />
+  }
 } @else {
   <dp-panel flush>
     <dp-empty-state
