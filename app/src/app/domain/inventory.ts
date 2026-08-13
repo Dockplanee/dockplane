@@ -53,6 +53,38 @@ export interface Host {
   readonly stale: boolean;
 }
 
+/**
+ * Who decides what a container is.
+ *
+ * `managed` — Dockplane built it and holds the configuration it should have.
+ * `external` — it was discovered on the host and belongs to somebody else.
+ * `stack` — it belongs to a Compose project, which is where its configuration
+ * comes from.
+ */
+export type ManagementKind = 'managed' | 'external' | 'stack';
+
+/**
+ * What may be done to a container, beyond what a permission allows.
+ *
+ * The interface uses this to decide what to offer. It is not what decides
+ * whether an operation is permitted: the control server refuses on its own
+ * account, and a button that is absent here is a courtesy rather than a
+ * boundary.
+ */
+export interface ContainerManagement {
+  readonly kind: ManagementKind;
+  /**
+   * A change that has not been settled.
+   *
+   * Either a configuration the container is being asked to become, or an
+   * operation that was dispatched and never confirmed. Both mean nothing may be
+   * done to it until Dockplane has read its host again.
+   */
+  readonly reconciling: boolean;
+  /** Two Docker containers claim to be this one. */
+  readonly identityConflict: boolean;
+}
+
 /** A container as discovery lists it. Detail is a separate, on-demand read. */
 export interface Container {
   readonly id: string;
@@ -69,6 +101,7 @@ export interface Container {
   readonly composeProjectId?: string;
   readonly composeProjectName?: string;
   readonly composeService?: string;
+  readonly management: ContainerManagement;
   readonly observedAt?: string;
   readonly stale: boolean;
 }

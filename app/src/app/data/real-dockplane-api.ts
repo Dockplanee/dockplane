@@ -9,6 +9,7 @@ import {
   ComposeService,
   Container,
   ContainerDetail,
+  ContainerManagement,
   Host,
   Mount,
   PortBinding,
@@ -379,8 +380,27 @@ function toContainer(container: ContainerResponse): Container {
     composeProjectId: container.composeProject?.id,
     composeProjectName: container.composeProject?.name,
     composeService: container.metadata?.service,
+    management: toManagement(container),
     observedAt: container.observedAt ?? undefined,
     stale: container.stale,
+  };
+}
+
+/**
+ * What the server said may be done to this container.
+ *
+ * A server that says nothing is treated as saying `external`, which offers
+ * least: an interface that assumed a container was Dockplane's because a field
+ * was missing would offer to change somebody else's workload.
+ */
+function toManagement(container: ContainerResponse): ContainerManagement {
+  const management = container.management;
+
+  return {
+    kind:
+      management?.kind === 'managed' || management?.kind === 'stack' ? management.kind : 'external',
+    reconciling: management?.reconciling ?? false,
+    identityConflict: management?.identityConflict ?? false,
   };
 }
 

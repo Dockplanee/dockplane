@@ -16,6 +16,7 @@ const RUNNING: Container = {
   hostname: 'docker-01',
   dockerId: 'a1b2c3d4e5f6a1b2',
   image: 'nextcloud:28',
+  management: { kind: 'managed', reconciling: false, identityConflict: false },
   state: 'running',
   health: 'healthy',
   restarts: 0,

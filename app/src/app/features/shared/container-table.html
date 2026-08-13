@@ -17,6 +17,7 @@
             <th scope="col">Host</th>
           }
           <th scope="col">Image</th>
+          <th scope="col">Managed by</th>
           <th scope="col">Status</th>
           <th scope="col">Health</th>
           <th scope="col" class="numeric">Restarts</th>
@@ -36,6 +37,7 @@
               <td class="dp-unknown">{{ container.hostname }}</td>
             }
             <td class="dp-mono dp-unknown">{{ container.image }}</td>
+            <td><dp-management-badge [management]="container.management" /></td>
             <td>
               <dp-status-badge
                 [tone]="state(container.state).tone"

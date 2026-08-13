@@ -9,6 +9,7 @@ import { EmptyState } from '../../ui/empty-state/empty-state';
 import { RowAction, RowMenu } from '../../ui/row-menu/row-menu';
 import { StatusBadge } from '../../ui/status-badge/status-badge';
 import { TableShell } from '../../ui/table/table-shell';
+import { ManagementBadge } from './management-badge';
 
 type Lifecycle = 'start' | 'stop' | 'restart';
 
@@ -31,7 +32,7 @@ const PERMISSION: Record<Lifecycle, Permission> = {
  */
 @Component({
   selector: 'dp-container-table',
-  imports: [RouterLink, EmptyState, RowMenu, StatusBadge, TableShell],
+  imports: [RouterLink, EmptyState, ManagementBadge, RowMenu, StatusBadge, TableShell],
   templateUrl: './container-table.html',
   styles: `
     .last-known {
@@ -60,7 +61,7 @@ export class ContainerTable {
   protected readonly health = containerHealth;
   protected readonly age = relativeTime;
 
-  protected readonly minWidth = computed(() => (this.showHost() ? '66rem' : '58rem'));
+  protected readonly minWidth = computed(() => (this.showHost() ? '74rem' : '66rem'));
 
   /**
    * The lifecycle entries for one row.
@@ -84,19 +85,32 @@ export class ContainerTable {
     const permission = PERMISSION[id];
     const granted = this.permissions.has(permission);
 
+    /*
+     * A container nobody can identify, or one whose last change has not been
+     * settled, cannot be operated at all. The control server refuses these too;
+     * saying so here means an operator learns why before clicking rather than
+     * from a refusal afterwards.
+     */
+    const undetermined = container.management.identityConflict
+      ? 'More than one Docker container claims this one, so nothing may be done to it.'
+      : container.management.reconciling
+        ? 'A change to this container has not been settled yet.'
+        : undefined;
+
     return {
       id,
       label,
-      disabled: !granted || !applies || container.stale,
+      disabled: !granted || !applies || container.stale || Boolean(undetermined),
       hint: !granted
         ? `Requires the ${permission} permission.`
-        : !applies
-          ? id === 'start'
-            ? 'The container is already running.'
-            : 'The container is not running.'
-          : container.stale
-            ? 'The host is not reporting, so nothing can be carried out on it now.'
-            : undefined,
+        : (undetermined ??
+          (!applies
+            ? id === 'start'
+              ? 'The container is already running.'
+              : 'The container is not running.'
+            : container.stale
+              ? 'The host is not reporting, so nothing can be carried out on it now.'
+              : undefined)),
     };
   }
 

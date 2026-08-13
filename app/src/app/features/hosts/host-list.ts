@@ -51,8 +51,7 @@ export class HostList {
   private readonly api = inject(DockplaneApi);
 
   private readonly addHostDialog = viewChild.required(AddHostDialog);
-  private readonly addHostTrigger =
-    viewChild.required<ElementRef<HTMLElement>>('addHostTrigger');
+  private readonly addHostTrigger = viewChild.required<ElementRef<HTMLElement>>('addHostTrigger');
 
   protected readonly query = signal('');
   protected readonly statusFilter = signal('all');

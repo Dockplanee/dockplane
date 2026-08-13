@@ -43,6 +43,7 @@ export function container(overrides: Partial<Container> = {}): Container {
     state: 'running',
     health: 'healthy',
     restarts: 0,
+    management: { kind: 'managed', reconciling: false, identityConflict: false },
     createdAt: '2026-08-09T10:00:00.000Z',
     observedAt: '2026-08-09T12:00:00.000Z',
     stale: false,

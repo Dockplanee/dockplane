@@ -74,3 +74,56 @@ h2 {
   margin-top: 0.875rem;
   margin-bottom: 1rem;
 }
+
+/*
+ * What kind of container this is.
+ *
+ * Placed above the tabs because it changes what the rest of the page means: a
+ * read-only configuration and a blocked action are both explained here, and an
+ * operator who reads it after hunting for a missing button has read it late.
+ */
+.notice {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  margin-top: 1rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--dp-border);
+  border-radius: var(--dp-radius-md);
+  background-color: var(--dp-surface-alt);
+}
+
+.notice dp-icon {
+  flex: none;
+  margin-top: 0.0625rem;
+  color: var(--dp-text-muted);
+}
+
+/* Not colour alone: the warning also carries a heavier border and its own icon. */
+.notice--warning {
+  border-color: var(--dp-status-warn);
+  background-color: var(--dp-status-warn-soft);
+}
+
+.notice--warning dp-icon {
+  color: var(--dp-status-warn);
+}
+
+.notice__title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.notice__detail {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--dp-text-muted);
+  max-width: 68ch;
+}
+
+.notice__link {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+}

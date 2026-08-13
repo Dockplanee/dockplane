@@ -9,7 +9,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterOutlet } from '@angular/router';
+import { RouterLink, RouterOutlet } from '@angular/router';
 
 import { ApiError } from '../../core/api-error';
 import { InventoryRefresh } from '../../core/inventory-refresh';
@@ -25,6 +25,7 @@ import { Icon } from '../../ui/icon/icon';
 import { Panel } from '../../ui/panel/panel';
 import { StaleNotice } from '../../ui/stale-notice/stale-notice';
 import { StatusBadge } from '../../ui/status-badge/status-badge';
+import { ManagementBadge } from '../shared/management-badge';
 import { TabBar } from '../../ui/tabs/tab-bar';
 import { ContainerStore } from './container-store';
 
@@ -53,12 +54,14 @@ const COPY: Record<Lifecycle, { verb: string; consequence: string }> = {
 @Component({
   selector: 'dp-container-detail',
   imports: [
+    RouterLink,
     RouterOutlet,
     Button,
     ConfirmDialog,
     EmptyState,
     ErrorState,
     Icon,
+    ManagementBadge,
     Panel,
     StaleNotice,
     StatusBadge,
@@ -114,7 +117,31 @@ export class ContainerDetail {
     return host ? isReporting(host.status) : false;
   });
 
-  private readonly ready = computed(() => this.reachable() && !this.running());
+  /**
+   * Whether the container is one anything may be done to at all.
+   *
+   * Separate from permissions and from state. A container two Docker containers
+   * claim is one nobody can identify, and a container whose last change has not
+   * been settled is one no operation has a defined meaning for — the control
+   * server refuses both, whoever is asking.
+   */
+  protected readonly undetermined = computed(() => {
+    const management = this.store.container()?.management;
+
+    if (management?.identityConflict) {
+      return 'More than one Docker container claims this one, so nothing may be done to it.';
+    }
+
+    if (management?.reconciling) {
+      return 'A change to this container has not been settled yet.';
+    }
+
+    return '';
+  });
+
+  private readonly ready = computed(
+    () => this.reachable() && !this.running() && !this.undetermined(),
+  );
 
   protected readonly canStart = computed(
     () => !this.isRunning() && this.permissions.has('containers.start') && this.ready(),
@@ -130,6 +157,65 @@ export class ContainerDetail {
   protected readonly startHint = computed(() => this.hint('start', 'containers.start'));
   protected readonly stopHint = computed(() => this.hint('stop', 'containers.stop'));
   protected readonly restartHint = computed(() => this.hint('restart', 'containers.restart'));
+
+  /**
+   * What kind of container this is, said plainly.
+   *
+   * Ordered by what stops an operator soonest. A conflict or an unsettled
+   * change blocks every operation, so it outranks where the configuration comes
+   * from; an external container is next, because nothing on this page will
+   * change it; and a stack container explains where to look instead.
+   */
+  protected readonly notice = computed((): DetailNotice | undefined => {
+    const container = this.store.container();
+
+    if (!container) {
+      return undefined;
+    }
+
+    if (container.management.identityConflict) {
+      return {
+        severity: 'warning',
+        title: 'Container identity conflict',
+        detail:
+          'More than one Docker container claims this Dockplane container. Operations are blocked until somebody resolves which one is the real container; nothing will be removed in the meantime.',
+      };
+    }
+
+    if (container.management.reconciling) {
+      return {
+        severity: 'warning',
+        title: 'Reconciling',
+        detail:
+          'A change to this container has not been confirmed yet. Dockplane is establishing what happened from its host and will not repeat the operation. Further changes are blocked until it has.',
+      };
+    }
+
+    if (container.management.kind === 'stack') {
+      const project = container.composeProjectName;
+
+      return {
+        severity: 'info',
+        title: project ? `Managed by stack ${project}` : 'Managed by a stack',
+        detail:
+          'Its configuration is controlled by the Compose project it belongs to and cannot be changed here.',
+        link: container.composeProjectId
+          ? { label: 'View project', path: ['/compose', container.composeProjectId] }
+          : undefined,
+      };
+    }
+
+    if (container.management.kind === 'external') {
+      return {
+        severity: 'info',
+        title: 'Externally managed',
+        detail:
+          'This container was discovered on the Docker host and was not created by Dockplane. Its configuration is read-only here.',
+      };
+    }
+
+    return undefined;
+  });
 
   protected readonly heading = computed(() => {
     const action = this.pending();
@@ -259,6 +345,10 @@ export class ContainerDetail {
       return `Requires the ${permission} permission.`;
     }
 
+    if (this.undetermined()) {
+      return this.undetermined();
+    }
+
     if (action === 'start' ? this.isRunning() : !this.isRunning()) {
       return action === 'start'
         ? 'The container is already running.'
@@ -271,6 +361,14 @@ export class ContainerDetail {
 
     return this.running() ? 'Another operation is running on this container.' : '';
   }
+}
+
+/** A short statement about the container, with somewhere to go if there is one. */
+interface DetailNotice {
+  readonly severity: 'info' | 'warning';
+  readonly title: string;
+  readonly detail: string;
+  readonly link?: { readonly label: string; readonly path: readonly unknown[] };
 }
 
 function past(action: Lifecycle): string {

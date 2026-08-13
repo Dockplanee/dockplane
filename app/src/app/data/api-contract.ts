@@ -68,6 +68,11 @@ export interface ContainerResponse {
   readonly createdAt: string | null;
   readonly composeProject: { readonly id: string; readonly name: string } | null;
   readonly metadata: { readonly service?: string; readonly status?: string } | null;
+  readonly management: {
+    readonly kind: string;
+    readonly reconciling: boolean;
+    readonly identityConflict: boolean;
+  } | null;
   readonly observedAt: string | null;
   readonly stale: boolean;
 }

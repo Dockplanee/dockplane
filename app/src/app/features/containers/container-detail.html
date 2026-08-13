@@ -12,6 +12,7 @@
         [label]="health(container.health).label"
         plated
       />
+      <dp-management-badge [management]="container.management" />
     </div>
 
     <div class="actions">
@@ -57,6 +58,29 @@
     <span class="dp-mono">{{ container.hostname }}</span>
     <span>{{ container.restarts }} restarts</span>
   </p>
+
+  <!--
+    What this container is, and what that means for the operator reading it.
+
+    Shown before the tabs rather than inside them: an operator looking for an
+    edit control needs to know why there is not one, and finding out further
+    down the page is finding out too late.
+  -->
+  @if (notice(); as note) {
+    <aside class="notice" [class.notice--warning]="note.severity === 'warning'">
+      <dp-icon
+        [name]="note.severity === 'warning' ? 'alertTriangle' : 'alertCircle'"
+        aria-hidden="true"
+      />
+      <div>
+        <p class="notice__title">{{ note.title }}</p>
+        <p class="notice__detail">{{ note.detail }}</p>
+        @if (note.link; as link) {
+          <a class="notice__link" [routerLink]="link.path">{{ link.label }}</a>
+        }
+      </div>
+    </aside>
+  }
 
   @if (store.stale()) {
     <dp-stale-notice
