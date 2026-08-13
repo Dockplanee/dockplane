@@ -302,21 +302,15 @@ jobs:
             api/package-lock.json
             app/package-lock.json
 
+      # The run builds the control server and the application itself, so that a
+      # suite can never test a bundle left over from an earlier change.
       - name: Install the control server
         working-directory: api
         run: npm ci
 
-      - name: Build the control server
-        working-directory: api
-        run: npm run build
-
       - name: Install the application
         working-directory: app
         run: npm ci
-
-      - name: Build the application
-        working-directory: app
-        run: npm run build
 
       - name: Browsers
         working-directory: app
