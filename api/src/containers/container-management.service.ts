@@ -27,7 +27,7 @@ import {
   RemoveContainerRequest,
   ReplaceContainerRequest,
 } from './container-spec';
-import { configurationOf, resolveEnvironment, specFor } from './desired-config';
+import { configurationOf, presentEnvironment, resolveEnvironment, specFor } from './desired-config';
 import { PendingMutationGuard } from './pending-guard';
 import { ReconciliationService } from './reconciliation.service';
 import { RecoveryDecision } from './recovery';
@@ -237,6 +237,64 @@ export class ContainerManagementService {
     } finally {
       release();
     }
+  }
+
+  /**
+   * What a container is configured to be, as an operator may see it.
+   *
+   * The configuration Dockplane holds, not the container Docker is running:
+   * they are the same thing when nothing is in flight and deliberately not
+   * during a change. Secret values are absent — reported as being secret and
+   * nothing else, because a masked string of the right length measures the
+   * secret and a real one hands it out.
+   */
+  async configuration(containerId: string) {
+    const [container] = await this.db.client
+      .select()
+      .from(containers)
+      .where(eq(containers.id, containerId));
+
+    if (!container) {
+      throw AppError.notFound('CONTAINER_NOT_FOUND', 'The container does not exist.');
+    }
+
+    const configs = await this.db.client
+      .select()
+      .from(containerDesiredConfigs)
+      .where(eq(containerDesiredConfigs.containerId, containerId));
+
+    const current = configs.find((row) => row.state === 'current');
+
+    if (!current) {
+      throw AppError.conflict(
+        'CONTAINER_NOT_MANAGED',
+        'Dockplane has never been told what this container should be.',
+      );
+    }
+
+    const environment = await this.db.client
+      .select()
+      .from(containerEnvironmentVariables)
+      .where(eq(containerEnvironmentVariables.desiredConfigId, current.id));
+
+    return {
+      configuration: {
+        name: container.name,
+        image: current.image,
+        hostname: current.hostname,
+        command: current.command,
+        entrypoint: current.entrypoint,
+        ports: current.ports,
+        mounts: current.mounts,
+        networks: current.networks,
+        restartPolicy: current.restartPolicy,
+        labels: current.labels,
+        healthcheck: current.healthcheck,
+        environment: presentEnvironment(environment),
+      },
+      /** True while a change to this container has not been settled. */
+      reconciling: configs.some((row) => row.state === 'pending'),
+    };
   }
 
   /**

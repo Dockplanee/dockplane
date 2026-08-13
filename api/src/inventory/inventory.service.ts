@@ -1,9 +1,44 @@
 import { Injectable } from '@nestjs/common';
-import { SQL, and, count, desc, eq, ilike, or } from 'drizzle-orm';
+import { SQL, and, count, desc, eq, ilike, inArray, or } from 'drizzle-orm';
 
 import { AgentConnectionManager } from '../agents/connection-manager.service';
 import { Database } from '../database/database';
-import { agents, composeProjects, containers, hosts } from '../database/schema';
+import {
+  actions,
+  agents,
+  composeProjects,
+  containerDesiredConfigs,
+  containers,
+  hosts,
+} from '../database/schema';
+
+/** The operations that leave a container unresolved until they are settled. */
+const MANAGEMENT_CAPABILITIES = ['container.create', 'container.replace', 'container.remove'];
+
+/**
+ * Who decides what a container is.
+ *
+ * The distinction the interface needs before it offers anything: a container
+ * Dockplane built can be changed, one it merely found cannot be changed without
+ * inventing a configuration for somebody else's workload, and one belonging to
+ * a Compose project gets its configuration from there.
+ */
+export type ManagementKind = 'managed' | 'external' | 'stack';
+
+/** What may be done to a container, beyond what a permission allows. */
+export interface ManagementState {
+  readonly kind: ManagementKind;
+  /**
+   * An operation that has not been settled yet.
+   *
+   * Either a candidate configuration nobody has confirmed or an action that was
+   * dispatched and never resolved. Both mean the same thing to an operator: the
+   * container cannot be changed until Dockplane has read its host again.
+   */
+  readonly reconciling: boolean;
+  /** Two Docker containers claim this one, so nothing may be done to it. */
+  readonly identityConflict: boolean;
+}
 
 /**
  * How long after its last observation a record is presented as stale.
@@ -109,8 +144,17 @@ export class InventoryService {
       .leftJoin(composeProjects, eq(composeProjects.id, containers.composeProjectId))
       .where(where);
 
+    const management = await this.managementFor(rows);
+
     return {
-      containers: rows.map((row) => this.presentContainer(row.container, row.host, row.project)),
+      containers: rows.map((row) =>
+        this.presentContainer(
+          row.container,
+          row.host,
+          row.project,
+          management.get(row.container.id)!,
+        ),
+      ),
       total,
     };
   }
@@ -123,7 +167,18 @@ export class InventoryService {
       .leftJoin(composeProjects, eq(composeProjects.id, containers.composeProjectId))
       .where(eq(containers.id, id));
 
-    return row ? this.presentContainer(row.container, row.host, row.project) : undefined;
+    if (!row) {
+      return undefined;
+    }
+
+    const management = await this.managementFor([row]);
+
+    return this.presentContainer(
+      row.container,
+      row.host,
+      row.project,
+      management.get(row.container.id)!,
+    );
   }
 
   async listProjects(page: Page, filters: { hostId?: string }) {
@@ -214,6 +269,7 @@ export class InventoryService {
     container: typeof containers.$inferSelect,
     host: typeof hosts.$inferSelect,
     project: typeof composeProjects.$inferSelect | null,
+    management: ManagementState,
   ) {
     return {
       id: container.id,
@@ -229,8 +285,61 @@ export class InventoryService {
       createdAt: container.dockerCreatedAt,
       composeProject: project ? { id: project.id, name: project.projectName } : null,
       metadata: container.metadata,
+      management,
       ...this.freshness(container.observedAt),
     };
+  }
+
+  /**
+   * Works out what may be done to each of a set of containers.
+   *
+   * Read for the whole page at once rather than per row: the interface asks
+   * this of every container it lists, and a query per container would turn one
+   * listing into a hundred.
+   */
+  private async managementFor(
+    rows: readonly { container: typeof containers.$inferSelect }[],
+  ): Promise<Map<string, ManagementState>> {
+    const ids = rows.map((row) => row.container.id);
+    const states = new Map<string, ManagementState>();
+
+    if (ids.length === 0) {
+      return states;
+    }
+
+    const configs = await this.db.client
+      .select({
+        containerId: containerDesiredConfigs.containerId,
+        state: containerDesiredConfigs.state,
+      })
+      .from(containerDesiredConfigs)
+      .where(inArray(containerDesiredConfigs.containerId, ids));
+
+    const unresolved = await this.db.client
+      .select({ targetId: actions.targetId })
+      .from(actions)
+      .where(
+        and(
+          eq(actions.targetType, 'container'),
+          inArray(actions.targetId, ids),
+          inArray(actions.status, ['queued', 'running']),
+          inArray(actions.capability, MANAGEMENT_CAPABILITIES),
+        ),
+      );
+
+    const open = new Set(unresolved.map((row) => row.targetId));
+
+    for (const row of rows) {
+      const own = configs.filter((config) => config.containerId === row.container.id);
+
+      states.set(row.container.id, {
+        kind: row.container.composeProjectId ? 'stack' : own.length > 0 ? 'managed' : 'external',
+        reconciling: own.some((config) => config.state === 'pending') || open.has(row.container.id),
+        identityConflict: Boolean(row.container.identityConflict),
+      });
+    }
+
+    return states;
   }
 
   private presentProject(

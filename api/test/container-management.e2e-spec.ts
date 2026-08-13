@@ -287,6 +287,35 @@ describe('changing what a container is', () => {
   });
 
   describe('creating', () => {
+    it('reports the container as managed, and an external one as external', async () => {
+      const { id } = await created();
+
+      host.seed('somebody-elses');
+      await discovery.sync(agentId);
+
+      const listing = await request(app.getHttpServer())
+        .get('/api/v1/containers')
+        .set('cookie', session.cookie)
+        .set('origin', ORIGIN);
+
+      const rows = listing.body.containers as {
+        id: string;
+        name: string;
+        management: { kind: string; reconciling: boolean; identityConflict: boolean };
+      }[];
+
+      const managed = rows.find((row) => row.id === id)!;
+      const external = rows.find((row) => row.name === 'somebody-elses')!;
+
+      expect(managed.management).toEqual({
+        kind: 'managed',
+        reconciling: false,
+        identityConflict: false,
+      });
+
+      expect(external.management.kind).toBe('external');
+    }, 60_000);
+
     it('creates the container and reports the resource it became', async () => {
       const { id, name } = await created();
 
@@ -1223,6 +1252,41 @@ describe('changing what a container is', () => {
 
       expect(serialised).not.toContain(CANARY);
       expect(serialised).not.toContain(SECOND_CANARY);
+    }, 60_000);
+
+    it('is not in the configuration the interface reads back', async () => {
+      const { id } = await created({
+        environment: [
+          { operation: 'set', key: 'LOG_LEVEL', value: 'debug' },
+          { operation: 'set-secret', key: 'DB_PASSWORD', value: CANARY },
+        ],
+      });
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/containers/${id}/configuration`)
+        .set('cookie', session.cookie)
+        .set('origin', ORIGIN);
+
+      expect(response.status).toBe(200);
+      expect(JSON.stringify(response.body)).not.toContain(CANARY);
+
+      const environment = response.body.configuration.environment as {
+        key: string;
+        secret: boolean;
+        value?: string;
+      }[];
+
+      const secret = environment.find((variable) => variable.key === 'DB_PASSWORD')!;
+
+      // Reported as secret, with no value at all — not even a masked one, whose
+      // length would measure the secret.
+      expect(secret.secret).toBe(true);
+      expect(secret.value).toBeUndefined();
+      expect(Object.keys(secret)).toEqual(['key', 'secret']);
+
+      const plain = environment.find((variable) => variable.key === 'LOG_LEVEL')!;
+
+      expect(plain.value).toBe('debug');
     }, 60_000);
 
     it('is not in what the API returns', async () => {

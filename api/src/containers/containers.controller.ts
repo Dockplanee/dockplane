@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
@@ -50,6 +51,20 @@ function context(request: AuthenticatedRequest) {
 @Controller('api/v1/containers')
 export class ContainerManagementController {
   constructor(private readonly management: ContainerManagementService) {}
+
+  /**
+   * What the container is configured to be.
+   *
+   * Separate from the container itself, which reports what the host is running.
+   * The two are the same until somebody changes one, and an interface that
+   * conflated them would show an edit form filled in from a container that is
+   * about to be replaced.
+   */
+  @Get(':id/configuration')
+  @RequirePermissions('containers.read')
+  async configuration(@Param('id', new ZodValidationPipe(idSchema)) id: string) {
+    return this.management.configuration(id);
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
