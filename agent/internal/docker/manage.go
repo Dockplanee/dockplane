@@ -124,6 +124,7 @@ func (e *Engine) Create(
 	spec *ContainerSpec,
 	stack string,
 	containerID string,
+	desiredConfigID string,
 ) (*CreateResult, error) {
 	if err := spec.Validate(); err != nil {
 		return nil, err
@@ -139,7 +140,7 @@ func (e *Engine) Create(
 		return nil, err
 	}
 
-	id, err := e.create(ctx, client, spec, stack, containerID, spec.Name)
+	id, err := e.create(ctx, client, spec, stack, containerID, desiredConfigID, spec.Name)
 
 	if err != nil {
 		return nil, err
@@ -197,6 +198,7 @@ func (e *Engine) Replace(
 	spec *ContainerSpec,
 	stack string,
 	containerID string,
+	desiredConfigID string,
 ) (*ReplaceResult, error) {
 	if err := spec.Validate(); err != nil {
 		return nil, err
@@ -224,7 +226,7 @@ func (e *Engine) Replace(
 	staging := spec.Name + ".dockplane-new"
 	_ = client.ContainerRemove(ctx, staging, container.RemoveOptions{Force: true})
 
-	replacementID, err := e.create(ctx, client, spec, stack, containerID, staging)
+	replacementID, err := e.create(ctx, client, spec, stack, containerID, desiredConfigID, staging)
 
 	if err != nil {
 		return nil, err
@@ -346,12 +348,13 @@ func (e *Engine) create(
 	spec *ContainerSpec,
 	stack string,
 	containerID string,
+	desiredConfigID string,
 	name string,
 ) (string, error) {
 	config := &container.Config{
 		Image:    spec.Image,
 		Env:      spec.SortedEnv(),
-		Labels:   spec.LabelSet(stack, containerID),
+		Labels:   spec.LabelSet(stack, containerID, desiredConfigID),
 		Hostname: spec.Hostname,
 	}
 

@@ -143,6 +143,7 @@ func TestReservedLabelsCannotBeSetByACaller(t *testing.T) {
 
 	for _, reserved := range []string{
 		"io.dockplane.managed", "io.dockplane.container-id", "io.dockplane.stack",
+		"io.dockplane.desired-config-id",
 	} {
 		t.Run(reserved, func(t *testing.T) {
 			payload := `{"spec":{"name":"a","image":"b","labels":{"` + reserved + `":"mine"}}}`

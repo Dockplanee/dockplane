@@ -307,12 +307,22 @@ const (
 	 * dispatched.
 	 */
 	LabelContainerID = "io.dockplane.container-id"
+	/*
+	 * The configuration this container actually represents.
+	 *
+	 * A replacement may change nothing but a secret, and observed state holds no
+	 * environment values by design. Without this label there would be no way to
+	 * tell a container running the old configuration from one running the new,
+	 * and recovery after a crash would have to guess. It carries an identifier,
+	 * never a value.
+	 */
+	LabelDesiredConfigID = "io.dockplane.desired-config-id"
 )
 
 // LabelSet returns the labels the container is created with, the agent's own
 // last so a caller cannot claim to be something it is not.
-func (s *ContainerSpec) LabelSet(stack string, containerID string) map[string]string {
-	labels := make(map[string]string, len(s.Labels)+3)
+func (s *ContainerSpec) LabelSet(stack, containerID, desiredConfigID string) map[string]string {
+	labels := make(map[string]string, len(s.Labels)+4)
 
 	for key, value := range s.Labels {
 		labels[key] = value
@@ -324,6 +334,12 @@ func (s *ContainerSpec) LabelSet(stack string, containerID string) map[string]st
 		labels[LabelContainerID] = containerID
 	} else {
 		delete(labels, LabelContainerID)
+	}
+
+	if desiredConfigID != "" {
+		labels[LabelDesiredConfigID] = desiredConfigID
+	} else {
+		delete(labels, LabelDesiredConfigID)
 	}
 
 	if stack != "" {
@@ -343,7 +359,12 @@ tries to set one is refused rather than silently overridden — the difference
 between an operator learning their label was rejected and believing it was
 applied.
 */
-var ReservedLabels = []string{LabelManaged, LabelStack, LabelContainerID}
+var ReservedLabels = []string{
+	LabelManaged,
+	LabelStack,
+	LabelContainerID,
+	LabelDesiredConfigID,
+}
 
 // SortedEnv renders the environment the way Docker wants it, in a stable order
 // so that two identical specifications produce identical containers.

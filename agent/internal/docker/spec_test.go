@@ -276,7 +276,7 @@ func TestAgentLabelsCannotBeClaimedByTheCaller(t *testing.T) {
 		"com.example.own": "kept",
 	}
 
-	labels := spec.LabelSet("", "")
+	labels := spec.LabelSet("", "", "")
 
 	if labels[LabelManaged] != "true" {
 		t.Fatalf("a caller overrode the managed label: %q", labels[LabelManaged])
@@ -293,7 +293,7 @@ func TestAgentLabelsCannotBeClaimedByTheCaller(t *testing.T) {
 
 func TestStackLabelIsAppliedWhenDeployedByOne(t *testing.T) {
 	spec := validSpec()
-	labels := spec.LabelSet("billing", "")
+	labels := spec.LabelSet("billing", "", "")
 
 	if labels[LabelStack] != "billing" {
 		t.Fatalf("stack label is %q", labels[LabelStack])

@@ -31,6 +31,9 @@ type createRequest struct {
 	// a label so the container can still be recognised after Docker replaces
 	// its identifier. The browser never chooses it.
 	ContainerID string `json:"containerId,omitempty"`
+	// The configuration this container will represent, so a crash mid-operation
+	// can be resolved by reading a label rather than by guessing.
+	DesiredConfigID string `json:"desiredConfigId,omitempty"`
 	// Set when the container belongs to a stack, so the agent can label it as
 	// such. A caller cannot put this in the spec's own labels: the agent applies
 	// its labels last.
@@ -47,9 +50,12 @@ type replaceRequest struct {
 	// The Docker container being replaced, resolved by the server.
 	DockerID string `json:"dockerId"`
 	// The Dockplane identity that survives the replacement.
-	ContainerID string               `json:"containerId,omitempty"`
-	Spec        docker.ContainerSpec `json:"spec"`
-	Stack       string               `json:"stack,omitempty"`
+	ContainerID string `json:"containerId,omitempty"`
+	// The candidate configuration. The replacement carries it from the moment it
+	// is built, so a rollback leaves the original still carrying the old one.
+	DesiredConfigID string               `json:"desiredConfigId,omitempty"`
+	Spec            docker.ContainerSpec `json:"spec"`
+	Stack           string               `json:"stack,omitempty"`
 }
 
 // removeRequest asks for a container to be taken away. Volumes are not
@@ -73,7 +79,13 @@ func registerManagement(registry *Registry, sources Sources) {
 				return nil, err
 			}
 
-			result, err := sources.Docker.Create(ctx, &request.Spec, request.Stack, request.ContainerID)
+			result, err := sources.Docker.Create(
+				ctx,
+				&request.Spec,
+				request.Stack,
+				request.ContainerID,
+				request.DesiredConfigID,
+			)
 
 			if err != nil {
 				return nil, wrapManagement(err)
@@ -103,6 +115,7 @@ func registerManagement(registry *Registry, sources Sources) {
 				&request.Spec,
 				request.Stack,
 				request.ContainerID,
+				request.DesiredConfigID,
 			)
 
 			if err != nil {
