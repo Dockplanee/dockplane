@@ -53,6 +53,13 @@ and no rolling replacement.
 release.** Its containers can be operated individually while the stack is
 settled, and the stack itself can be deployed, redeployed and rolled back.
 
+**A stack secret cannot be read back.** Dockplane stores it encrypted and shows
+only that it is set. Changing or removing it is possible; revealing it is not.
+
+**A Compose project discovered on a host cannot be taken over.** It is listed
+and inspected, and there is no way to make Dockplane responsible for deploying
+it.
+
 **Two containers claiming one service have to be resolved by hand.** Dockplane
 refuses to apply anything to a stack in that state, because choosing between
 them means choosing which container to destroy.

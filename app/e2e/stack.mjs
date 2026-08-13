@@ -168,6 +168,10 @@ export async function startStack({ log = console.log } = {}) {
 
     // --- the control server ------------------------------------------------
     const pki = agentPki(workspace);
+
+    log('  compose compiler');
+    const compiler = join(workspace, 'dockplane-compose-compiler');
+    run('go', ['build', '-o', compiler, '.'], { cwd: join(repo, 'compose-compiler') });
     const apiPort = await freePort();
     const gatewayPort = await freePort();
     const originPort = await freePort();
@@ -194,6 +198,14 @@ export async function startStack({ log = console.log } = {}) {
       // hand out a version it cannot point at. Pinned the way a rehearsal is.
       AGENT_RELEASE_VERSION: '0.1.0',
       LOG_LEVEL: 'warn',
+      /*
+       * The Compose compiler this instance uses.
+       *
+       * A deployment has it in the image at a fixed path; a run from a working
+       * copy has to build it. Without it a stack cannot be saved at all, since
+       * every revision is compiled before it is stored.
+       */
+      DOCKPLANE_COMPOSE_COMPILER: compiler,
     };
 
     log('  migrations');

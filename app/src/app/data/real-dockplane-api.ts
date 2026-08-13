@@ -74,6 +74,9 @@ import {
 /** A page large enough for a fleet view without asking the server for everything. */
 const PAGE_SIZE = 200;
 
+/** The most the stack endpoints accept. Asking for more is refused outright. */
+const STACK_PAGE_SIZE = 100;
+
 /**
  * The control server, over HTTP.
  *
@@ -224,7 +227,7 @@ export class RealDockplaneApi extends DockplaneApi {
 
   stacks(): Observable<readonly Stack[]> {
     return this.api
-      .get<{ stacks: readonly Stack[] }>('/api/v1/stacks', { limit: PAGE_SIZE })
+      .get<{ stacks: readonly Stack[] }>('/api/v1/stacks', { limit: STACK_PAGE_SIZE })
       .pipe(map((response) => response.stacks));
   }
 
@@ -237,7 +240,7 @@ export class RealDockplaneApi extends DockplaneApi {
   stackRevisions(id: string): Observable<readonly StackRevision[]> {
     return this.api
       .get<{ revisions: readonly StackRevision[] }>(`/api/v1/stacks/${id}/revisions`, {
-        limit: PAGE_SIZE,
+        limit: STACK_PAGE_SIZE,
       })
       .pipe(map((response) => response.revisions));
   }

@@ -126,6 +126,15 @@ export async function startAgent(stack, { hostname = 'e2e-docker-01', session } 
     /** Arranges one refusal, the way an agent refuses. */
     failNext: (capability, code, message) => send('failNext', { capability, code, message }),
 
+    /**
+     * How the host behaves during the next stack apply.
+     *
+     * `wontStart` names services whose container comes up and stops;
+     * `leaveHalfApplied` makes the host unable to put back what it moved, which
+     * is the only way a stack ends up neither one revision nor another.
+     */
+    stackBehaviour: (options = {}) => send('stackBehaviour', options),
+
     reconnect: () => send('reconnect'),
 
     /** What the host holds now. Carries labels, never environment values. */

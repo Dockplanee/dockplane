@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 
 import { ApiError } from '../../core/api-error';
+import { HasUnsavedChanges } from '../../core/guards';
 import { InventoryRefresh } from '../../core/inventory-refresh';
 import { ComposeValidation, DockplaneApi } from '../../data/dockplane-api';
 import { Button } from '../../ui/button';
@@ -108,7 +109,7 @@ import {
   styleUrl: './stack-page.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class StackCreate {
+export class StackCreate implements HasUnsavedChanges {
   private readonly api = inject(DockplaneApi);
   private readonly router = inject(Router);
   private readonly refresh = inject(InventoryRefresh);
@@ -123,6 +124,9 @@ export class StackCreate {
   private readonly validated = signal<string | undefined>(undefined);
 
   private readonly submitted = signal(false);
+
+  /** Set once the stack has been written down, so leaving asks nothing. */
+  private readonly saved = signal(false);
 
   protected readonly hosts = toSignal(this.api.hosts(), { initialValue: [] });
 
@@ -178,6 +182,28 @@ export class StackCreate {
       });
   }
 
+  /**
+   * Whether leaving would lose something.
+   *
+   * Compared against a fresh form rather than tracked with a flag: what matters
+   * is that there is content, not that a keystroke happened. The form is
+   * emptied on a successful save, so navigating afterwards asks nothing.
+   */
+  hasUnsavedChanges(): boolean {
+    if (this.saved()) {
+      return false;
+    }
+
+    const model = this.form();
+    const untouched = emptyStackForm();
+
+    return (
+      model.name.trim() !== '' ||
+      model.compose !== untouched.compose ||
+      model.environment.length > 0
+    );
+  }
+
   protected submit(event: Event): void {
     /*
      * The browser's own submit is prevented rather than relied on. A form that
@@ -216,6 +242,7 @@ export class StackCreate {
            * next view.
            */
           this.form.set(emptyStackForm());
+          this.saved.set(true);
           this.validation.set(undefined);
           this.busy.set(false);
           this.refresh.request();

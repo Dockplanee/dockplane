@@ -1,6 +1,11 @@
 import { Routes } from '@angular/router';
 
-import { requiresAnonymous, requiresPermission, requiresSession } from './core/guards';
+import {
+  confirmDiscard,
+  requiresAnonymous,
+  requiresPermission,
+  requiresSession,
+} from './core/guards';
 
 /**
  * Every route here resolves to a view backed by a real endpoint.
@@ -133,11 +138,13 @@ export const routes: Routes = [
   {
     path: 'stacks/new',
     canActivate: [requiresPermission('stacks.create')],
+    canDeactivate: [confirmDiscard],
     loadComponent: () => import('./features/stacks/stack-create').then((m) => m.StackCreate),
   },
   {
     path: 'stacks/:id/edit',
     canActivate: [requiresPermission('stacks.update')],
+    canDeactivate: [confirmDiscard],
     loadComponent: () => import('./features/stacks/stack-edit').then((m) => m.StackEdit),
   },
   {

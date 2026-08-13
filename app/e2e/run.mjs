@@ -29,6 +29,7 @@ const SUITES = [
   ['search palette', 'search-palette.e2e.mjs'],
   ['add host wizard', 'add-host-wizard.e2e.mjs'],
   ['container management', 'container-management.e2e.mjs'],
+  ['stack management', 'stack-management.e2e.mjs'],
 ];
 
 function runSuite(file, environment) {

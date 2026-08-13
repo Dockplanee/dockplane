@@ -2,6 +2,7 @@ import { inject } from '@angular/core';
 import {
   ActivatedRouteSnapshot,
   CanActivateFn,
+  CanDeactivateFn,
   Router,
   RouterStateSnapshot,
   UrlTree,
@@ -90,3 +91,27 @@ function signInAt(router: Router, url: string): UrlTree {
     queryParams: url && url !== '/' ? { returnUrl: url } : undefined,
   });
 }
+
+/**
+ * A page that has something unsaved to lose.
+ *
+ * Implemented by the stack editors, whose contents are a Compose file and its
+ * environment. Nothing is autosaved to browser storage — a draft written there
+ * would be a credential written to disk — so leaving the page is the moment the
+ * work would go, and it is the moment to ask.
+ */
+export interface HasUnsavedChanges {
+  hasUnsavedChanges(): boolean;
+}
+
+export const confirmDiscard: CanDeactivateFn<HasUnsavedChanges> = (component) => {
+  if (!component.hasUnsavedChanges()) {
+    return true;
+  }
+
+  /*
+   * The browser's own confirmation. It is the one that also covers a reload and
+   * a closed tab, which a dialog of this application's own cannot.
+   */
+  return confirm('Leave this page? Your unsaved changes will be lost.');
+};

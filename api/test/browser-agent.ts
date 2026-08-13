@@ -260,6 +260,7 @@ const SUPPORTED = [
   'container.replace',
   'container.remove',
   'compose.list',
+  'stack.deploy',
 ] as const;
 
 function checkProtocol(): string[] {
@@ -288,6 +289,32 @@ const commands: Record<string, (command: Command) => Promise<unknown> | unknown>
     await connect();
 
     return { connected: true };
+  },
+
+  /**
+   * Arranges how the host behaves during the next stack apply.
+   *
+   * The states a stack UI has to be able to show, and none of them is a state a
+   * browser can produce on its own: a service that will not start, an attempt
+   * whose containers cannot be put back, and a host where two containers claim
+   * one service.
+   */
+  stackBehaviour(command: Command) {
+    host.wontStart.clear();
+    host.wontCreate.clear();
+    host.leaveHalfApplied = false;
+
+    for (const service of (command.wontStart ?? []) as string[]) {
+      host.wontStart.add(service);
+    }
+
+    for (const service of (command.wontCreate ?? []) as string[]) {
+      host.wontCreate.add(service);
+    }
+
+    host.leaveHalfApplied = Boolean(command.leaveHalfApplied);
+
+    return { ok: true };
   },
 
   /** A container that was already on the host when Dockplane arrived. */

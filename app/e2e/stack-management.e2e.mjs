@@ -1,0 +1,582 @@
+/**
+ * Managing stacks, in a browser, against a host.
+ *
+ * The instance is the real one built for this run and the host behind it is the
+ * test agent: a real enrolment, real mTLS, the real gateway, and an in-memory
+ * Docker model at the far end. What these check is the whole path — what the
+ * interface sends, what the server does with it, and what comes back.
+ *
+ * Two rules get the most scrutiny. Saving is not deploying, which is the whole
+ * shape of the product and the thing an interface could most easily blur. And a
+ * stored secret is never shown, so the request a form produces is read here
+ * rather than anything on screen.
+ */
+import { chromium } from 'playwright';
+
+import { startAgent } from './agent.mjs';
+import { signIn as apiSignIn } from './stack.mjs';
+
+const BASE = process.env.DOCKPLANE_URL;
+const EMAIL = process.env.DOCKPLANE_EMAIL;
+const PASSWORD = process.env.DOCKPLANE_PASSWORD;
+
+if (!BASE || !EMAIL || !PASSWORD) {
+  console.error('set DOCKPLANE_URL, DOCKPLANE_EMAIL and DOCKPLANE_PASSWORD');
+  process.exit(2);
+}
+
+const instance = {
+  url: BASE,
+  email: EMAIL,
+  password: PASSWORD,
+  gatewayPort: Number(process.env.DOCKPLANE_GATEWAY_PORT),
+  caCertPath: process.env.DOCKPLANE_AGENT_CA_PEM_PATH,
+};
+
+/** Unmistakable if it ever escaped into a page, a store or a URL. */
+const CANARY = 'canary-stack-secret-1c0ffee';
+const SECOND_CANARY = 'canary-stack-secret-2deadbeef';
+
+/** Named after this run, so nothing here collides with another suite's fixture. */
+const RUN = Math.random().toString(36).slice(2, 8);
+
+const SIZES = [
+  { w: 1440, h: 1000 },
+  { w: 1024, h: 768 },
+  { w: 390, h: 844 },
+];
+
+let failures = 0;
+
+function check(label, ok, detail = '') {
+  if (!ok) failures += 1;
+  console.log(`  ${ok ? '✓' : '✗'} ${label}${detail ? `  ${detail}` : ''}`);
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function until(what, condition, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const value = await condition();
+
+    if (value) {
+      return value;
+    }
+
+    await sleep(500);
+  }
+
+  throw new Error(`timed out waiting for ${what}`);
+}
+
+/**
+ * Signs the browser in with the session this suite already has.
+ *
+ * Signing in through the form again would spend another attempt against the
+ * credentials rate limit every suite in the run shares.
+ */
+async function useSession(context, session) {
+  const url = new URL(BASE);
+
+  await context.addCookies(
+    session.cookie.split('; ').map((entry) => {
+      const [name, ...rest] = entry.split('=');
+
+      return {
+        name,
+        value: rest.join('='),
+        domain: url.hostname,
+        path: '/',
+        httpOnly: false,
+        secure: false,
+      };
+    }),
+  );
+}
+
+/** The bodies the browser sent to the stack endpoints. */
+function captureRequests(page) {
+  const sent = [];
+
+  page.on('request', (request) => {
+    if (!request.url().includes('/api/v1/stacks')) {
+      return;
+    }
+
+    if (request.method() !== 'POST') {
+      return;
+    }
+
+    let body;
+
+    try {
+      body = JSON.parse(request.postData() ?? '{}');
+    } catch {
+      body = {};
+    }
+
+    sent.push({ url: request.url(), body });
+  });
+
+  return sent;
+}
+
+function watchConsole(page) {
+  const problems = [];
+
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      problems.push(message.text());
+    }
+  });
+
+  page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
+
+  return problems;
+}
+
+/** Everywhere a secret could linger once the operator has moved on. */
+async function canaryTraces(page, canary) {
+  return page.evaluate((value) => {
+    const inputs = [...document.querySelectorAll('input, textarea')].map((input) => input.value);
+
+    return {
+      body: document.body.innerText.includes(value),
+      inputs: inputs.some((entry) => entry.includes(value)),
+      url: location.href.includes(value),
+      local: JSON.stringify(Object.entries(localStorage)).includes(value),
+      session: JSON.stringify(Object.entries(sessionStorage)).includes(value),
+    };
+  }, canary);
+}
+
+const COMPOSE = (image) =>
+  [
+    'services:',
+    '  web:',
+    `    image: ${image}`,
+    '    environment:',
+    '      DB_PASSWORD: ${DB_PASSWORD}',
+    '      APP_ENV: ${APP_ENV}',
+    'volumes:',
+    '  data: {}',
+    '',
+  ].join('\n');
+
+/** Fills the create form. The compose field is set as a whole, as an editor is. */
+async function fillCreateForm(page, { name, compose, secret = CANARY }) {
+  /*
+   * The hosts arrive from the server, so the form opens with nothing to choose
+   * for a moment. Selecting during that moment picks the placeholder and the
+   * form is submitted without a host.
+   */
+  const hostValue = await until('a host to choose', async () =>
+    page.evaluate(
+      () =>
+        [...document.querySelectorAll('#stack-host option')].find(
+          (entry) => entry.value && !entry.disabled,
+        )?.value ?? '',
+    ),
+  );
+
+  await page.selectOption('#stack-host', hostValue);
+  await page.fill('#stack-name', name);
+  await page.fill('#stack-compose', compose);
+
+  await page.click('button:has-text("Add variable")');
+  const plain = page.locator('fieldset:has(legend:text("Variable 1"))');
+  await plain.locator('input[type="text"]').nth(0).fill('APP_ENV');
+  await plain.locator('input[type="text"]').nth(1).fill('production');
+
+  await page.click('button:has-text("Add secret")');
+  const secretRow = page.locator('fieldset:has(legend:text("Variable 2"))');
+  await secretRow.locator('input[type="text"]').nth(0).fill('DB_PASSWORD');
+  await secretRow.locator('input[type="password"]').fill(secret);
+}
+
+async function run() {
+  const session = await apiSignIn(instance);
+  const agent = await startAgent(instance, { hostname: `e2e-stacks-${RUN}`, session });
+
+  const browser = await chromium.launch();
+  const context = await browser.newContext({
+    viewport: { width: SIZES[0].w, height: SIZES[0].h },
+  });
+  await useSession(context, session);
+
+  const page = await context.newPage();
+
+  /*
+   * Leaving a half-written stack asks before discarding it, which is a native
+   * dialog. Playwright dismisses those by default, which would block every
+   * navigation this suite makes.
+   */
+  page.on('dialog', (dialog) => dialog.accept());
+
+  page.on('response', async (response) => {
+    if (response.status() >= 400 && response.url().includes('/api/')) {
+      console.log(
+        '  refused:',
+        response.status(),
+        response.url(),
+        (await response.text()).slice(0, 300),
+      );
+    }
+  });
+  const sent = captureRequests(page);
+  const consoleProblems = watchConsole(page);
+
+  const stackName = `shop${RUN}`;
+  let stackUrl = '';
+
+  try {
+    console.log('\n== creating a stack ==');
+
+    await page.goto(`${BASE}/stacks`, { waitUntil: 'networkidle' });
+    await page.click('a:has-text("Create stack")');
+    await page.waitForURL('**/stacks/new');
+
+    await fillCreateForm(page, { name: stackName, compose: COMPOSE('nginx:1.27') });
+
+    // The real compiler answers this, not the browser.
+    await page.click('button:has-text("Validate")');
+    await until('the compiler to answer', async () =>
+      (await page.locator('dp-compose-validation').innerText()).includes('valid'),
+    );
+
+    check(
+      'the compiler says the file is valid',
+      (await page.locator('dp-compose-validation').innerText()).includes('Configuration is valid'),
+    );
+
+    await page.click('button:has-text("Create stack")');
+
+    await page.waitForURL(/\/stacks\/[0-9a-f-]{36}/);
+
+    // Without the section, so the suite can navigate to each of them.
+    stackUrl = page.url().replace(/\/overview$/, '');
+
+    const header = await page.locator('dp-stack-detail > .head').innerText();
+
+    check('the stack was created', header.includes(stackName));
+    check('and reports that nothing is deployed', header.includes('Not deployed'));
+
+    const meta = await page.locator('dp-stack-detail > .meta').innerText();
+
+    check('the first revision is the saved one', meta.includes('Saved #1'), meta);
+    check('and nothing is running', meta.includes('Running Not deployed'), meta);
+
+    const created = sent.find((request) => request.url.endsWith('/api/v1/stacks'));
+
+    check(
+      'the secret was sent as a secret',
+      created?.body.environment?.some(
+        (entry) => entry.operation === 'set-secret' && entry.key === 'DB_PASSWORD',
+      ),
+    );
+
+    const traces = await canaryTraces(page, CANARY);
+
+    check('the secret is not on the page afterwards', !traces.body && !traces.inputs);
+    check('nor in the URL', !traces.url);
+    check('nor in browser storage', !traces.local && !traces.session);
+
+    console.log('\n== a Compose file Dockplane cannot deploy ==');
+
+    await page.goto(`${BASE}/stacks/new`, { waitUntil: 'networkidle' });
+    await fillCreateForm(page, {
+      name: `broken${RUN}`,
+      compose: 'services:\n  web:\n    build: .\n',
+      secret: SECOND_CANARY,
+    });
+
+    await page.click('button:has-text("Validate")');
+    await until('the refusal', async () =>
+      (await page.locator('dp-compose-validation').innerText()).includes('not one Dockplane'),
+    );
+
+    const refusal = await page.locator('dp-compose-validation').innerText();
+
+    check('the path of the problem is shown', refusal.includes('services.web.build'), refusal);
+    check(
+      'and what is wrong with it in words',
+      refusal.toLowerCase().includes('build'),
+      refusal.slice(0, 120),
+    );
+
+    console.log('\n== saving a change ==');
+
+    await page.goto(`${stackUrl}`, { waitUntil: 'networkidle' });
+    await page.click('a:has-text("Edit configuration")');
+    await page.waitForURL('**/edit');
+    await until('the configuration to load', async () =>
+      (await page.locator('#stack-compose').inputValue()).includes('nginx'),
+    );
+
+    const storedSecret = page.locator('fieldset.row', { hasText: 'DB_PASSWORD' });
+
+    check(
+      'a stored secret is shown as stored and not as a value',
+      (await storedSecret.innerText()).includes('Secret stored'),
+      (await storedSecret.innerText()).slice(0, 80),
+    );
+
+    check(
+      'and offers no way to reveal it',
+      (await storedSecret.locator('button:has-text("Show")').count()) === 0,
+    );
+
+    await page.fill('#stack-compose', COMPOSE('nginx:1.28'));
+    await page.click('button:has-text("Save revision")');
+    // The stack page redirects to its overview section, so the saved revision
+    // lands there rather than on the bare identifier.
+    await page.waitForURL(/\/stacks\/[0-9a-f-]{36}\/overview$/);
+
+    const saved = sent.filter((request) => request.url.endsWith('/revisions')).pop();
+
+    check(
+      'the untouched secret was sent as unchanged',
+      saved?.body.environment?.some(
+        (entry) => entry.operation === 'unchanged' && entry.key === 'DB_PASSWORD',
+      ),
+      JSON.stringify(saved?.body.environment ?? []),
+    );
+
+    check(
+      'and carried no value with it',
+      !saved?.body.environment?.some((entry) => entry.key === 'DB_PASSWORD' && 'value' in entry),
+    );
+
+    const afterSave = await page.locator('dp-stack-detail > .meta').innerText();
+
+    check('the newest saved revision is the second', afterSave.includes('Saved #2'), afterSave);
+    check('and nothing was deployed by saving', afterSave.includes('Running Not deployed'));
+
+    console.log('\n== deploying ==');
+
+    await page.click('button:has-text("Deploy revision #2")');
+    await until('the review', async () => await page.locator('dialog[open]').count());
+
+    const review = await page.locator('dialog[open]').innerText();
+
+    check('the review says what it will do', review.includes('recreated'), review.slice(0, 160));
+    check('and that volumes are kept', review.includes('Named volumes are kept'));
+
+    await page.locator('dialog[open] button:has-text("Deploy revision #2")').click();
+
+    await until('the stack to report the revision running', async () =>
+      (await page.locator('dp-stack-detail > .meta').innerText()).includes('Running #2'),
+    );
+
+    const deployed = await page.locator('dp-stack-detail > .meta').innerText();
+
+    check('the deployed revision is the one that was applied', deployed.includes('Running #2'));
+    check('and the newest saved revision did not change', deployed.includes('Saved #2'));
+
+    await page.click('a:has-text("Services")');
+    await until('the services', async () => await page.locator('table tbody tr').count());
+
+    check(
+      'the services of the stack are listed',
+      (await page.locator('table').innerText()).includes('web'),
+    );
+
+    console.log('\n== rolling back ==');
+
+    await page.goto(`${stackUrl}/revisions`, { waitUntil: 'networkidle' });
+
+    check(
+      'an older revision offers a rollback',
+      (await page.locator('button:has-text("Roll back to revision #1")').count()) === 1,
+    );
+
+    await page.click('button:has-text("Roll back to revision #1")');
+    await until('the rollback review', async () => await page.locator('dialog[open]').count());
+
+    const rollbackReview = await page.locator('dialog[open]').innerText();
+
+    check(
+      'the rollback says data is not rolled back',
+      rollbackReview.includes('does not roll back data'),
+      rollbackReview.slice(0, 200),
+    );
+
+    await page.locator('dialog[open] button:has-text("Roll back")').click();
+
+    await until('the older revision to be running', async () =>
+      (await page.locator('dp-stack-detail > .meta').innerText()).includes('Running #1'),
+    );
+
+    const rolledBack = await page.locator('dp-stack-detail > .meta').innerText();
+
+    check('the running revision went back', rolledBack.includes('Running #1'));
+    check('and the newest saved revision stayed where it was', rolledBack.includes('Saved #2'));
+
+    console.log('\n== an answer that never came back ==');
+
+    const before = sent.filter((request) => request.url.endsWith('/deploy')).length;
+
+    await agent.dropNext('stack.deploy', { apply: true });
+    await page.goto(`${stackUrl}/revisions`, { waitUntil: 'networkidle' });
+    await page.click('button:has-text("Deploy revision #2")');
+    await until('the review', async () => await page.locator('dialog[open]').count());
+    await page.locator('dialog[open] button:has-text("Deploy revision #2")').click();
+
+    await until('the interface to report an unconfirmed result', async () =>
+      (await page.locator('body').innerText()).includes('could not confirm'),
+    );
+
+    check(
+      'the interface does not call an unknown outcome a failure',
+      (await page.locator('body').innerText()).includes('could not confirm'),
+    );
+
+    check(
+      'and offers nothing that would send it again',
+      (await page.locator('button:has-text("Retry")').count()) === 0,
+    );
+
+    check(
+      'the operation reached the host exactly once',
+      sent.filter((request) => request.url.endsWith('/deploy')).length === before + 1,
+      String(sent.filter((request) => request.url.endsWith('/deploy')).length - before),
+    );
+
+    await agent.reconnect();
+
+    // Settled from the host: it applied the revision before the answer was lost.
+    await until('the stack to be settled from the host', async () => {
+      await page.goto(stackUrl, { waitUntil: 'networkidle' });
+
+      return (await page.locator('dp-stack-detail > .meta').innerText()).includes('Running #2');
+    });
+
+    check(
+      'the host settles what the reply did not say',
+      (await page.locator('dp-stack-detail > .meta').innerText()).includes('Running #2'),
+    );
+
+    console.log('\n== a stack that needs attention ==');
+
+    await agent.stackBehaviour({ wontStart: ['web'], leaveHalfApplied: true });
+    await page.goto(`${stackUrl}/revisions`, { waitUntil: 'networkidle' });
+    await page.click('button:has-text("Roll back to revision #1")');
+    await until('the review', async () => await page.locator('dialog[open]').count());
+    await page.locator('dialog[open] button:has-text("Roll back")').click();
+
+    await until('the stack to need attention', async () => {
+      await page.goto(stackUrl, { waitUntil: 'networkidle' });
+
+      return (await page.locator('body').innerText()).includes('needs attention');
+    });
+
+    const attention = await page.locator('body').innerText();
+
+    check('the stack says it needs attention', attention.includes('needs attention'));
+    check(
+      'and explains that nothing was removed',
+      attention.includes('Nothing has been removed'),
+      attention.slice(0, 200),
+    );
+
+    console.log('\n== repairing it ==');
+
+    await agent.stackBehaviour({});
+    await page.goto(`${stackUrl}/revisions`, { waitUntil: 'networkidle' });
+
+    check(
+      'every revision offers a repair',
+      (await page.locator('button:has-text("Repair using revision")').count()) > 0,
+    );
+
+    const repairs = sent.filter((request) => request.url.endsWith('/deploy')).length;
+
+    await page.click('button:has-text("Repair using revision #1")');
+    await until('the repair review', async () => await page.locator('dialog[open]').count());
+    await page.locator('dialog[open] button:has-text("Repair")').click();
+
+    /*
+     * Waited for the state the repair was aiming at rather than for the warning
+     * to go: the two arrive in the same refresh, and reading between them is
+     * how a test reports a failure that is really its own impatience.
+     */
+    await until('the stack to be running the chosen revision', async () => {
+      await page.goto(stackUrl, { waitUntil: 'networkidle' });
+
+      return (await page.locator('dp-stack-detail > .meta').innerText()).includes('Running #1');
+    });
+
+    const repaired = await page.locator('body').innerText();
+
+    check('needing attention is cleared', !repaired.includes('needs attention'));
+    check(
+      'and the chosen revision is the running one',
+      (await page.locator('dp-stack-detail > .meta').innerText()).includes('Running #1'),
+    );
+    check(
+      'the repair was one new attempt',
+      sent.filter((request) => request.url.endsWith('/deploy')).length === repairs + 1,
+    );
+
+    console.log('\n== Compose projects found on a host ==');
+
+    await page.goto(`${BASE}/compose`, { waitUntil: 'networkidle' });
+
+    check(
+      'discovered projects are a separate area',
+      !(await page.locator('body').innerText()).includes('Create stack'),
+    );
+
+    console.log('\n== the rest ==');
+
+    /*
+     * The browser reports every non-2xx response as a console error, and this
+     * suite asks for one deliberately. What must stay empty is everything else:
+     * an exception, a rejected promise, an error the application itself logged.
+     */
+    const unexpected = consoleProblems.filter(
+      (entry) => !entry.startsWith('Failed to load resource'),
+    );
+
+    check('no unexpected console errors', unexpected.length === 0, unexpected.join('; '));
+
+    for (const size of SIZES) {
+      await page.setViewportSize({ width: size.w, height: size.h });
+      await page.goto(stackUrl, { waitUntil: 'networkidle' });
+
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      );
+
+      check(`the stack page fits at ${size.w}×${size.h}`, !overflow);
+    }
+
+    await page.setViewportSize({ width: SIZES[2].w, height: SIZES[2].h });
+    await page.goto(`${stackUrl}/revisions`, { waitUntil: 'networkidle' });
+
+    check(
+      'the revision history fits on a phone',
+      !(await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      )),
+    );
+  } finally {
+    await browser.close();
+    await agent.stop();
+  }
+
+  console.log(
+    failures === 0
+      ? '\nstack management: all checks passed'
+      : `\nstack management: ${failures} failed`,
+  );
+
+  process.exit(failures === 0 ? 0 : 1);
+}
+
+run().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

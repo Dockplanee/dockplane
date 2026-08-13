@@ -4,6 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { map, switchMap, take, throwError } from 'rxjs';
 
 import { ApiError } from '../../core/api-error';
+import { HasUnsavedChanges } from '../../core/guards';
 import { InventoryRefresh } from '../../core/inventory-refresh';
 import { ComposeValidation, DockplaneApi } from '../../data/dockplane-api';
 import { Button } from '../../ui/button';
@@ -113,7 +114,7 @@ import {
   styleUrl: './stack-page.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class StackEdit {
+export class StackEdit implements HasUnsavedChanges {
   private readonly api = inject(DockplaneApi);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -130,6 +131,12 @@ export class StackEdit {
 
   private readonly validated = signal<string | undefined>(undefined);
   private readonly submitted = signal(false);
+
+  /** The configuration as it was loaded, for the unsaved-changes comparison. */
+  private readonly original = signal<StackFormModel | undefined>(undefined);
+
+  /** Set once the revision has been written down, so leaving asks nothing. */
+  private readonly saved = signal(false);
 
   /** The revision this edit started from, sent with the save. */
   private readonly baseRevisionId = signal('');
@@ -186,15 +193,15 @@ export class StackEdit {
       )
       .subscribe({
         next: ({ stack, configuration }) => {
-          this.form.set(
-            formFromConfiguration({
-              name: stack.name,
-              hostId: stack.hostId,
-              compose: configuration.compose,
-              environment: configuration.environment,
-            }),
-          );
+          const loaded = formFromConfiguration({
+            name: stack.name,
+            hostId: stack.hostId,
+            compose: configuration.compose,
+            environment: configuration.environment,
+          });
 
+          this.form.set(loaded);
+          this.original.set(structuredClone(loaded));
           this.loaded.set(true);
         },
         error: (error: unknown) =>
@@ -204,6 +211,26 @@ export class StackEdit {
               : ApiError.from(error).message,
           ),
       });
+  }
+
+  /**
+   * Whether leaving would lose an edit.
+   *
+   * The configuration as it was loaded is kept for exactly this comparison. A
+   * successful save empties the form, so navigating afterwards asks nothing.
+   */
+  hasUnsavedChanges(): boolean {
+    if (this.saved()) {
+      return false;
+    }
+
+    const original = this.original();
+
+    if (!original || !this.loaded()) {
+      return false;
+    }
+
+    return JSON.stringify(this.form()) !== JSON.stringify(original);
   }
 
   protected validate(): void {
@@ -267,6 +294,8 @@ export class StackEdit {
            * goes before anything navigates.
            */
           this.form.set(emptyStackForm());
+          this.saved.set(true);
+          this.original.set(undefined);
           this.validation.set(undefined);
           this.busy.set(false);
           this.refresh.request();

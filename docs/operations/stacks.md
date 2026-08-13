@@ -4,8 +4,40 @@ A stack is a Compose file, the environment it needs, and the host it belongs to.
 Dockplane keeps the whole history of what a stack has been configured to be.
 
 A stack can be saved, deployed, moved to another revision and put back to an
-earlier one. Starting, stopping and removing a stack as a whole are not part of
-this release.
+earlier one, from the interface or the API. Starting, stopping and removing a
+stack as a whole are not part of this release.
+
+## Creating a stack
+
+**Stacks → Create stack.** A stack needs a name, a host, and a Compose file.
+
+The name is also the Compose project name on the host, so Compose's own rule
+applies: lower-case letters, digits, hyphens and underscores.
+
+The host can be one whose agent is offline. Writing a stack down is not a change
+to a machine, so it is saved either way — it simply cannot be deployed until the
+agent is connected.
+
+Values the Compose file refers to are defined beside it, as environment
+variables. Mark one secret and Dockplane stores it encrypted and never shows it
+again.
+
+**Validate** sends the file to Dockplane's Compose compiler — the same one that
+has to accept it before it can be saved — and reports what it would create, or
+what is wrong with it and where. Editing the file afterwards makes that answer
+stale, and it says so.
+
+Creating a stack does not deploy it. The stack is saved as revision 1 and
+reports that it is not deployed.
+
+## Saving and deploying are separate
+
+Saving a change writes a new revision. It does not touch the host.
+
+A stack therefore reports two things that are not the same: the newest revision
+anybody saved, and the revision Dockplane has confirmed is running. When they
+differ, the stack says `Changes not deployed` — which is an ordinary state, not
+a fault — and offers to deploy the newer one.
 
 ## Revisions
 
@@ -72,6 +104,18 @@ replacing them one at a time collides with the containers being replaced.
 **A revision transition interrupts the stack briefly.** Dockplane does not offer
 zero-downtime deployment, and does not pretend to: the stack is stopped, rebuilt
 and started again.
+
+### From the interface
+
+The stack's page offers whichever of these applies. The revision history offers
+each revision by number: a newer one is deployed, an older one is rolled back
+to, and while a stack needs attention any revision can be used to repair it.
+
+Before anything is applied, Dockplane shows what changes between the running
+revision and the target — the Compose file line by line, and the environment
+variable by variable. Two secrets of the same name are reported as being secret
+in both revisions rather than compared: the interface is never shown a stored
+secret and does not pretend to know whether one changed.
 
 ### Service identity
 
@@ -150,10 +194,13 @@ destroy, so it refuses and leaves it to a person.
 ### When the answer does not come back
 
 If the request reaches the host and the answer does not return — a lost
-connection, a restarted control server — Dockplane says so rather than guessing.
-The attempt stays open, nothing is sent again, and the stack accepts no further
-deployment. It is settled from the host itself the next time that host is read
-completely, and the stack becomes deployed, failed or in need of attention
+connection, a restarted control server — Dockplane says so rather than guessing,
+and the stack reports that it is reconciling. That is not a failure: the host
+may have applied the revision.
+
+The attempt stays open, nothing is sent again and no further deployment is
+accepted. It is settled from the host itself the next time that host is read
+completely, and the stack becomes deployed, unchanged or in need of attention
 according to what is actually there.
 
 ### Containers of a stack

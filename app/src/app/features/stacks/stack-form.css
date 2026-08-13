@@ -127,6 +127,7 @@
 }
 
 .row {
+  border: 1px solid var(--dp-border);
   display: flex;
   flex-wrap: wrap;
   gap: 0.625rem;

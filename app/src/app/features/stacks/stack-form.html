@@ -97,7 +97,9 @@
   </p>
 
   @for (variable of model().environment; track $index) {
-    <div class="row">
+    <fieldset class="row">
+      <legend class="dp-sr-only">Variable {{ $index + 1 }}</legend>
+
       <label class="row__field">
         <span class="field-label">Name</span>
         <input
@@ -232,7 +234,7 @@
       @if (variable.stored && variable.action === 'remove') {
         <p class="row__note">This variable will not be part of the next revision.</p>
       }
-    </div>
+    </fieldset>
   } @empty {
     <p class="section__empty">No environment variables.</p>
   }
