@@ -1,9 +1,23 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { z } from 'zod';
 
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequirePermissions } from '../rbac/permissions.decorator';
+import { AuthenticatedRequest, AuthenticatedUser } from '../auth/authenticated-request';
+import { CurrentUser } from '../auth/current-user.decorator';
 import { ComposeCompilerService } from './compose-compiler.service';
+import { StackService } from './stack.service';
 
 /**
  * What a caller sends to have a Compose file checked.
@@ -13,6 +27,79 @@ import { ComposeCompilerService } from './compose-compiler.service';
  * here — the compiler needs every value to resolve the file — but the
  * distinction is what stops a later editor from displaying one of them.
  */
+const idSchema = z.uuid();
+
+const pageSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+function context(request: AuthenticatedRequest) {
+  return { sourceIp: request.ip, userAgent: request.header('user-agent') };
+}
+
+/** A stack name is also its Compose project name, so Compose's rule applies. */
+const nameSchema = z
+  .string()
+  .min(1)
+  .max(63)
+  .regex(/^[a-z0-9][a-z0-9_-]*$/, 'Use lower-case letters, digits, hyphens and underscores.');
+
+/**
+ * What is being done to one environment variable.
+ *
+ * A browser that was never shown a secret sends `unchanged` and no value, which
+ * is why this is an operation rather than a map of values.
+ */
+const environmentSchema = z
+  .array(
+    z.discriminatedUnion('operation', [
+      z.strictObject({
+        operation: z.literal('set'),
+        key: z.string().min(1).max(256),
+        value: z.string().max(32 * 1024),
+      }),
+      z.strictObject({
+        operation: z.literal('set-secret'),
+        key: z.string().min(1).max(256),
+        value: z
+          .string()
+          .min(1)
+          .max(32 * 1024),
+      }),
+      z.strictObject({ operation: z.literal('unchanged'), key: z.string().min(1).max(256) }),
+      z.strictObject({ operation: z.literal('remove'), key: z.string().min(1).max(256) }),
+    ]),
+  )
+  .max(512)
+  .optional()
+  .default([]);
+
+const composeSchema = z
+  .string()
+  .min(1)
+  .max(64 * 1024);
+
+const createStackSchema = z.strictObject({
+  name: nameSchema,
+  hostId: z.uuid(),
+  compose: composeSchema,
+  environment: environmentSchema,
+});
+
+/**
+ * Saving a change.
+ *
+ * The revision it was based on is required. Without it, two people editing one
+ * stack would each save what they had and the second would quietly erase the
+ * first.
+ */
+const revisionSchema = z.strictObject({
+  baseRevisionId: z.uuid(),
+  compose: composeSchema,
+  environment: environmentSchema,
+});
+
 const validateSchema = z.strictObject({
   projectName: z.string().min(1).max(63),
   /*
@@ -53,10 +140,82 @@ type ValidateRequest = z.infer<typeof validateSchema>;
  */
 @Controller('api/v1/stacks')
 export class StacksController {
-  constructor(private readonly compiler: ComposeCompilerService) {}
+  constructor(
+    private readonly compiler: ComposeCompilerService,
+    private readonly stacks: StackService,
+  ) {}
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('stacks.create')
+  async create(
+    @Body(new ZodValidationPipe(createStackSchema)) body: z.infer<typeof createStackSchema>,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.stacks.create(body, user, context(request));
+  }
+
+  @Get()
+  @RequirePermissions('stacks.read')
+  async list(@Query(new ZodValidationPipe(pageSchema)) page: z.infer<typeof pageSchema>) {
+    const { stacks, total } = await this.stacks.list(page);
+
+    return { stacks, page: { ...page, total } };
+  }
+
+  @Get(':id')
+  @RequirePermissions('stacks.read')
+  async detail(@Param('id', new ZodValidationPipe(idSchema)) id: string) {
+    return { stack: await this.stacks.detail(id) };
+  }
+
+  @Get(':id/revisions')
+  @RequirePermissions('stacks.read')
+  async revisions(
+    @Param('id', new ZodValidationPipe(idSchema)) id: string,
+    @Query(new ZodValidationPipe(pageSchema)) page: z.infer<typeof pageSchema>,
+  ) {
+    const { revisions, total } = await this.stacks.revisions(id, page);
+
+    return { revisions, page: { ...page, total } };
+  }
+
+  /**
+   * The configuration itself.
+   *
+   * Behind `stacks.update` rather than `stacks.read`, because this is the one
+   * response that carries the Compose source — and a source can contain a
+   * credential its author wrote into it literally. Somebody who may look at
+   * stacks is not thereby somebody who may read that.
+   *
+   * Never cached. It is the most sensitive thing this API returns.
+   */
+  @Get(':id/revisions/:revisionId/configuration')
+  @Header('Cache-Control', 'no-store')
+  @RequirePermissions('stacks.update')
+  async configuration(
+    @Param('id', new ZodValidationPipe(idSchema)) id: string,
+    @Param('revisionId', new ZodValidationPipe(idSchema)) revisionId: string,
+  ) {
+    return this.stacks.configuration(id, revisionId);
+  }
+
+  @Post(':id/revisions')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('stacks.update')
+  async createRevision(
+    @Param('id', new ZodValidationPipe(idSchema)) id: string,
+    @Body(new ZodValidationPipe(revisionSchema)) body: z.infer<typeof revisionSchema>,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.stacks.createRevision(id, body, user, context(request));
+  }
 
   @Post('validate')
   @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
   /*
    * Whoever may write a stack may check one.
    *

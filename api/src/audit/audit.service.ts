@@ -68,6 +68,13 @@ export type AuditAction =
   | 'container.create.interrupted'
   | 'container.replace.interrupted'
   | 'container.remove.interrupted'
+  /*
+   * A stack was saved, not deployed. The entry names the stack and the revision
+   * number and nothing about what is in either — a Compose file and its
+   * environment are exactly the things an audit trail must not carry.
+   */
+  | 'stack.created'
+  | 'stack.revision.created'
   | 'container.recovery.promoted'
   | 'container.recovery.discarded'
   | 'container.recovery.removed'

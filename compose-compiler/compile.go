@@ -267,7 +267,20 @@ func build(projectName string, project *types.Project) (*StackDeploymentPlan, []
 		return nil, problems
 	}
 
-	plan := &StackDeploymentPlan{PlanVersion: PlanVersion, ProjectName: projectName}
+	/*
+	 * Empty lists are lists, not nothing.
+	 *
+	 * A nil slice marshals to `null`, so a project with no volumes would answer
+	 * with a different shape from one with volumes — and whatever reads the plan
+	 * would have to accept both spellings of "none".
+	 */
+	plan := &StackDeploymentPlan{
+		PlanVersion: PlanVersion,
+		ProjectName: projectName,
+		Services:    []ServicePlan{},
+		Networks:    []NetworkPlan{},
+		Volumes:     []VolumePlan{},
+	}
 
 	for _, name := range sortedKeys(project.Services) {
 		service, serviceProblems := servicePlan(name, project.Services[name])

@@ -21,6 +21,7 @@ import { RecoveryFinalizer } from './containers/recovery-finalizer';
 import { RecoveryOrchestrator } from './containers/recovery.orchestrator';
 import { ComposeCompilerService } from './stacks/compose-compiler.service';
 import { StacksController } from './stacks/stacks.controller';
+import { StackService } from './stacks/stack.service';
 import { DetailService } from './discovery/detail.service';
 import { DiscoveryService } from './discovery/discovery.service';
 import { EventsService } from './events/events.service';
@@ -135,6 +136,7 @@ import { SecretBox } from './common/crypto';
     RecoveryOrchestrator,
     ContainerManagementService,
     ComposeCompilerService,
+    StackService,
     LifecycleService,
     LogStreamService,
     DiscoveryScheduler,

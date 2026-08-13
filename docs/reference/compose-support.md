@@ -10,8 +10,9 @@ Compose is read in one place — the control server — and never on a managed h
 The agent receives a resolved plan and has no Compose parser, no YAML of its
 own, and no Docker Compose CLI. There is no shell anywhere in the path.
 
-**Stacks cannot be deployed yet.** This build can read and check a Compose file
-and say what it would create. Creating and running stacks comes later.
+**Stacks cannot be deployed yet.** This build can save a stack and its
+configuration history, and say what a Compose file would create. Running one
+comes later — see [Stacks](../operations/stacks.md).
 
 ## Supported
 

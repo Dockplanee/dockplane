@@ -104,6 +104,15 @@ export const ERROR_CODES = [
   'COMPOSE_COMPILER_FAILED',
   'COMPOSE_COMPILER_UNAVAILABLE',
   'COMPOSE_INVALID',
+  'STACK_NOT_FOUND',
+  'STACK_NAME_CONFLICT',
+  /*
+   * Somebody else saved a revision while this one was being edited. Refused
+   * rather than written over: an operator can reload and reapply, which is the
+   * only way they find out before rather than after.
+   */
+  'STACK_REVISION_CONFLICT',
+  'STACK_CONFIGURATION_INVALID',
   'ACTION_CONFLICT',
   'ACTION_TIMEOUT',
   'AGENT_OFFLINE',
@@ -131,8 +140,17 @@ export class AppError extends HttpException {
     readonly code: ErrorCode,
     message: string,
     status: HttpStatus = HttpStatus.BAD_REQUEST,
+    /*
+     * Where a failure is a list of things to fix rather than one thing that
+     * went wrong. A Compose file can be wrong in several places, and an
+     * operator who is told about one of them at a time fixes it several times.
+     *
+     * Never free-form detail: these come from the compiler, which is written
+     * not to quote a value it was given.
+     */
+    readonly details?: readonly { code: string; message: string; path?: string }[],
   ) {
-    super({ code, message }, status);
+    super({ code, message, ...(details ? { details } : {}) }, status);
   }
 
   static unauthorized(code: ErrorCode, message: string): AppError {
@@ -155,6 +173,7 @@ export class AppError extends HttpException {
 interface ErrorBody {
   readonly code: ErrorCode;
   readonly message: string;
+  readonly details?: readonly unknown[];
   readonly requestId: string;
 }
 
@@ -189,11 +208,20 @@ export class ErrorResponseFilter implements ExceptionFilter {
 
   private describe(exception: unknown, requestId: string): { status: number; body: ErrorBody } {
     if (exception instanceof AppError) {
-      const payload = exception.getResponse() as { code: ErrorCode; message: string };
+      const payload = exception.getResponse() as {
+        code: ErrorCode;
+        message: string;
+        details?: readonly unknown[];
+      };
 
       return {
         status: exception.getStatus(),
-        body: { code: payload.code, message: payload.message, requestId },
+        body: {
+          code: payload.code,
+          message: payload.message,
+          ...(payload.details ? { details: payload.details } : {}),
+          requestId,
+        },
       };
     }
 

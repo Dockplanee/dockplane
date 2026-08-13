@@ -18,8 +18,9 @@ nothing here is maintained a second time somewhere else.
 | [Upgrading](operations/upgrade.md) | move to a newer release, and the safety backup |
 | [Backup and Restore](operations/backup-restore.md) | what a backup holds, and coming back from one |
 | [The Agent](operations/agent.md) | the host side, and what the control plane does with it |
-| [Container Operations](operations/container-lifecycle.md) | start, stop, restart |
+| [Container Operations](operations/container-lifecycle.md) | start, stop, restart, create, change, remove |
 | [Container Logs](operations/container-logs.md) | historical output and live streams |
+| [Stacks](operations/stacks.md) | saved Compose configurations and their history |
 | [Troubleshooting](operations/troubleshooting.md) | what to check when something is wrong |
 | [Building a Release](operations/releases.md) | for maintainers |
 

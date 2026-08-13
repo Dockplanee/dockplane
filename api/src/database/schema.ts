@@ -473,6 +473,8 @@ export const stacks = pgTable(
     sourceType: text('source_type').notNull().default('dockplane'),
     /** Observed, never asserted from the outcome of an API call. */
     status: text('status').notNull().default('unknown'),
+    /** The newest revision anybody saved. Saved is not deployed. */
+    latestRevisionId: uuid('latest_revision_id'),
     /** The revision last successfully deployed, as opposed to last saved. */
     currentRevisionId: uuid('current_revision_id'),
     /** The revision a deployment is working towards, while one is running. */
@@ -520,15 +522,70 @@ export const stackRevisions = pgTable(
      * the live environment. A revision's secrets are never revealed: reveal
      * answers for the current value of a variable, not for what it used to be.
      */
-    environmentSnapshot: jsonb('environment_snapshot').$type<unknown[]>().notNull(),
+    /**
+     * Superseded by `stackRevisionEnvironment`, and kept because it is part of
+     * a released schema. Nothing reads it.
+     */
+    environmentSnapshot: jsonb('environment_snapshot').$type<unknown[]>(),
     /** What changed, in words, without naming a value. */
     changeSummary: text('change_summary'),
+    /**
+     * The contract this revision was checked against.
+     *
+     * A revision is compiled before it is stored, so it is worth being able to
+     * say afterwards which agreement it passed — versions of the protocol and
+     * the plan rather than a product version, because the shape is what matters.
+     */
+    compilerProtocolVersion: integer('compiler_protocol_version'),
+    planVersion: integer('plan_version'),
+    validatedAt: timestamp('validated_at', { withTimezone: true }),
+    /**
+     * What it would create, and nothing it would create it with.
+     *
+     * Service, network and volume names, so a listing can describe a stack
+     * without decrypting its source.
+     */
+    summary: jsonb('summary').$type<{
+      readonly services: readonly string[];
+      readonly networks: readonly string[];
+      readonly volumes: readonly string[];
+    } | null>(),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex('stack_revisions_stack_number_unique').on(table.stackId, table.number),
     index('stack_revisions_stack_idx').on(table.stackId),
+  ],
+);
+
+/**
+ * The environment a revision was saved with.
+ *
+ * Per revision, not per stack, because a revision is what a rollback goes back
+ * to and an environment that could be edited afterwards would change what an
+ * old revision meant. Structured rather than a `.env` blob for the same reason
+ * a container's is: a blob cannot say which value is a secret, and without that
+ * nothing could be redacted.
+ */
+export const stackRevisionEnvironment = pgTable(
+  'stack_revision_environment',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    revisionId: uuid('revision_id')
+      .notNull()
+      .references(() => stackRevisions.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    /** Set only when the variable is not a secret. */
+    value: text('value'),
+    /** AES-256-GCM envelope. Set only when the variable is a secret. */
+    valueEncrypted: text('value_encrypted'),
+    isSecret: boolean('is_secret').notNull().default(false),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('stack_revision_environment_key_unique').on(table.revisionId, table.key),
+    index('stack_revision_environment_revision_idx').on(table.revisionId),
   ],
 );
 
