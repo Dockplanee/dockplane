@@ -249,7 +249,17 @@ export class RealDockplaneApi extends DockplaneApi {
   stackServices(id: string): Observable<readonly StackService[]> {
     return this.api
       .get<{ services: readonly StackService[] }>(`/api/v1/stacks/${id}/services`)
-      .pipe(map((response) => response.services));
+      .pipe(
+        map((response) =>
+          response.services.map((service) => ({
+            // Docker's vocabulary, translated the same way a container's is. A
+            // stopped service reports `exited`, and passing that through
+            // unmapped showed a stack somebody had just stopped as failed.
+            ...service,
+            state: toContainerState(service.state),
+          })),
+        ),
+      );
   }
 
   stackConfiguration(stackId: string, revisionId: string): Observable<StackConfiguration> {

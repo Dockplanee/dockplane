@@ -8,13 +8,34 @@
  * deployment. The stack generates its own administrator password, and the
  * database goes with the container.
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { startStack } from './stack.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
+const repo = join(here, '..', '..');
+
+/**
+ * Builds what the run is about to test.
+ *
+ * The instance serves the built control server and the built application, and
+ * a build left over from an earlier change looks exactly like a current one. A
+ * suite run against yesterday's bundle reports on code nobody is working on —
+ * either passing when the change is broken, or failing for a reason that is not
+ * in the source. Building here costs under a minute and removes the whole class.
+ */
+function build(name, directory) {
+  console.log(`==> building the ${name}`);
+
+  const result = spawnSync('npm', ['run', 'build'], { cwd: directory, stdio: 'inherit' });
+
+  if (result.status !== 0) {
+    console.error(`the ${name} did not build`);
+    process.exit(1);
+  }
+}
 
 /*
  * The agent harness runs first.
@@ -42,6 +63,9 @@ function runSuite(file, environment) {
     child.on('exit', (code) => resolve(code ?? 1));
   });
 }
+
+build('control server', join(repo, 'api'));
+build('application', join(repo, 'app'));
 
 console.log('==> bringing up an instance for this run');
 const stack = await startStack();

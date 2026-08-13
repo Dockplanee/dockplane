@@ -382,4 +382,28 @@ describe('RealDockplaneApi', () => {
       expect(project.observedAt).toBeUndefined();
     });
   });
+
+  describe('stack services', () => {
+    /*
+     * The states a stack's services report come from Docker, and a stopped
+     * container reports `exited`. Left unmapped it reached a view that knows
+     * five states and treats anything else as a failure — so a stack somebody
+     * had just stopped on purpose was shown as broken.
+     */
+    it('maps Docker states the interface does not model', async () => {
+      const services = api.stackServices('stack-1').toPromise();
+
+      http.expectOne((request) => request.url === '/api/v1/stacks/stack-1/services').flush({
+        services: [
+          { serviceName: 'web', state: 'exited' },
+          { serviceName: 'db', state: 'running' },
+          { serviceName: 'cache', state: 'dead' },
+        ],
+      });
+
+      const mapped = (await services)!;
+
+      expect(mapped.map((service) => service.state)).toEqual(['stopped', 'running', 'failed']);
+    });
+  });
 });

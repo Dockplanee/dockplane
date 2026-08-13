@@ -725,7 +725,7 @@ async function run() {
       sent.filter((request) => request.url.endsWith('/stop')).length === stopsBefore + 1,
     );
 
-    console.log('\n== a stack left half stopped ==');
+    console.log('\n== a stop the host refuses ==');
 
     await page.goto(stackUrl, { waitUntil: 'networkidle' });
     await clickWhenEnabled(page, 'button:has-text("Start stack")');
@@ -738,22 +738,35 @@ async function run() {
       return (await page.locator('button:has-text("Stop stack")').count()) > 0;
     });
 
+    /*
+     * This stack has one service, so a refused stop cannot leave it half moved:
+     * either everything stopped or nothing did. What is checked here is the
+     * other half of that — a stack the host would not change is reported as
+     * unchanged, and stays operable.
+     *
+     * The half-moved case needs two services and one of them refusing, which is
+     * covered where a fixture can be built for it.
+     */
     await agent.stackBehaviour({ wontStop: ['web'] });
 
     await clickWhenEnabled(page, 'button:has-text("Stop stack")');
     await until('the confirmation', async () => await page.locator('dialog[open]').count());
     await page.locator('dialog[open] button:has-text("Stop stack")').click();
 
-    await until('the stack to need attention', async () =>
-      (await page.locator('body').innerText()).includes('needs attention'),
+    await until('the refusal to be shown', async () =>
+      (await page.locator('dp-stack-detail .notice--critical').count()) > 0,
     );
 
-    const halfStopped = await page.locator('body').innerText();
+    const refused = await page.locator('dp-stack-detail .notice--critical').innerText();
 
-    check('a half moved stack says it needs attention', halfStopped.includes('needs attention'));
-    check('and offers no lifecycle operations',
-      (await page.locator('button:has-text("Stop stack")').count()) === 0 &&
-        (await page.locator('button:has-text("Start stack")').count()) === 0,
+    check('a stop the host refused is reported', refused.length > 0, refused.slice(0, 60));
+    check(
+      'the stack is still running',
+      !(await page.locator('body').innerText()).includes('Stopped'),
+    );
+    check(
+      'and can still be operated',
+      (await page.locator('button:has-text("Stop stack")').count()) > 0,
     );
 
     await agent.stackBehaviour({});
