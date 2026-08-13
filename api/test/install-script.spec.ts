@@ -157,7 +157,9 @@ describe('the install script', () => {
 
     it('refuses to name a version nobody released', () => {
       expect(() => resolveAgentVersion('', '0.0.0-dev')).toThrow(UnreleasedAgentVersionError);
-      expect(() => resolveAgentVersion('', '0.1.0-rc.1-dirty')).toThrow(UnreleasedAgentVersionError);
+      expect(() => resolveAgentVersion('', '0.1.0-rc.1-dirty')).toThrow(
+        UnreleasedAgentVersionError,
+      );
       expect(() => resolveAgentVersion('latest', '0.1.0')).toThrow(UnreleasedAgentVersionError);
 
       expect(resolveAgentVersion('', '0.1.0-rc.2')).toBe('0.1.0-rc.2');

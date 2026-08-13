@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import request from 'supertest';
 
 import { AgentGatewayService } from '../src/agents/agent-gateway.service';
@@ -19,6 +19,7 @@ import { MutationRegistry } from '../src/operations/mutation-registry';
 import { RecoveryOrchestrator } from '../src/containers/recovery.orchestrator';
 import { TestAgentConnection } from './agent-client';
 import { createAgentCsr } from './agent-pki';
+import { prepareDatabase } from './database';
 import { FakeDockerHost } from './docker-host';
 import {
   DEFAULT_PASSWORD,
@@ -1060,6 +1061,29 @@ describe('changing what a container is', () => {
       expect(dispatched.filter((name) => name === 'container.create')).toHaveLength(0);
     }, 60_000);
 
+    it('refuses a request without the token that proves it was intended', async () => {
+      const { id } = await created();
+
+      // A form on another site can make the browser send the session cookie.
+      // It cannot read the token, which is why every mutation carries one.
+      for (const response of [
+        await request(app.getHttpServer())
+          .post('/api/v1/containers')
+          .set('cookie', session.cookie)
+          .set('origin', ORIGIN)
+          .send(spec()),
+        await request(app.getHttpServer())
+          .delete(`/api/v1/containers/${id}`)
+          .set('cookie', session.cookie)
+          .set('origin', ORIGIN)
+          .send({}),
+      ]) {
+        expect(response.status).toBe(403);
+      }
+
+      expect(dispatched.filter((name) => name === 'container.remove')).toHaveLength(0);
+    }, 60_000);
+
     it('refuses a host whose agent is not connected', async () => {
       connection.close();
       await new Promise((resolve) => setTimeout(resolve, 300));
@@ -1080,6 +1104,102 @@ describe('changing what a container is', () => {
    * else — and the places it must never reach are the ones that get read by
    * people who were never given the secret.
    */
+  /*
+   * The rule the whole design rests on.
+   *
+   * A container change cannot be rolled back by a database, so no transaction
+   * is allowed to span one. Held open across a dispatch it would pin a
+   * connection to a host that may never answer, and a crash between Docker
+   * succeeding and the commit would leave the record disagreeing with the
+   * world anyway — the transaction buys nothing and costs a connection.
+   *
+   * Observed from a second connection of its own, so what it sees is what any
+   * other part of the system would see at that moment.
+   */
+  describe('what the database is doing while a host is working', () => {
+    let observer: Database;
+
+    beforeAll(async () => {
+      observer = await prepareDatabase();
+    });
+
+    afterAll(async () => {
+      await observer.onModuleDestroy();
+    });
+
+    const openTransactions = async () => {
+      const result = await observer.client.execute<{ count: number }>(
+        sql`select count(*)::int as count from pg_stat_activity
+            where datname = current_database()
+              and state = 'idle in transaction'
+              and pid <> pg_backend_pid()`,
+      );
+
+      return Number(result.rows[0]?.count ?? 0);
+    };
+
+    it('holds no transaction open while the agent is working', async () => {
+      const { id, name } = await created();
+
+      holdFor.set('container.replace', 3_000);
+
+      const inFlight = replace(id, { name, image: 'nginx:1.28' }).then((response) => response);
+
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      expect(await openTransactions()).toBe(0);
+
+      expect((await inFlight).status).toBe(200);
+    }, 180_000);
+
+    it('commits the candidate before the agent is asked for anything', async () => {
+      const { id, name } = await created();
+
+      holdFor.set('container.replace', 3_000);
+
+      const inFlight = replace(id, { name, image: 'nginx:1.28' }).then((response) => response);
+
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      /*
+       * Visible from a connection that had nothing to do with writing it. That
+       * is what makes an interrupted change recoverable: the intention is
+       * durable before anything can go wrong with carrying it out.
+       */
+      const candidate = await observer.client
+        .select()
+        .from(containerDesiredConfigs)
+        .where(
+          and(
+            eq(containerDesiredConfigs.containerId, id),
+            eq(containerDesiredConfigs.state, 'pending'),
+          ),
+        );
+
+      expect(candidate).toHaveLength(1);
+      expect(candidate[0].image).toBe('nginx:1.28');
+      expect(candidate[0].actionId).not.toBeNull();
+
+      expect((await inFlight).status).toBe(200);
+    }, 180_000);
+
+    it('holds none open while reconciling either', async () => {
+      const { id, name } = await created();
+
+      // The listing that follows a change is where reconciliation reads the
+      // host. A transaction spanning it would wait on the network too.
+      holdFor.set('container.list', 2_000);
+
+      const inFlight = replace(id, { name, image: 'nginx:1.28' }).then((response) => response);
+
+      await new Promise((resolve) => setTimeout(resolve, 1_200));
+
+      expect(await openTransactions()).toBe(0);
+
+      expect((await inFlight).status).toBe(200);
+    }, 180_000);
+  });
+
   describe('where a secret goes', () => {
     it('is in no record the server keeps', async () => {
       const { id, name } = await created({

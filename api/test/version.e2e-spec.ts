@@ -5,7 +5,11 @@ import request from 'supertest';
 import { Database } from '../src/database/database';
 import { PROTOCOL_VERSION } from '../src/agents/protocol';
 import { EXPECTED_SCHEMA_VERSION, readSchemaState } from '../src/version/schema-version';
+import journal from '../src/database/migrations/meta/_journal.json';
 import { createTestApp } from './app';
+
+/** One ledger row per migration this build ships, and no others. */
+const EXPECTED_MIGRATION_COUNT = journal.entries.length;
 
 /*
 What a deployment says about itself.
@@ -111,5 +115,42 @@ describe('the version endpoint', () => {
 
     // Back to what it was, so the next suite to migrate finds nothing to do.
     expect((await readSchemaState(db)).missing).toEqual([]);
+  });
+
+  /*
+   * The ledger is shared state, and this suite is the only thing that writes to
+   * it by hand.
+   *
+   * It once put back a stand-in row instead of the one it removed. The count
+   * matched, so the version endpoint stayed happy and nothing here failed — but
+   * the migrator picks what to apply by timestamp, and the next suite to
+   * migrate tried to run a migration against a schema that already had it. The
+   * failure surfaced in an unrelated test, several suites later.
+   *
+   * So the ledger is compared row for row, not counted.
+   */
+  it('leaves the migration ledger exactly as it found it', async () => {
+    const db = app.get(Database);
+
+    const ledger = async () => {
+      const result = await db.client.execute<{ hash: string; created_at: string }>(
+        sql`select hash, created_at from drizzle.__drizzle_migrations order by created_at, hash`,
+      );
+
+      return result.rows.map((row) => `${row.created_at}:${row.hash}`);
+    };
+
+    const before = await ledger();
+
+    await request(app.getHttpServer()).get('/api/v1/version').expect(200);
+
+    expect(await ledger()).toEqual(before);
+
+    // And every row is one of this build's migrations, rather than something a
+    // test wrote: a stand-in would pass a count check and fail this one.
+    const hashes = new Set(before.map((entry) => entry.split(':')[1]));
+
+    expect(hashes.size).toBe(before.length);
+    expect(before).toHaveLength(EXPECTED_MIGRATION_COUNT);
   });
 });

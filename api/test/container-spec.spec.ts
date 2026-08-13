@@ -38,7 +38,10 @@ describe('the container specification', () => {
       ['an image with a newline', { ...valid, image: 'nginx\nFROM scratch' }],
       ['a host that is not a resource id', { ...valid, hostId: 'docker-01' }],
       ['an unknown restart policy', { ...valid, restartPolicy: 'sometimes' }],
-      ['a protocol that is neither', { ...valid, ports: [{ containerPort: 80, protocol: 'sctp' }] }],
+      [
+        'a protocol that is neither',
+        { ...valid, ports: [{ containerPort: 80, protocol: 'sctp' }] },
+      ],
       ['a container port of zero', { ...valid, ports: [{ containerPort: 0, protocol: 'tcp' }] }],
       [
         'one host port bound twice',
@@ -52,9 +55,15 @@ describe('the container specification', () => {
       ],
       [
         'a bind address that is not one',
-        { ...valid, ports: [{ containerPort: 80, hostPort: 8080, protocol: 'tcp', hostIp: 'evil.example' }] },
+        {
+          ...valid,
+          ports: [{ containerPort: 80, hostPort: 8080, protocol: 'tcp', hostIp: 'evil.example' }],
+        },
       ],
-      ['a relative mount target', { ...valid, mounts: [{ type: 'volume', source: 'a', target: 'data' }] }],
+      [
+        'a relative mount target',
+        { ...valid, mounts: [{ type: 'volume', source: 'a', target: 'data' }] },
+      ],
       [
         'a mount target climbing out',
         { ...valid, mounts: [{ type: 'volume', source: 'a', target: '/data/../../etc' }] },
@@ -69,8 +78,14 @@ describe('the container specification', () => {
           ],
         },
       ],
-      ['a mount type Dockplane does not have', { ...valid, mounts: [{ type: 'tmpfs', source: 'a', target: '/t' }] }],
-      ['an environment key that is not one', { ...valid, environment: [{ operation: 'set', key: 'not a key', value: 'x' }] }],
+      [
+        'a mount type Dockplane does not have',
+        { ...valid, mounts: [{ type: 'tmpfs', source: 'a', target: '/t' }] },
+      ],
+      [
+        'an environment key that is not one',
+        { ...valid, environment: [{ operation: 'set', key: 'not a key', value: 'x' }] },
+      ],
       [
         'an environment key smuggling an assignment',
         { ...valid, environment: [{ operation: 'set', key: 'A=B', value: 'x' }] },
@@ -99,7 +114,10 @@ describe('the container specification', () => {
       ['added capabilities', { ...valid, capAdd: ['SYS_ADMIN'] }],
       ['devices', { ...valid, devices: ['/dev/sda'] }],
       ['a whole HostConfig', { ...valid, HostConfig: { Privileged: true } }],
-      ['an agent chosen by the caller', { ...valid, agentId: '3f2504e0-4f89-11d3-9a0c-0305e82c3301' }],
+      [
+        'an agent chosen by the caller',
+        { ...valid, agentId: '3f2504e0-4f89-11d3-9a0c-0305e82c3301' },
+      ],
       ['a Docker id chosen by the caller', { ...valid, dockerId: 'aaa111' }],
     ];
 
@@ -152,9 +170,9 @@ describe('the container specification', () => {
       'io.dockplane.anything',
     ]) {
       it(`refuses ${key}`, () => {
-        expect(createContainerSchema.safeParse({ ...valid, labels: { [key]: 'mine' } }).success).toBe(
-          false,
-        );
+        expect(
+          createContainerSchema.safeParse({ ...valid, labels: { [key]: 'mine' } }).success,
+        ).toBe(false);
       });
     }
   });
@@ -168,7 +186,10 @@ describe('the container specification', () => {
    */
   describe('what an environment entry means', () => {
     it('carries no value when it is unchanged', () => {
-      const parsed = environmentEntrySchema.safeParse({ operation: 'unchanged', key: 'DB_PASSWORD' });
+      const parsed = environmentEntrySchema.safeParse({
+        operation: 'unchanged',
+        key: 'DB_PASSWORD',
+      });
 
       expect(parsed.success).toBe(true);
       expect(parsed.success && 'value' in parsed.data).toBe(false);
@@ -192,8 +213,11 @@ describe('the container specification', () => {
 
     it('takes a new secret only when asked to replace one', () => {
       expect(
-        environmentEntrySchema.safeParse({ operation: 'set-secret', key: 'DB_PASSWORD', value: 'new' })
-          .success,
+        environmentEntrySchema.safeParse({
+          operation: 'set-secret',
+          key: 'DB_PASSWORD',
+          value: 'new',
+        }).success,
       ).toBe(true);
     });
 

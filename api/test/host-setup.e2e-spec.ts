@@ -6,13 +6,7 @@ import { hashSecret } from '../src/common/crypto';
 import { Database } from '../src/database/database';
 import { agentEnrollmentTokens, auditEntries, hostSetups } from '../src/database/schema';
 import { createAgentCsr } from './agent-pki';
-import {
-  DEFAULT_PASSWORD,
-  createTestApp,
-  resetData,
-  resetThrottling,
-  seedUser,
-} from './app';
+import { DEFAULT_PASSWORD, createTestApp, resetData, resetThrottling, seedUser } from './app';
 
 const ORIGIN = 'http://localhost:4200';
 

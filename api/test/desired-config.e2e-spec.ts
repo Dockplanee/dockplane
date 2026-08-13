@@ -60,7 +60,11 @@ describe('desired configuration', () => {
     return row.id;
   }
 
-  async function addConfig(containerId: string, state: 'current' | 'pending', image = 'nginx:1.27') {
+  async function addConfig(
+    containerId: string,
+    state: 'current' | 'pending',
+    image = 'nginx:1.27',
+  ) {
     const [row] = await db.client
       .insert(containerDesiredConfigs)
       .values({ containerId, state, image })
@@ -145,8 +149,18 @@ describe('desired configuration', () => {
       const pending = await addConfig(containerId, 'pending');
 
       await db.client.insert(containerEnvironmentVariables).values([
-        { desiredConfigId: current, key: 'DB_PASSWORD', valueEncrypted: box.encrypt('secret-A'), isSecret: true },
-        { desiredConfigId: pending, key: 'DB_PASSWORD', valueEncrypted: box.encrypt('secret-B'), isSecret: true },
+        {
+          desiredConfigId: current,
+          key: 'DB_PASSWORD',
+          valueEncrypted: box.encrypt('secret-A'),
+          isSecret: true,
+        },
+        {
+          desiredConfigId: pending,
+          key: 'DB_PASSWORD',
+          valueEncrypted: box.encrypt('secret-B'),
+          isSecret: true,
+        },
       ]);
 
       const [running] = await db.client
@@ -169,8 +183,18 @@ describe('desired configuration', () => {
       const pending = await addConfig(containerId, 'pending');
 
       await db.client.insert(containerEnvironmentVariables).values([
-        { desiredConfigId: current, key: 'DB_PASSWORD', valueEncrypted: box.encrypt('secret-A'), isSecret: true },
-        { desiredConfigId: pending, key: 'DB_PASSWORD', valueEncrypted: box.encrypt('secret-B'), isSecret: true },
+        {
+          desiredConfigId: current,
+          key: 'DB_PASSWORD',
+          valueEncrypted: box.encrypt('secret-A'),
+          isSecret: true,
+        },
+        {
+          desiredConfigId: pending,
+          key: 'DB_PASSWORD',
+          valueEncrypted: box.encrypt('secret-B'),
+          isSecret: true,
+        },
       ]);
 
       // What a failed replacement does: the candidate goes, nothing else moves.
@@ -208,8 +232,18 @@ describe('desired configuration', () => {
       const pending = await addConfig(containerId, 'pending');
 
       await db.client.insert(containerEnvironmentVariables).values([
-        { desiredConfigId: current, key: 'DB_PASSWORD', valueEncrypted: box.encrypt('secret-A'), isSecret: true },
-        { desiredConfigId: pending, key: 'DB_PASSWORD', valueEncrypted: box.encrypt('secret-B'), isSecret: true },
+        {
+          desiredConfigId: current,
+          key: 'DB_PASSWORD',
+          valueEncrypted: box.encrypt('secret-A'),
+          isSecret: true,
+        },
+        {
+          desiredConfigId: pending,
+          key: 'DB_PASSWORD',
+          valueEncrypted: box.encrypt('secret-B'),
+          isSecret: true,
+        },
       ]);
 
       const [before] = await db.client
@@ -220,7 +254,9 @@ describe('desired configuration', () => {
       // What a successful replacement does: the old one goes, then the
       // candidate takes its place. In that order, because both may not be
       // current at once.
-      await db.client.delete(containerDesiredConfigs).where(eq(containerDesiredConfigs.id, current));
+      await db.client
+        .delete(containerDesiredConfigs)
+        .where(eq(containerDesiredConfigs.id, current));
       await db.client
         .update(containerDesiredConfigs)
         .set({ state: 'current' })

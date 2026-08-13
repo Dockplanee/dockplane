@@ -129,8 +129,13 @@ describe('inventory API', () => {
       const { host, container } = await seedInventory();
       const cookie = await signIn('Administrator');
 
+      /*
+       * Removing a container is a defined operation with a permission of its
+       * own, so it is not in this list. Everything that is here is something
+       * Dockplane deliberately cannot do: run a command, attach to a process,
+       * kill rather than stop, or take an operation name from a request body.
+       */
       const attempts = [
-        ['delete', `/api/v1/containers/${container.id}`],
         ['post', `/api/v1/containers/${container.id}/exec`],
         ['post', `/api/v1/containers/${container.id}/attach`],
         ['post', `/api/v1/containers/${container.id}/kill`],
