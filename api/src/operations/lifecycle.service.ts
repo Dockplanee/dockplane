@@ -11,6 +11,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/authenticated-request';
 import { AppError, ErrorCode } from '../common/errors';
 import { LOGGER } from '../config/tokens';
+import { PendingMutationGuard } from '../containers/pending-guard';
 import { Database } from '../database/database';
 import { actions, agents, containers, hosts } from '../database/schema';
 import { DetailService } from '../discovery/detail.service';
@@ -79,6 +80,7 @@ export type Operation = keyof typeof OPERATIONS;
 export class LifecycleService {
   constructor(
     private readonly mutations: MutationRegistry,
+    private readonly pending: PendingMutationGuard,
     private readonly db: Database,
     private readonly dispatch: AgentDispatchService,
     private readonly connections: AgentConnectionManager,
@@ -101,6 +103,14 @@ export class LifecycleService {
     context: { sourceIp?: string; userAgent?: string; requestId?: string },
   ): Promise<ActionOutcome> {
     const definition = OPERATIONS[operation];
+
+    /*
+     * Before the container is resolved to a Docker identifier, because during a
+     * replacement that identifier is exactly what is in question. Resolving
+     * first would mean reading an address that is being replaced and only then
+     * finding out that nobody may act on it.
+     */
+    await this.pending.assertResolved(containerId);
 
     const target = await this.resolve(containerId);
     const agentId = await this.connectedAgent(target.hostId);
@@ -331,7 +341,16 @@ export class LifecycleService {
       throw AppError.notFound('CONTAINER_NOT_FOUND', 'The container does not exist.');
     }
 
-    return row;
+    /*
+     * A resource whose create never produced a container. The pending guard
+     * turns this away first, so reaching it means the create resolved without
+     * leaving anything to operate on.
+     */
+    if (!row.dockerId) {
+      throw AppError.notFound('CONTAINER_NOT_FOUND', 'The container does not exist.');
+    }
+
+    return { ...row, dockerId: row.dockerId };
   }
 
   /**

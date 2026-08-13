@@ -257,8 +257,14 @@ export const containers = pgTable(
     hostId: uuid('host_id')
       .notNull()
       .references(() => hosts.id, { onDelete: 'cascade' }),
-    /** Docker IDs are only unique per host, so identity is host-scoped. */
-    dockerId: text('docker_id').notNull(),
+    /**
+     * Docker IDs are only unique per host, so identity is host-scoped.
+     *
+     * Absent while a create has not produced a container yet: the resource is
+     * written before the agent is asked for anything, so that a control server
+     * which dies mid-create can find out afterwards what happened.
+     */
+    dockerId: text('docker_id'),
     name: text('name').notNull(),
     image: text('image').notNull(),
     imageId: text('image_id'),
@@ -294,6 +300,19 @@ export const containers = pgTable(
       readonly observedAt: string;
     } | null>(),
     /**
+     * The configuration the running container says it is.
+     *
+     * Read back off the container rather than assumed from what was asked for,
+     * and the only thing that can settle an interrupted replacement: the two
+     * configurations may differ in nothing observable, since a replacement can
+     * change a secret alone and this projection holds no environment values.
+     *
+     * Null for a container Dockplane did not build. Also null for one that
+     * claims to be managed but carries no readable identity, which is a state
+     * recovery refuses to interpret rather than a state it resolves.
+     */
+    observedDesiredConfigId: text('observed_desired_config_id'),
+    /**
      * The last complete discovery that saw this container.
      *
      * Reconciliation removes rows only when a snapshot finished, so a sync that
@@ -303,7 +322,19 @@ export const containers = pgTable(
     observedAt: timestamp('observed_at', { withTimezone: true }).notNull(),
     ...timestamps,
   },
-  (table) => [uniqueIndex('containers_host_docker_id_unique').on(table.hostId, table.dockerId)],
+  (table) => [
+    uniqueIndex('containers_host_docker_id_unique').on(table.hostId, table.dockerId),
+    /*
+     * One unfinished create per name per host.
+     *
+     * The in-memory lock cannot answer this after a restart, when it is empty
+     * and the unfinished create is still entirely real. Compared without case,
+     * matching the lock the running process takes.
+     */
+    uniqueIndex('containers_host_pending_name_unique')
+      .on(table.hostId, sql`lower(${table.name})`)
+      .where(sql`docker_id IS NULL`),
+  ],
 );
 
 export const composeProjects = pgTable(
@@ -568,14 +599,14 @@ export const containerDesiredConfigs = pgTable(
     /** The mutation that owns this candidate, for recovery and correlation. */
     actionId: uuid('action_id'),
     image: text('image').notNull(),
-  hostname: text('hostname'),
-  command: jsonb('command').$type<string[]>(),
-  entrypoint: jsonb('entrypoint').$type<string[]>(),
-  ports: jsonb('ports').$type<unknown[]>().notNull().default([]),
-  mounts: jsonb('mounts').$type<unknown[]>().notNull().default([]),
-  networks: jsonb('networks').$type<string[]>().notNull().default([]),
-  restartPolicy: text('restart_policy').notNull().default('no'),
-  labels: jsonb('labels').$type<Record<string, string>>().notNull().default({}),
+    hostname: text('hostname'),
+    command: jsonb('command').$type<string[]>(),
+    entrypoint: jsonb('entrypoint').$type<string[]>(),
+    ports: jsonb('ports').$type<unknown[]>().notNull().default([]),
+    mounts: jsonb('mounts').$type<unknown[]>().notNull().default([]),
+    networks: jsonb('networks').$type<string[]>().notNull().default([]),
+    restartPolicy: text('restart_policy').notNull().default('no'),
+    labels: jsonb('labels').$type<Record<string, string>>().notNull().default({}),
     healthcheck: jsonb('healthcheck').$type<unknown>(),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     ...timestamps,

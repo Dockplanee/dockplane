@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, isNotNull, ne } from 'drizzle-orm';
 import { Logger } from 'pino';
 
 import { AgentDispatchService } from '../agents/agent-dispatch.service';
@@ -19,6 +19,22 @@ import { EventType, EventsService } from '../events/events.service';
  * resource an observed container belongs to.
  */
 const DOCKPLANE_CONTAINER_ID = 'io.dockplane.container-id';
+
+/** Whether the container claims Dockplane built it. */
+const DOCKPLANE_MANAGED = 'io.dockplane.managed';
+
+/**
+ * Which configuration the container is running.
+ *
+ * Separate from the resource identity because they answer different questions:
+ * one says which container this is, the other says which of that container's
+ * configurations was applied. An interrupted replacement needs the second, and
+ * nothing else can supply it — the two configurations may differ in nothing
+ * this projection carries.
+ */
+const DOCKPLANE_DESIRED_CONFIG_ID = 'io.dockplane.desired-config-id';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Shapes the agent reports. Only fields the product stores are read. */
 interface HostInventory {
@@ -237,7 +253,9 @@ export class DiscoveryService {
       .from(containers)
       .where(eq(containers.hostId, hostId));
 
-    const byDockerId = new Map(existing.map((row) => [row.dockerId, row]));
+    const byDockerId = new Map(
+      existing.filter((row) => row.dockerId !== null).map((row) => [row.dockerId, row]),
+    );
 
     /*
      * Containers Dockplane built carry the identity it gave them.
@@ -290,6 +308,7 @@ export class DiscoveryService {
       const values = {
         hostId,
         dockerId: item.dockerId,
+        observedDesiredConfigId: this.observedConfig(item, hostId),
         name: item.name ?? '',
         image: item.image ?? '',
         imageId: item.imageId ?? null,
@@ -343,6 +362,47 @@ export class DiscoveryService {
     return reported.length;
   }
 
+  /**
+   * Reads the configuration a container claims to be running.
+   *
+   * Strict about the shape, and deliberately unforgiving in one direction: a
+   * container that says Dockplane built it and then offers something that is
+   * not an identifier is recorded as having none. Storing the malformed value
+   * would put a host-written string where the control server expects one of its
+   * own; ignoring it quietly would leave the container looking like an ordinary
+   * unmanaged one. Recording nothing is what makes recovery refuse to interpret
+   * it, which is the outcome that state deserves.
+   *
+   * A container without the managed label is not Dockplane's and is not asked
+   * this question at all.
+   */
+  private observedConfig(item: ContainerSummary, hostId: string): string | null {
+    if (item.labels?.[DOCKPLANE_MANAGED] !== 'true') {
+      return null;
+    }
+
+    const claimed = item.labels?.[DOCKPLANE_DESIRED_CONFIG_ID];
+
+    if (!claimed) {
+      return null;
+    }
+
+    if (!UUID.test(claimed)) {
+      this.logger.warn(
+        {
+          event: 'container_configuration_identity_unreadable',
+          hostId,
+          dockerId: item.dockerId,
+        },
+        'a managed container carries an unreadable configuration identity',
+      );
+
+      return null;
+    }
+
+    return claimed;
+  }
+
   /*
    * Whether a mutation currently owns a resource.
    *
@@ -384,7 +444,9 @@ export class DiscoveryService {
   ): Promise<void> {
     await this.db.client
       .update(containers)
-      .set({ identityConflict: { dockerIds: [...dockerIds], observedAt: new Date().toISOString() } })
+      .set({
+        identityConflict: { dockerIds: [...dockerIds], observedAt: new Date().toISOString() },
+      })
       .where(eq(containers.id, containerId));
 
     this.logger.warn(
@@ -493,12 +555,23 @@ export class DiscoveryService {
    * Only reached when every step of the pass succeeded. That condition is the
    * whole point: a container that is still running must never disappear from
    * the interface because one request timed out.
+   *
+   * A resource whose create has not produced a container yet is not swept: it
+   * has no Docker container to be absent, so a snapshot that does not mention
+   * it says nothing about it. Whether that create happened is recovery's
+   * question, and deleting the row here would take the evidence with it.
    */
   private async reconcile(hostId: string, snapshotId: string): Promise<number> {
     return this.db.client.transaction(async (tx) => {
       const staleContainers = await tx
         .delete(containers)
-        .where(and(eq(containers.hostId, hostId), ne(containers.snapshotId, snapshotId)))
+        .where(
+          and(
+            eq(containers.hostId, hostId),
+            isNotNull(containers.dockerId),
+            ne(containers.snapshotId, snapshotId),
+          ),
+        )
         .returning({ dockerId: containers.dockerId, name: containers.name });
 
       const staleProjects = await tx

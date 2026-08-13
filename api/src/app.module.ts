@@ -13,6 +13,8 @@ import { AgentGatewayService } from './agents/agent-gateway.service';
 import { AgentRegistryService } from './agents/agent-registry.service';
 import { AgentConnectionManager } from './agents/connection-manager.service';
 import { AgentDispatchService } from './agents/agent-dispatch.service';
+import { PendingMutationGuard } from './containers/pending-guard';
+import { RecoveryFinalizer } from './containers/recovery-finalizer';
 import { DetailService } from './discovery/detail.service';
 import { DiscoveryService } from './discovery/discovery.service';
 import { EventsService } from './events/events.service';
@@ -122,6 +124,8 @@ import { SecretBox } from './common/crypto';
     EventsService,
     InventoryService,
     MutationRegistry,
+    PendingMutationGuard,
+    RecoveryFinalizer,
     LifecycleService,
     LogStreamService,
     DiscoveryScheduler,

@@ -1,0 +1,24 @@
+--
+-- A container resource that has no Docker container yet.
+--
+-- Creating a container is a Docker side effect like any other, so the resource
+-- and the configuration it is meant to have are written before the agent is
+-- asked for anything: a control server that dies mid-create has to be able to
+-- find out afterwards whether the container was made. That row exists before
+-- Docker has given anything an identifier, so the identifier is nullable —
+-- a resource with no container genuinely has no Docker ID, and a placeholder
+-- would only be a value every later check would have to remember to distrust.
+--
+ALTER TABLE "containers" ALTER COLUMN "docker_id" DROP NOT NULL;--> statement-breakpoint
+--
+-- One unfinished create per name per host.
+--
+-- The in-memory lock cannot answer this: after a restart it is empty while the
+-- unfinished create is still entirely real, and a second create of the same
+-- name would run straight into a name Docker has already taken — or, worse,
+-- take it first and leave two resources believing they own it.
+--
+-- Names are compared case-insensitively, matching the lock the running process
+-- takes, so two spellings of one name cannot race.
+--
+CREATE UNIQUE INDEX "containers_host_pending_name_unique" ON "containers" USING btree ("host_id", lower("name")) WHERE "docker_id" IS NULL;

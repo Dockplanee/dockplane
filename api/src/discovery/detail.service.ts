@@ -106,6 +106,14 @@ export class DetailService {
       throw AppError.notFound('CONTAINER_NOT_FOUND', 'The container does not exist.');
     }
 
+    /*
+     * A resource whose create has not produced a container. There is nothing on
+     * the host to inspect, and no identifier to inspect it by.
+     */
+    if (!row.dockerId) {
+      throw AppError.notFound('CONTAINER_NOT_FOUND', 'The container does not exist.');
+    }
+
     const stored = (row.detail as ContainerDetail | null) ?? null;
 
     if (!options.force && stored && this.isFresh(row.detailObservedAt)) {

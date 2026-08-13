@@ -469,7 +469,15 @@ export class LogStreamService implements OnApplicationShutdown {
       throw AppError.notFound('CONTAINER_NOT_FOUND', 'The container does not exist.');
     }
 
-    return row;
+    /*
+     * A resource whose create has not produced a container yet. There are no
+     * logs to read, and there is no identifier to ask the agent for.
+     */
+    if (!row.dockerId) {
+      throw AppError.notFound('CONTAINER_NOT_FOUND', 'The container does not exist.');
+    }
+
+    return { ...row, dockerId: row.dockerId };
   }
 
   /** Finds the agent that may read this host, refusing anything else. */

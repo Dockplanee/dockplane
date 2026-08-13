@@ -1,0 +1,15 @@
+--
+-- What a container says it is, as observed.
+--
+-- The control server records what a container is supposed to be. This is the
+-- other side: the configuration identity read back off the running container,
+-- which is what makes an interrupted replacement decidable. A crash between
+-- dispatching a replacement and observing the result leaves a container that is
+-- either the old configuration or the new one, and nothing else can tell them
+-- apart — a replacement may change nothing but a secret, and the observed
+-- projection deliberately carries no environment values at all.
+--
+-- Null for a container Dockplane did not build, and for one built before this
+-- label existed. Both are ordinary; neither is treated as an answer.
+--
+ALTER TABLE "containers" ADD COLUMN "observed_desired_config_id" text;

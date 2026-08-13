@@ -168,6 +168,21 @@ describe('discovery', () => {
     labels: { 'io.dockplane.managed': 'true', 'io.dockplane.container-id': containerId },
   });
 
+  /** The same, also saying which of its configurations it is running. */
+  const applying = (
+    dockerId: string,
+    name: string,
+    containerId: string,
+    desiredConfigId: string,
+  ) => ({
+    ...managed(dockerId, name, containerId),
+    labels: {
+      'io.dockplane.managed': 'true',
+      'io.dockplane.container-id': containerId,
+      'io.dockplane.desired-config-id': desiredConfigId,
+    },
+  });
+
   beforeAll(async () => {
     app = await createTestApp();
     db = app.get(Database);
@@ -576,6 +591,117 @@ describe('discovery', () => {
       // Untouched, and not flagged: a replacement in progress is not a conflict.
       expect(row.dockerId).toBe('aaa');
       expect(row.identityConflict).toBeNull();
+    });
+  });
+
+  /*
+   * Which configuration a container is running.
+   *
+   * Recorded from what the container says, because nothing else can say it: two
+   * configurations may differ only in a secret, and this projection carries no
+   * environment values at all. Everything an interrupted replacement can be
+   * resolved by is in this one field, which is why it is read strictly.
+   */
+  describe('the configuration a container claims', () => {
+    const CONFIG_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+    /** Discovers one managed container and returns the row it produced. */
+    const observe = async (labels: Record<string, string> | undefined) => {
+      const agent = await enrollAgent();
+
+      const connection = await connectScripted(agent, [
+        inventoryReply('docker-01'),
+        metricsReply(),
+        {
+          capability: 'container.list',
+          payload: { containers: [{ ...container('aaa', 'web'), labels }] },
+        },
+        { capability: 'compose.list', payload: { projects: [] } },
+      ]);
+
+      await discovery.sync(agent.agentId);
+      connection.close();
+
+      const [row] = await db.client.select().from(containers);
+
+      return row;
+    };
+
+    it('records what a managed container says it is running', async () => {
+      const agent = await enrollAgent();
+
+      const first = await connectScripted(agent, [
+        inventoryReply('docker-01'),
+        metricsReply(),
+        { capability: 'container.list', payload: { containers: [container('aaa', 'web')] } },
+        { capability: 'compose.list', payload: { projects: [] } },
+      ]);
+
+      await discovery.sync(agent.agentId);
+      first.close();
+
+      const [before] = await db.client.select().from(containers);
+
+      const second = await connectScripted(agent, [
+        inventoryReply('docker-01'),
+        metricsReply(),
+        {
+          capability: 'container.list',
+          payload: { containers: [applying('aaa', 'web', before.id, CONFIG_A)] },
+        },
+        { capability: 'compose.list', payload: { projects: [] } },
+      ]);
+
+      await discovery.sync(agent.agentId);
+      second.close();
+
+      const [row] = await db.client.select().from(containers).where(eq(containers.id, before.id));
+
+      expect(row.observedDesiredConfigId).toBe(CONFIG_A);
+    });
+
+    it('asks nothing of a container Dockplane did not build', async () => {
+      // An unmanaged container may carry any label at all. None of them mean
+      // anything here, including one that looks exactly like this.
+      const row = await observe({ 'io.dockplane.desired-config-id': CONFIG_A });
+
+      expect(row.observedDesiredConfigId).toBeNull();
+    });
+
+    it('records nothing for a managed container that carries no configuration', async () => {
+      const row = await observe({
+        'io.dockplane.managed': 'true',
+        'io.dockplane.container-id': CONFIG_A,
+      });
+
+      expect(row.observedDesiredConfigId).toBeNull();
+    });
+
+    it('refuses a configuration identity it cannot read', async () => {
+      /*
+       * Storing it would put a host-written string where the control server
+       * expects one of its own. Recording nothing is what makes recovery treat
+       * the container as unreadable rather than as a container running some
+       * configuration nobody has heard of.
+       */
+      for (const claimed of [
+        'not-a-uuid',
+        '',
+        '   ',
+        "'; drop table containers; --",
+        CONFIG_A.slice(0, 20),
+      ]) {
+        const row = await observe({
+          'io.dockplane.managed': 'true',
+          'io.dockplane.container-id': CONFIG_A,
+          'io.dockplane.desired-config-id': claimed,
+        });
+
+        expect(row.observedDesiredConfigId).toBeNull();
+
+        await resetData(db);
+        await signInAsAdmin();
+      }
     });
   });
 });
