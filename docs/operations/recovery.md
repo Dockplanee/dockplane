@@ -47,6 +47,28 @@ Revocation is a registry state, so it survives a restore only if the backup is
 newer than the revocation. After restoring an older backup, confirm that no
 previously revoked agent has become trusted again.
 
+## Stacks after a restore
+
+A restored database is a picture of the control plane at the time of the backup;
+the hosts have carried on since. Dockplane closes the gap by reading them, not
+by assuming.
+
+**A stack may come back blocked.** An operation that had been dispatched and
+whose result had not yet arrived is restored still unanswered, and the stack
+accepts nothing further until it is settled. Dockplane settles it from the host
+itself, on the next complete reading of that host, and **never repeats the
+operation** — so a restore cannot deploy, stop or delete anything a second time.
+
+**A stack's secrets need the encryption key.** A stack's environment is stored
+encrypted under `APPLICATION_ENCRYPTION_KEY`, the same material that protects
+second factors. A database restored without it holds stacks that cannot be
+deployed; the configuration is readable and the values in it are not.
+
+**What the host did after the backup is not in it.** A stack deployed, changed
+or deleted after the backup was taken is restored as it was before that, and the
+host is what it is. Dockplane will report a stack whose containers do not match
+one complete revision as needing attention rather than converging it on its own.
+
 ## Control-server host replacement
 
 A replacement host needs the database, the application encryption material and
