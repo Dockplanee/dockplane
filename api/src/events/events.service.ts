@@ -23,6 +23,8 @@ export type EventType =
   | 'container.state.changed'
   | 'container.health.changed'
   | 'container.removed'
+  | 'container.created'
+  | 'container.replaced'
   | 'container.started'
   | 'container.stopped'
   | 'container.restarted'

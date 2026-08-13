@@ -51,6 +51,23 @@ export type AuditAction =
    * trail reads as one operation an operator began and the server closed, not
    * as something a person did twice.
    */
+  | 'container.create.requested'
+  | 'container.create.succeeded'
+  | 'container.create.failed'
+  | 'container.replace.requested'
+  | 'container.replace.succeeded'
+  | 'container.replace.failed'
+  | 'container.remove.requested'
+  | 'container.remove.succeeded'
+  | 'container.remove.failed'
+  /*
+   * Dispatched, and then nothing came back. Deliberately not "failed": the
+   * server did not establish that the operation failed, and an operator reading
+   * the trail later must not be told something nobody ever knew.
+   */
+  | 'container.create.interrupted'
+  | 'container.replace.interrupted'
+  | 'container.remove.interrupted'
   | 'container.recovery.promoted'
   | 'container.recovery.discarded'
   | 'container.recovery.removed'

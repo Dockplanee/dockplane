@@ -13,8 +13,12 @@ import { AgentGatewayService } from './agents/agent-gateway.service';
 import { AgentRegistryService } from './agents/agent-registry.service';
 import { AgentConnectionManager } from './agents/connection-manager.service';
 import { AgentDispatchService } from './agents/agent-dispatch.service';
+import { ContainerManagementService } from './containers/container-management.service';
+import { ContainerManagementController } from './containers/containers.controller';
 import { PendingMutationGuard } from './containers/pending-guard';
+import { ReconciliationService } from './containers/reconciliation.service';
 import { RecoveryFinalizer } from './containers/recovery-finalizer';
+import { RecoveryOrchestrator } from './containers/recovery.orchestrator';
 import { DetailService } from './discovery/detail.service';
 import { DiscoveryService } from './discovery/discovery.service';
 import { EventsService } from './events/events.service';
@@ -35,10 +39,7 @@ import {
 import { DiscoveryScheduler } from './discovery/discovery.scheduler';
 import { EnrollmentService } from './agents/enrollment.service';
 import { AgentEnrollmentController, AgentsController } from './agents/agents.controller';
-import {
-  HostBootstrapController,
-  HostSetupController,
-} from './host-setup/host-setup.controller';
+import { HostBootstrapController, HostSetupController } from './host-setup/host-setup.controller';
 import { HostSetupService } from './host-setup/host-setup.service';
 import { AuditController } from './audit/audit.controller';
 import { AuditService } from './audit/audit.service';
@@ -98,6 +99,7 @@ import { SecretBox } from './common/crypto';
     ContainersController,
     ComposeProjectsController,
     ContainerOperationsController,
+    ContainerManagementController,
     ContainerLogsController,
     ActionsController,
   ],
@@ -126,6 +128,9 @@ import { SecretBox } from './common/crypto';
     MutationRegistry,
     PendingMutationGuard,
     RecoveryFinalizer,
+    ReconciliationService,
+    RecoveryOrchestrator,
+    ContainerManagementService,
     LifecycleService,
     LogStreamService,
     DiscoveryScheduler,

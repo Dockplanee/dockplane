@@ -109,8 +109,12 @@ export class LifecycleService {
      * replacement that identifier is exactly what is in question. Resolving
      * first would mean reading an address that is being replaced and only then
      * finding out that nobody may act on it.
+     *
+     * The same guard the management service uses. Starting a container is as
+     * affected by an unresolved change or a disputed identity as replacing one
+     * is: both need to know which container they mean.
      */
-    await this.pending.assertResolved(containerId);
+    await this.pending.assertOperable(containerId);
 
     const target = await this.resolve(containerId);
     const agentId = await this.connectedAgent(target.hostId);

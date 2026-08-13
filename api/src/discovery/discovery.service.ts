@@ -83,6 +83,8 @@ interface ComposeProject {
 /** What a completed sync changed, used for logging and tests. */
 export interface SyncResult {
   readonly snapshotId: string;
+  /** The host that was read, so a caller need not resolve the agent again. */
+  readonly hostId: string;
   readonly complete: boolean;
   readonly containers: number;
   readonly projects: number;
@@ -190,7 +192,14 @@ export class DiscoveryService {
       complete ? 'discovery completed' : 'discovery completed with gaps',
     );
 
-    return { snapshotId, complete, containers: containerCount, projects: projectCount, removed };
+    return {
+      snapshotId,
+      hostId: agent.hostId,
+      complete,
+      containers: containerCount,
+      projects: projectCount,
+      removed,
+    };
   }
 
   private async applyInventory(

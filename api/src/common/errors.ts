@@ -83,6 +83,16 @@ export const ERROR_CODES = [
    * until somebody settles it.
    */
   'CONTAINER_STATE_UNRESOLVED',
+  /*
+   * The request reached the host and its answer did not come back.
+   *
+   * Distinct from a failure, and the distinction is the point: Docker may have
+   * done exactly what was asked. Dockplane establishes which from the host
+   * rather than repeating the operation, and refuses further changes to that
+   * container until it has. A client that retries on this gets the refusal
+   * rather than a second change.
+   */
+  'OPERATION_OUTCOME_UNKNOWN',
   'ACTION_CONFLICT',
   'ACTION_TIMEOUT',
   'AGENT_OFFLINE',

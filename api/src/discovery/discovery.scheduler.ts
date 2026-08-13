@@ -2,6 +2,7 @@ import { Inject, Injectable, OnApplicationShutdown } from '@nestjs/common';
 import { Logger } from 'pino';
 
 import { LOGGER } from '../config/tokens';
+import { RecoveryOrchestrator } from '../containers/recovery.orchestrator';
 import { DiscoveryService } from './discovery.service';
 
 /**
@@ -39,6 +40,7 @@ export class DiscoveryScheduler implements OnApplicationShutdown {
 
   constructor(
     private readonly discovery: DiscoveryService,
+    private readonly recovery: RecoveryOrchestrator,
     @Inject(LOGGER) private readonly logger: Logger,
   ) {}
 
@@ -90,7 +92,21 @@ export class DiscoveryScheduler implements OnApplicationShutdown {
     schedule.running = true;
 
     try {
-      await this.discovery.sync(agentId);
+      const result = await this.discovery.sync(agentId);
+
+      /*
+       * The one moment recovery is entitled to run.
+       *
+       * A container change that lost its owner — to a restart, or to a
+       * connection that died before the answer arrived — can only be settled
+       * against a reading of the host that finished. This is where such a
+       * reading exists, so recovery is driven from here rather than from a
+       * timer of its own: no sweep, no interval, nothing that could act on a
+       * host it has not just read.
+       */
+      if (result.complete) {
+        await this.recovery.recoverHost(result.hostId);
+      }
     } catch (error) {
       // A failed pass is an operational state, not a reason to stop polling:
       // the next pass is how a host that came back is noticed.

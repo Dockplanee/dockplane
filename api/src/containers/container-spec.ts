@@ -132,17 +132,24 @@ export const environmentEntrySchema = z.discriminatedUnion('operation', [
   z.strictObject({
     operation: z.literal('set'),
     key: z.string().regex(ENV_KEY, 'Not an environment variable name.'),
-    value: z.string().max(32_768).refine((value) => !/[\0\n\r]/.test(value), {
-      message: 'An environment value may not contain a newline or a null byte.',
-    }),
+    value: z
+      .string()
+      .max(32_768)
+      .refine((value) => !/[\0\n\r]/.test(value), {
+        message: 'An environment value may not contain a newline or a null byte.',
+      }),
     secret: z.literal(false).optional().default(false),
   }),
   z.strictObject({
     operation: z.literal('set-secret'),
     key: z.string().regex(ENV_KEY, 'Not an environment variable name.'),
-    value: z.string().min(1).max(32_768).refine((value) => !/[\0\n\r]/.test(value), {
-      message: 'An environment value may not contain a newline or a null byte.',
-    }),
+    value: z
+      .string()
+      .min(1)
+      .max(32_768)
+      .refine((value) => !/[\0\n\r]/.test(value), {
+        message: 'An environment value may not contain a newline or a null byte.',
+      }),
     secret: z.literal(true).optional().default(true),
   }),
   // The value is not sent, because the browser does not have it.
@@ -191,14 +198,22 @@ const configurationShape = {
   ports: z.array(portSchema).max(128).optional().default([]),
   mounts: z.array(mountSchema).max(64).optional().default([]),
   environment: z.array(environmentEntrySchema).max(512).optional().default([]),
-  networks: z.array(z.string().regex(NETWORK, 'Not a network name.')).max(16).optional().default([]),
+  networks: z
+    .array(z.string().regex(NETWORK, 'Not a network name.'))
+    .max(16)
+    .optional()
+    .default([]),
   restartPolicy: z.enum(['no', 'always', 'unless-stopped', 'on-failure']).optional().default('no'),
   labels: labelsSchema.optional().default({}),
   healthcheck: healthcheckSchema.optional(),
 };
 
 function refineConfiguration(
-  value: { ports: z.infer<typeof portSchema>[]; mounts: { target: string }[]; environment: EnvironmentEntry[] },
+  value: {
+    ports: z.infer<typeof portSchema>[];
+    mounts: { target: string }[];
+    environment: EnvironmentEntry[];
+  },
   context: z.RefinementCtx,
 ): void {
   const boundHostPorts = new Set<string>();

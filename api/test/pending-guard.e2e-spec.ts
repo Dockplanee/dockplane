@@ -317,7 +317,7 @@ describe('an unfinished mutation', () => {
       await reserve(container.hostId, 'shop-api-1');
 
       await expect(guard.assertNameFree(container.hostId, 'shop-api-1')).rejects.toMatchObject({
-        code: 'ACTION_CONFLICT',
+        code: 'CONTAINER_NAME_IN_USE',
       });
 
       connection.close();
@@ -329,7 +329,7 @@ describe('an unfinished mutation', () => {
       await reserve(container.hostId, 'Shop-API-1');
 
       await expect(guard.assertNameFree(container.hostId, 'shop-api-1')).rejects.toMatchObject({
-        code: 'ACTION_CONFLICT',
+        code: 'CONTAINER_NAME_IN_USE',
       });
 
       connection.close();
