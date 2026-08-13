@@ -57,6 +57,18 @@ const (
 	StackDeploy = "stack.deploy"
 
 	/*
+	 * A deployed stack, moved between running and stopped.
+	 *
+	 * Three named operations rather than one that takes the word to perform,
+	 * for the same reason the container operations are three: a capability with
+	 * a command in its payload is a shell with a schema in front of it. None of
+	 * these creates, recreates or removes anything.
+	 */
+	StackStart   = "stack.start"
+	StackStop    = "stack.stop"
+	StackRestart = "stack.restart"
+
+	/*
 	 * The one capability that answers over time rather than once.
 	 *
 	 * It reads a container's output and nothing else. There is no attach, which
@@ -88,9 +100,14 @@ var (
 	ErrStackAmbiguous = errors.New("the stack's containers on this host are ambiguous")
 	// A volume the running stack mounts is gone. Never replaced with an empty
 	// one of the same name.
-	ErrVolumeMissing    = errors.New("a volume this stack uses does not exist")
-	ErrDockerPermission = errors.New("docker permission denied")
-	ErrDockerFailed     = errors.New("docker operation failed")
+	ErrVolumeMissing = errors.New("a volume this stack uses does not exist")
+	// A service the server expects has no container on the host. Never answered
+	// by creating one: creating belongs to deploying a revision.
+	ErrStackServiceMissing = errors.New("a service of this stack is not on the host")
+	// Some services moved and others did not. The host is left as it is.
+	ErrStackLifecycleIncomplete = errors.New("the stack was left partly changed")
+	ErrDockerPermission         = errors.New("docker permission denied")
+	ErrDockerFailed             = errors.New("docker operation failed")
 )
 
 // Handler performs a capability. The context carries the per-capability
@@ -273,6 +290,10 @@ func Code(err error) string {
 		return "STACK_STATE_AMBIGUOUS"
 	case errors.Is(err, ErrVolumeMissing):
 		return "VOLUME_MISSING"
+	case errors.Is(err, ErrStackServiceMissing):
+		return "STACK_SERVICE_MISSING"
+	case errors.Is(err, ErrStackLifecycleIncomplete):
+		return "STACK_LIFECYCLE_INCOMPLETE"
 	case errors.Is(err, ErrReplacementFailed):
 		return "REPLACEMENT_FAILED"
 	case errors.Is(err, context.DeadlineExceeded):

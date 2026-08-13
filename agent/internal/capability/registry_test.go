@@ -82,6 +82,9 @@ func TestTheAdvertisedSetIsExactlyTheDefinedCapabilities(t *testing.T) {
 		"host.inventory",
 		"host.metrics",
 		"stack.deploy",
+		"stack.restart",
+		"stack.start",
+		"stack.stop",
 	}
 
 	names := registry.Names()

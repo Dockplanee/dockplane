@@ -43,6 +43,14 @@ type fakeContainer struct {
 	running  bool
 	networks map[string][]string
 	mounts   []container.MountPoint
+	/*
+	 * When Docker last started this container.
+	 *
+	 * Modelled because the real engine behaves this way and the product depends
+	 * on it: a restart keeps the container's identifier and everything else
+	 * observable about it, and this is the only field that moves.
+	 */
+	startedAt string
 }
 
 type fakeHost struct {
@@ -63,6 +71,10 @@ type fakeHost struct {
 	 * the two is the one that will not come up.
 	 */
 	wontStart map[string]bool
+	/** Containers that refuse to stop, keyed the same way. */
+	wontStop map[string]bool
+	/** How many starts this host has performed, which dates each one. */
+	started int
 	/** Set to make an image unavailable. */
 	imageErr error
 
@@ -76,6 +88,7 @@ func newHost() *fakeHost {
 		networks:   map[string]map[string]string{},
 		volumes:    map[string]map[string]string{},
 		wontStart:  map[string]bool{},
+		wontStop:   map[string]bool{},
 	}
 }
 
@@ -168,9 +181,13 @@ func (h *fakeHost) ContainerInspect(_ context.Context, id string) (container.Ins
 
 	return container.InspectResponse{
 		ContainerJSONBase: &container.ContainerJSONBase{
-			ID:    found.id,
-			Name:  "/" + found.name,
-			State: &container.State{Running: found.running, Status: status},
+			ID:   found.id,
+			Name: "/" + found.name,
+			State: &container.State{
+				Running:   found.running,
+				Status:    status,
+				StartedAt: found.startedAt,
+			},
 		},
 		Mounts:          found.mounts,
 		NetworkSettings: &container.NetworkSettings{Networks: endpoints},
@@ -245,6 +262,10 @@ func (h *fakeHost) ContainerStart(_ context.Context, id string, _ container.Star
 	}
 
 	found.running = true
+	h.started++
+	// Monotonic, as Docker's own is: what makes a container that was just
+	// started distinguishable from the same container left alone.
+	found.startedAt = fmt.Sprintf("2026-01-01T00:00:%02dZ", h.started)
 
 	return nil
 }
@@ -257,6 +278,11 @@ func revisionService(found *fakeContainer) string {
 func (h *fakeHost) ContainerStop(_ context.Context, id string, _ container.StopOptions) error {
 	if found, present := h.containers[id]; present {
 		h.record("stop:%s", found.name)
+
+		if h.wontStop[revisionService(found)] {
+			return errors.New("the container would not stop")
+		}
+
 		found.running = false
 	}
 

@@ -238,6 +238,17 @@ func (p *StackPlan) StartOrder() ([]string, error) {
 		pending[service.ServiceName] = append([]string{}, service.DependsOn...)
 	}
 
+	return orderByDependencies(pending)
+}
+
+/*
+orderByDependencies sorts services so that nothing comes before what it needs.
+
+Shared by applying a revision and by starting one that is already deployed: both
+have to bring a database up before the thing that talks to it, and two answers to
+that question would eventually differ.
+*/
+func orderByDependencies(pending map[string][]string) ([]string, error) {
 	var order []string
 
 	for len(pending) > 0 {
