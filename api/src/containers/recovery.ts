@@ -33,8 +33,13 @@ export type RecoveryDecision =
   | { kind: 'discard_pending'; desiredConfigId: string }
   /** The container is gone and was meant to be. Finish the removal. */
   | { kind: 'finalize_remove' }
+  /**
+   * The operation did not happen and left nothing behind to clean up. Record
+   * it as failed; the resource stays exactly as it was.
+   */
+  | { kind: 'fail_operation'; reason: string }
   /** More than one container claims this resource. Nobody may guess. */
-  | { kind: 'conflict'; reason: string }
+  | { kind: 'identity_conflict'; reason: string }
   /** Something is wrong in a way that is not a conflict and not resolvable. */
   | { kind: 'needs_attention'; reason: string }
   /** Nothing to do, or nothing that can safely be concluded yet. */
@@ -71,6 +76,8 @@ export interface RecoveryInput {
    * Deciding anything about it would destroy an operation in progress.
    */
   readonly recoveryEligible: boolean;
+  /** Whether discovery has already recorded a conflict on this resource. */
+  readonly identityConflict?: boolean;
 }
 
 export function classifyRecovery(input: RecoveryInput): RecoveryDecision {
@@ -78,10 +85,6 @@ export function classifyRecovery(input: RecoveryInput): RecoveryDecision {
 
   if (!input.recoveryEligible) {
     return { kind: 'no_action', reason: 'a mutation is still running against this container' };
-  }
-
-  if (!input.snapshotComplete) {
-    return { kind: 'no_action', reason: 'the last discovery did not complete' };
   }
 
   /*
@@ -92,12 +95,24 @@ export function classifyRecovery(input: RecoveryInput): RecoveryDecision {
    * looks like the leftover. But the Docker side of the operation did not
    * finish, so which is which is not established — and being wrong here removes
    * somebody's running workload.
+   *
+   * A conflict discovery already recorded is checked before snapshot
+   * completeness, because it does not stop being true when the next sweep
+   * fails to finish.
    */
+  if (input.identityConflict) {
+    return { kind: 'identity_conflict', reason: 'this resource is already in conflict' };
+  }
+
   if (claims.length > 1) {
     return {
-      kind: 'conflict',
+      kind: 'identity_conflict',
       reason: `${claims.length} containers claim this resource`,
     };
+  }
+
+  if (!input.snapshotComplete) {
+    return { kind: 'no_action', reason: 'the last discovery did not complete' };
   }
 
   const claim = claims[0] ?? null;
@@ -132,9 +147,13 @@ export function classifyRecovery(input: RecoveryInput): RecoveryDecision {
       return { kind: 'finalize_remove' };
     }
 
-    // Still there, so the removal did not happen. Saying so is the whole
-    // answer; asking for it again is not recovery's decision to make.
-    return { kind: 'needs_attention', reason: 'the container is still present' };
+    /*
+     * Still there, so the removal did not happen. That is a failed operation
+     * rather than a damaged resource: the container is what it always was and
+     * nothing is left half-applied. Recording the failure is the whole answer —
+     * asking for the removal again is not recovery's decision to make.
+     */
+    return { kind: 'fail_operation', reason: 'the container was not removed' };
   }
 
   if (!pendingDesiredConfigId) {

@@ -9,13 +9,14 @@ import { ObservedClaim, RecoveryInput, classifyRecovery } from '../src/container
  */
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
-const Z = 'zzzzzzzz-zzzz-4zzz-8zzz-zzzzzzzzzzzz';
+const Z = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
 const claim = (dockerId: string, desiredConfigId: string | null): ObservedClaim => ({
   dockerId,
   desiredConfigId,
 });
 
+/** A replacement: the container is A and is being asked to become B. */
 const replacing = (overrides: Partial<RecoveryInput> = {}): RecoveryInput => ({
   operation: 'replace',
   currentDesiredConfigId: A,
@@ -26,16 +27,96 @@ const replacing = (overrides: Partial<RecoveryInput> = {}): RecoveryInput => ({
   ...overrides,
 });
 
-describe('deciding what an orphaned mutation meant', () => {
-  describe('when it is not orphaned', () => {
-    it('leaves a running mutation alone', () => {
-      // The normal state of a replacement that has not finished. Deciding
+/** A create: there is nothing yet, and A is what it is meant to become. */
+const creating = (overrides: Partial<RecoveryInput> = {}): RecoveryInput =>
+  replacing({
+    operation: 'create',
+    currentDesiredConfigId: null,
+    pendingDesiredConfigId: A,
+    ...overrides,
+  });
+
+/** A removal: the container is A and is meant to stop existing. */
+const removing = (overrides: Partial<RecoveryInput> = {}): RecoveryInput =>
+  replacing({ operation: 'remove', pendingDesiredConfigId: null, ...overrides });
+
+describe('deciding what an interrupted mutation meant', () => {
+  describe('replacing', () => {
+    it('has nothing to do when nothing is pending', () => {
+      const decision = classifyRecovery(
+        replacing({ pendingDesiredConfigId: null, claims: [claim('a', A)] }),
+      );
+
+      expect(decision.kind).toBe('no_action');
+    });
+
+    it('leaves a mutation that is still running alone', () => {
+      // The normal state of a replacement partway through: the candidate is
+      // written, the agent has been asked, nothing has come back yet. Deciding
       // anything here would destroy an operation in progress.
       const decision = classifyRecovery(
         replacing({ recoveryEligible: false, claims: [claim('a', A)] }),
       );
 
       expect(decision.kind).toBe('no_action');
+    });
+
+    it('discards the candidate when the original is what is running', () => {
+      expect(classifyRecovery(replacing({ claims: [claim('a', A)] }))).toEqual({
+        kind: 'discard_pending',
+        desiredConfigId: B,
+      });
+    });
+
+    it('promotes the candidate when the replacement is what is running', () => {
+      expect(classifyRecovery(replacing({ claims: [claim('b', B)] }))).toEqual({
+        kind: 'promote_pending',
+        desiredConfigId: B,
+      });
+    });
+
+    it('refuses to choose when both are there', () => {
+      const decision = classifyRecovery(replacing({ claims: [claim('a', A), claim('b', B)] }));
+
+      expect(decision.kind).toBe('identity_conflict');
+    });
+
+    it('refuses a configuration this resource never had', () => {
+      // Adopting it would mean inventing a configuration for something nobody
+      // asked for, out of a label anyone with Docker access can write.
+      const decision = classifyRecovery(replacing({ claims: [claim('z', Z)] }));
+
+      expect(decision.kind).toBe('needs_attention');
+    });
+
+    it('refuses to conclude anything when nothing is left at all', () => {
+      // A replacement keeps the original until the replacement runs, so this is
+      // not a state the workflow produces. Something else happened to this host.
+      const decision = classifyRecovery(replacing({ claims: [] }));
+
+      expect(decision.kind).toBe('needs_attention');
+    });
+
+    /*
+     * The case the configuration identity exists for.
+     *
+     * A candidate that differs from the current configuration in nothing that
+     * can be seen from outside — one secret, or one ordinary variable. Observed
+     * state carries no environment values at all, so the label is not a
+     * shortcut here; it is the only evidence there is.
+     */
+    it('promotes a secret-only candidate on the label alone', () => {
+      expect(classifyRecovery(replacing({ claims: [claim('b', B)] }))).toEqual({
+        kind: 'promote_pending',
+        desiredConfigId: B,
+      });
+    });
+
+    it('discards a secret-only candidate on the label alone', () => {
+      expect(classifyRecovery(replacing({ claims: [claim('a', A)] }))).toEqual({
+        kind: 'discard_pending',
+        desiredConfigId: B,
+      });
     });
 
     it('concludes nothing from a discovery that did not finish', () => {
@@ -45,186 +126,148 @@ describe('deciding what an orphaned mutation meant', () => {
 
       expect(decision.kind).toBe('no_action');
     });
-
-    it('has nothing to do when nothing is pending', () => {
-      const decision = classifyRecovery(
-        replacing({ pendingDesiredConfigId: null, claims: [claim('a', A)] }),
-      );
-
-      expect(decision.kind).toBe('no_action');
-    });
-  });
-
-  describe('replacing', () => {
-    it('discards the candidate when the original is what is running', () => {
-      const decision = classifyRecovery(replacing({ claims: [claim('a', A)] }));
-
-      expect(decision).toEqual({ kind: 'discard_pending', desiredConfigId: B });
-    });
-
-    it('promotes the candidate when the replacement is what is running', () => {
-      const decision = classifyRecovery(replacing({ claims: [claim('b', B)] }));
-
-      expect(decision).toEqual({ kind: 'promote_pending', desiredConfigId: B });
-    });
-
-    it('refuses to choose when both are there', () => {
-      const decision = classifyRecovery(replacing({ claims: [claim('a', A), claim('b', B)] }));
-
-      expect(decision.kind).toBe('conflict');
-    });
-
-    it('refuses a configuration this resource never had', () => {
-      const decision = classifyRecovery(replacing({ claims: [claim('z', Z)] }));
-
-      expect(decision.kind).toBe('needs_attention');
-    });
-
-    it('refuses a container that will not say what it is', () => {
-      const decision = classifyRecovery(replacing({ claims: [claim('a', null)] }));
-
-      expect(decision.kind).toBe('needs_attention');
-    });
-
-    it('refuses to conclude anything when nothing is left at all', () => {
-      // The workflow keeps the original until the replacement runs, so this is
-      // not a state it produces. Something else happened to this host.
-      const decision = classifyRecovery(replacing({ claims: [] }));
-
-      expect(decision.kind).toBe('needs_attention');
-    });
-  });
-
-  /*
-   * The reason the configuration identity exists.
-   *
-   * These two differ in nothing observable. Without the label there would be no
-   * way to tell which one is running, and recovery would have to read a secret
-   * back out of Docker to find out — which is exactly what the observed
-   * projection refuses to make possible.
-   */
-  describe('a replacement that changed nothing anyone can see', () => {
-    it('promotes a secret-only candidate on the label alone', () => {
-      const decision = classifyRecovery(replacing({ claims: [claim('b', B)] }));
-
-      expect(decision).toEqual({ kind: 'promote_pending', desiredConfigId: B });
-    });
-
-    it('discards a secret-only candidate on the label alone', () => {
-      const decision = classifyRecovery(replacing({ claims: [claim('a', A)] }));
-
-      expect(decision).toEqual({ kind: 'discard_pending', desiredConfigId: B });
-    });
   });
 
   describe('creating', () => {
-    const creating = (overrides: Partial<RecoveryInput> = {}): RecoveryInput =>
-      replacing({
-        operation: 'create',
-        currentDesiredConfigId: null,
-        pendingDesiredConfigId: A,
-        ...overrides,
-      });
-
     it('promotes when the container is there', () => {
-      const decision = classifyRecovery(creating({ claims: [claim('a', A)] }));
-
-      expect(decision).toEqual({ kind: 'promote_pending', desiredConfigId: A });
+      expect(classifyRecovery(creating({ claims: [claim('a', A)] }))).toEqual({
+        kind: 'promote_pending',
+        desiredConfigId: A,
+      });
     });
 
-    it('discards when a finished pass saw nothing', () => {
-      const decision = classifyRecovery(creating({ claims: [] }));
-
-      expect(decision).toEqual({ kind: 'discard_pending', desiredConfigId: A });
+    it('discards when a finished discovery saw nothing', () => {
+      // Nothing was created, or it was created and removed again. Either way
+      // the candidate describes something that does not exist — and asking for
+      // the create again is not recovery's decision to make.
+      expect(classifyRecovery(creating({ claims: [] }))).toEqual({
+        kind: 'discard_pending',
+        desiredConfigId: A,
+      });
     });
 
     it('refuses to choose between two containers', () => {
       const decision = classifyRecovery(creating({ claims: [claim('a', A), claim('b', A)] }));
 
-      expect(decision.kind).toBe('conflict');
+      expect(decision.kind).toBe('identity_conflict');
     });
   });
 
   describe('removing', () => {
-    const removing = (overrides: Partial<RecoveryInput> = {}): RecoveryInput =>
-      replacing({ operation: 'remove', pendingDesiredConfigId: null, ...overrides });
-
     it('finishes the removal when the container is gone', () => {
-      const decision = classifyRecovery(removing({ claims: [] }));
-
-      expect(decision).toEqual({ kind: 'finalize_remove' });
+      expect(classifyRecovery(removing({ claims: [] }))).toEqual({ kind: 'finalize_remove' });
     });
 
-    it('says so when the container is still there', () => {
-      // Asking for the removal again is not recovery's decision to make.
+    it('records a failure when the container is still there', () => {
+      // Nothing is half-applied: the container is what it always was. That is a
+      // failed operation, not a resource somebody has to repair.
       const decision = classifyRecovery(removing({ claims: [claim('a', A)] }));
 
-      expect(decision.kind).toBe('needs_attention');
+      expect(decision.kind).toBe('fail_operation');
     });
 
     it('refuses to choose when two containers claim the resource', () => {
       const decision = classifyRecovery(removing({ claims: [claim('a', A), claim('b', A)] }));
 
-      expect(decision.kind).toBe('conflict');
+      expect(decision.kind).toBe('identity_conflict');
     });
 
-    it('concludes nothing from an unfinished pass', () => {
+    it('concludes nothing from a discovery that did not finish', () => {
       const decision = classifyRecovery(removing({ claims: [], snapshotComplete: false }));
 
       expect(decision.kind).toBe('no_action');
     });
   });
 
-  /*
-   * Two containers outrank a tidy explanation.
-   *
-   * When both A and B are present the pending one looks like the winner and the
-   * current one like a leftover. It is a guess, the Docker side of the
-   * operation never finished, and being wrong removes a running workload.
-   */
-  it('never resolves a duplicate claim, however sensible the pair looks', () => {
-    for (const claims of [
-      [claim('a', A), claim('b', B)],
-      [claim('b', B), claim('a', A)],
-      [claim('a', A), claim('a2', A)],
-      [claim('b', B), claim('b2', B)],
-      [claim('a', A), claim('z', Z)],
-    ]) {
-      expect(classifyRecovery(replacing({ claims })).kind).toBe('conflict');
-    }
-  });
+  describe('whatever the operation', () => {
+    it('refuses a managed container that will not say what it is', () => {
+      // Hand-edited, or built by a Dockplane that predates the label. Either
+      // way its configuration cannot be established, and assuming it is the
+      // current one would be assuming the thing in question.
+      const decision = classifyRecovery(replacing({ claims: [claim('a', null)] }));
 
-  it('never asks for an operation to be run again', () => {
-    const everyState: RecoveryInput[] = [
-      replacing({ claims: [] }),
-      replacing({ claims: [claim('a', A)] }),
-      replacing({ claims: [claim('b', B)] }),
-      replacing({ claims: [claim('z', Z)] }),
-      replacing({ claims: [claim('a', null)] }),
-      replacing({ claims: [claim('a', A), claim('b', B)] }),
-      replacing({ operation: 'create', currentDesiredConfigId: null, claims: [] }),
-      replacing({ operation: 'remove', pendingDesiredConfigId: null, claims: [] }),
-    ];
+      expect(decision.kind).toBe('needs_attention');
+    });
 
-    const permitted = new Set([
-      'promote_pending',
-      'discard_pending',
-      'finalize_remove',
-      'conflict',
-      'needs_attention',
-      'no_action',
-    ]);
+    it('keeps saying so about a conflict that is already recorded', () => {
+      // A conflict does not stop being true because the next sweep timed out.
+      const decision = classifyRecovery(
+        replacing({ identityConflict: true, snapshotComplete: false, claims: [] }),
+      );
 
-    for (const state of everyState) {
-      // There is no outcome that dispatches, and none that removes anything.
-      expect(permitted.has(classifyRecovery(state).kind)).toBe(true);
-    }
-  });
+      expect(decision.kind).toBe('identity_conflict');
+    });
 
-  it('is the same answer every time it is asked', () => {
-    const state = replacing({ claims: [claim('b', B)] });
+    /*
+     * Two containers outrank a tidy explanation.
+     *
+     * With both A and B present, the pending one looks like the winner and the
+     * current one like a leftover. It is a guess, the Docker side of the
+     * operation never finished, and being wrong removes a running workload.
+     */
+    it('never resolves a duplicate claim, however sensible the pair looks', () => {
+      for (const claims of [
+        [claim('a', A), claim('b', B)],
+        [claim('b', B), claim('a', A)],
+        [claim('a', A), claim('a2', A)],
+        [claim('b', B), claim('b2', B)],
+        [claim('a', A), claim('z', Z)],
+        [claim('a', A), claim('b', B), claim('z', Z)],
+      ]) {
+        expect(classifyRecovery(replacing({ claims })).kind).toBe('identity_conflict');
+      }
+    });
 
-    expect(classifyRecovery(state)).toEqual(classifyRecovery(state));
-    expect(classifyRecovery(state)).toEqual(classifyRecovery(state));
+    it('never dispatches and never removes', () => {
+      // Recovery classifies, finalises and marks conflicts. Nothing it can say
+      // asks for a container to be created, replaced or removed.
+      const permitted = new Set([
+        'promote_pending',
+        'discard_pending',
+        'finalize_remove',
+        'fail_operation',
+        'identity_conflict',
+        'needs_attention',
+        'no_action',
+      ]);
+
+      const states: RecoveryInput[] = [
+        replacing({ claims: [] }),
+        replacing({ claims: [claim('a', A)] }),
+        replacing({ claims: [claim('b', B)] }),
+        replacing({ claims: [claim('z', Z)] }),
+        replacing({ claims: [claim('a', null)] }),
+        replacing({ claims: [claim('a', A), claim('b', B)] }),
+        replacing({ recoveryEligible: false, claims: [claim('a', A)] }),
+        replacing({ snapshotComplete: false, claims: [] }),
+        creating({ claims: [] }),
+        creating({ claims: [claim('a', A)] }),
+        removing({ claims: [] }),
+        removing({ claims: [claim('a', A)] }),
+      ];
+
+      for (const state of states) {
+        expect(permitted.has(classifyRecovery(state).kind)).toBe(true);
+      }
+    });
+
+    it('decides nothing irreversible from an unfinished discovery', () => {
+      const changesState = new Set(['promote_pending', 'discard_pending', 'finalize_remove']);
+
+      for (const operation of [replacing, creating, removing]) {
+        for (const claims of [[], [claim('a', A)], [claim('b', B)]]) {
+          const decision = classifyRecovery(operation({ snapshotComplete: false, claims }));
+
+          expect(changesState.has(decision.kind)).toBe(false);
+        }
+      }
+    });
+
+    it('is the same answer every time it is asked', () => {
+      const state = replacing({ claims: [claim('b', B)] });
+
+      expect(classifyRecovery(state)).toEqual(classifyRecovery(state));
+      expect(classifyRecovery(state)).toEqual(classifyRecovery(state));
+    });
   });
 });
