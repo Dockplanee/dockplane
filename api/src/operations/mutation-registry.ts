@@ -18,7 +18,9 @@ import { AppError } from '../common/errors';
  * which one produced the state that resulted.
  *
  * Creating has no container to hold, so it holds the name it intends to take on
- * a host — which is the thing two simultaneous creates would collide over.
+ * a host — which is the thing two simultaneous creates would collide over. A
+ * stack deployment holds the stack, because what it changes is every container
+ * of one.
  */
 @Injectable()
 export class MutationRegistry {
@@ -39,7 +41,7 @@ export class MutationRegistry {
       // the same thing to a client that had already learned the old one.
       throw AppError.conflict(
         'ACTION_CONFLICT',
-        `Another operation is already running on this container: ${existing}.`,
+        `Another operation is already running on this resource: ${existing}.`,
       );
     }
 

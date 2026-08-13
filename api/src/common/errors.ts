@@ -73,6 +73,12 @@ export const ERROR_CODES = [
   'CONTAINER_NAME_IN_USE',
   'IMAGE_NOT_FOUND',
   'REPLACEMENT_FAILED',
+  /*
+   * The host has a container, volume or network with a name a stack needs, and
+   * did not create it for that stack. Reported by the agent, which is the side
+   * that can see all three.
+   */
+  'STACK_RESOURCE_CONFLICT',
   'CONTAINER_CREATE_FAILED',
   'CONTAINER_REMOVE_FAILED',
   /*
@@ -113,6 +119,33 @@ export const ERROR_CODES = [
    */
   'STACK_REVISION_CONFLICT',
   'STACK_CONFIGURATION_INVALID',
+  /*
+   * A stack that already runs somewhere. Deploying it again would be an update
+   * to what is running, which is a different operation with different
+   * consequences and is refused rather than approximated.
+   */
+  'STACK_ALREADY_DEPLOYED',
+  /* A deployment of this stack is running, or one never finished. */
+  'STACK_DEPLOYMENT_CONFLICT',
+  /*
+   * The deployment did not happen and left nothing behind. The host is as it
+   * was, so whatever was wrong can be fixed and the stack deployed again.
+   */
+  'STACK_DEPLOYMENT_FAILED',
+  /*
+   * Part of the stack is running and part of it is not.
+   *
+   * Nothing is removed on the way out: a container that started may already
+   * have written to a volume. The stack is not recorded as deployed and waits
+   * for a person.
+   */
+  'STACK_DEPLOYMENT_PARTIAL',
+  'STACK_NEEDS_ATTENTION',
+  /*
+   * Something on the host already has a name the stack needs. Never resolved by
+   * renaming or removing whatever is in the way — it belongs to somebody.
+   */
+  'RESOURCE_NAME_CONFLICT',
   'ACTION_CONFLICT',
   'ACTION_TIMEOUT',
   'AGENT_OFFLINE',

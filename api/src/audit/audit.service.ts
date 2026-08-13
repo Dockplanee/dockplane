@@ -75,6 +75,16 @@ export type AuditAction =
    */
   | 'stack.created'
   | 'stack.revision.created'
+  /*
+   * A deployment, which is the first stack action that changes a host. The
+   * entry names the stack and the revision it was deploying — never a service,
+   * an image or anything out of the Compose file.
+   */
+  | 'stack.deploy.requested'
+  | 'stack.deploy.succeeded'
+  | 'stack.deploy.failed'
+  | 'stack.deploy.interrupted'
+  | 'stack.deploy.needs_attention'
   | 'container.recovery.promoted'
   | 'container.recovery.discarded'
   | 'container.recovery.removed'

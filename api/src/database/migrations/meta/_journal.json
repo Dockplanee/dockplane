@@ -92,6 +92,13 @@
       "when": 1787088281825,
       "tag": "0012_stack_revisions",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787174681825,
+      "tag": "0013_stack_deployments",
+      "breakpoints": true
     }
   ]
 }

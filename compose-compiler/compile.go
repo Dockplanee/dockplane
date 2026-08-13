@@ -303,6 +303,14 @@ func build(projectName string, project *types.Project) (*StackDeploymentPlan, []
 			})
 		}
 
+		if bool(network.External) {
+			problems = append(problems, Problem{
+				Path:    "networks." + name + ".external",
+				Code:    codeUnsupported,
+				Message: "Dockplane deploys the networks it creates. It does not attach a stack to a network it did not create.",
+			})
+		}
+
 		plan.Networks = append(plan.Networks, NetworkPlan{
 			Name:       name,
 			DockerName: network.Name,
@@ -319,6 +327,21 @@ func build(projectName string, project *types.Project) (*StackDeploymentPlan, []
 				Path:    "volumes." + name + ".driver_opts",
 				Code:    codeUnsupported,
 				Message: "Driver options are not applied by Dockplane, so a volume cannot ask for them.",
+			})
+		}
+
+		/*
+		 * An external volume is one somebody else's data is already in.
+		 *
+		 * Mounting it into a stack Dockplane deploys would make Dockplane
+		 * responsible for a volume it did not create and cannot reason about,
+		 * which is adoption by another name.
+		 */
+		if bool(volume.External) {
+			problems = append(problems, Problem{
+				Path:    "volumes." + name + ".external",
+				Code:    codeUnsupported,
+				Message: "Dockplane deploys the volumes it creates. It does not mount a volume it did not create.",
 			})
 		}
 

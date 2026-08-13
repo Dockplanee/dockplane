@@ -7,7 +7,7 @@ import { Logger } from 'pino';
 import { AgentDispatchService } from '../agents/agent-dispatch.service';
 import { LOGGER } from '../config/tokens';
 import { Database } from '../database/database';
-import { agents, composeProjects, containers, events, hosts } from '../database/schema';
+import { agents, composeProjects, containers, events, hosts, stacks } from '../database/schema';
 import { EventType, EventsService } from '../events/events.service';
 
 /**
@@ -33,6 +33,21 @@ const DOCKPLANE_MANAGED = 'io.dockplane.managed';
  * this projection carries.
  */
 const DOCKPLANE_DESIRED_CONFIG_ID = 'io.dockplane.desired-config-id';
+
+/**
+ * Which stack a container belongs to, and which service of it.
+ *
+ * Read together and only from a container that claims Dockplane built it. A
+ * stack identity that does not parse is recorded as none rather than stored as
+ * written: these attribute a container to something an operator can act on, and
+ * a host-written string in that column would be an attribution to whatever the
+ * host said.
+ */
+const DOCKPLANE_STACK_ID = 'io.dockplane.stack-id';
+const DOCKPLANE_STACK_SERVICE = 'io.dockplane.stack-service';
+
+/** A service name is Compose's, and Compose's rule is what is accepted. */
+const SERVICE_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$/;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -286,6 +301,34 @@ export class DiscoveryService {
       }
     }
 
+    /*
+     * Which resource holds each service of each stack.
+     *
+     * One container per service, enforced by the database. Two containers
+     * claiming one service — a leftover from an earlier deployment, or a
+     * container somebody labelled by hand — would otherwise make an ordinary
+     * discovery pass fail on a constraint, so the second claim is recorded
+     * without its stack attribution instead.
+     */
+    const serviceHeldBy = new Map<string, string>();
+
+    for (const row of existing) {
+      if (row.stackId && row.stackService) {
+        serviceHeldBy.set(serviceKey(row.stackId, row.stackService), row.id);
+      }
+    }
+
+    /*
+     * The stacks this host has. A container may name one that has been deleted,
+     * and writing that identifier would fail against the foreign key — which
+     * would take an ordinary discovery pass down with it.
+     */
+    const knownStacks = new Set(
+      (
+        await this.db.client.select({ id: stacks.id }).from(stacks).where(eq(stacks.hostId, hostId))
+      ).map((row) => row.id),
+    );
+
     for (const item of reported) {
       if (!item?.dockerId) {
         continue;
@@ -318,6 +361,7 @@ export class DiscoveryService {
         hostId,
         dockerId: item.dockerId,
         observedDesiredConfigId: this.observedConfig(item, hostId),
+        ...this.attributeToStack(item, hostId, previous?.id ?? null, knownStacks, serviceHeldBy),
         name: item.name ?? '',
         image: item.image ?? '',
         imageId: item.imageId ?? null,
@@ -410,6 +454,107 @@ export class DiscoveryService {
     }
 
     return claimed;
+  }
+
+  /**
+   * Attributes a container to a stack service, unless something else holds it.
+   *
+   * The label says which service this is; the map says whether another resource
+   * is already that service. Only one may be, so a second claimant is recorded
+   * as an ordinary container and an operator sees a container of that stack
+   * that Dockplane does not consider part of it — which is the truthful answer
+   * and not one that stops a discovery pass.
+   */
+  private attributeToStack(
+    item: ContainerSummary,
+    hostId: string,
+    rowId: string | null,
+    known: ReadonlySet<string>,
+    heldBy: Map<string, string>,
+  ): { stackId: string | null; stackService: string | null } {
+    const claim = this.observedStack(item, hostId);
+
+    if (!claim.stackId || !claim.stackService) {
+      return claim;
+    }
+
+    /*
+     * A stack that no longer exists.
+     *
+     * A container outlives the stack that created it — deleting a stack does
+     * not delete what is running — and it goes on carrying the label. Recorded
+     * as an ordinary container, because the thing it names is not there to
+     * attribute it to.
+     */
+    if (!known.has(claim.stackId)) {
+      return { stackId: null, stackService: null };
+    }
+
+    const key = serviceKey(claim.stackId, claim.stackService);
+    const holder = heldBy.get(key);
+
+    if (holder && holder !== rowId) {
+      this.logger.warn(
+        {
+          event: 'container_stack_service_contested',
+          hostId,
+          dockerId: item.dockerId,
+        },
+        'more than one container claims to be the same service of a stack',
+      );
+
+      return { stackId: null, stackService: null };
+    }
+
+    // Claimed for the rest of this pass whether or not the row exists yet: two
+    // containers reported together may claim the same service, and only one of
+    // them may have it.
+    heldBy.set(key, rowId ?? `docker:${item.dockerId}`);
+
+    return claim;
+  }
+
+  /**
+   * Reads the stack a container says it belongs to.
+   *
+   * Both halves or neither: a container claiming a stack but no service, or a
+   * service but no stack, is not attributed at all. Half an attribution would
+   * put a row in a stack's service list that nothing could identify.
+   *
+   * Whether the stack still exists is a separate question: this reads a label
+   * and says what it found.
+   */
+  private observedStack(
+    item: ContainerSummary,
+    hostId: string,
+  ): { stackId: string | null; stackService: string | null } {
+    const none = { stackId: null, stackService: null };
+
+    if (item.labels?.[DOCKPLANE_MANAGED] !== 'true') {
+      return none;
+    }
+
+    const stackId = item.labels?.[DOCKPLANE_STACK_ID];
+    const service = item.labels?.[DOCKPLANE_STACK_SERVICE];
+
+    if (!stackId && !service) {
+      return none;
+    }
+
+    if (!stackId || !service || !UUID.test(stackId) || !SERVICE_NAME.test(service)) {
+      this.logger.warn(
+        {
+          event: 'container_stack_identity_unreadable',
+          hostId,
+          dockerId: item.dockerId,
+        },
+        'a managed container carries an unreadable stack identity',
+      );
+
+      return none;
+    }
+
+    return { stackId, stackService: service };
   }
 
   /*
@@ -644,6 +789,11 @@ export class DiscoveryService {
   ): Promise<void> {
     await this.events.record({ hostId, type, severity, resource, message });
   }
+}
+
+/** One key for a stack's service, so a claim can be looked up in one map. */
+function serviceKey(stackId: string, service: string): string {
+  return `${stackId}\u0000${service}`;
 }
 
 function parseDate(value?: string): Date | null {

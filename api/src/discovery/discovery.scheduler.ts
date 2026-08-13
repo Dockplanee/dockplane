@@ -3,6 +3,7 @@ import { Logger } from 'pino';
 
 import { LOGGER } from '../config/tokens';
 import { RecoveryOrchestrator } from '../containers/recovery.orchestrator';
+import { StackRecoveryService } from '../stacks/stack-recovery.service';
 import { DiscoveryService } from './discovery.service';
 
 /**
@@ -41,6 +42,7 @@ export class DiscoveryScheduler implements OnApplicationShutdown {
   constructor(
     private readonly discovery: DiscoveryService,
     private readonly recovery: RecoveryOrchestrator,
+    private readonly stackRecovery: StackRecoveryService,
     @Inject(LOGGER) private readonly logger: Logger,
   ) {}
 
@@ -106,6 +108,7 @@ export class DiscoveryScheduler implements OnApplicationShutdown {
        */
       if (result.complete) {
         await this.recovery.recoverHost(result.hostId);
+        await this.stackRecovery.recoverHost(result.hostId);
       }
     } catch (error) {
       // A failed pass is an operational state, not a reason to stop polling:

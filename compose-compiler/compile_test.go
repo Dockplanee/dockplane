@@ -582,3 +582,27 @@ services:
 		t.Errorf("database = %q, want the name the file asked for", names["database"])
 	}
 }
+
+/*
+A stack does not reach for a resource somebody else made.
+
+`external` says the network or volume already exists and this file is not to
+create it. Attaching to one would make Dockplane responsible for something it
+did not create — and for a volume it would mount somebody else's data into a
+new stack.
+*/
+func TestExternalResourcesAreRefused(t *testing.T) {
+	refuses(
+		t,
+		"services:\n  app:\n    image: nginx\n    networks: [edge]\nnetworks:\n  edge:\n    external: true\n",
+		"networks.edge.external",
+		codeUnsupported,
+	)
+
+	refuses(
+		t,
+		"services:\n  app:\n    image: nginx\n    volumes:\n      - data:/var/lib/x\nvolumes:\n  data:\n    external: true\n",
+		"volumes.data.external",
+		codeUnsupported,
+	)
+}

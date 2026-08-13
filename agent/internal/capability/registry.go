@@ -79,8 +79,12 @@ var (
 	ErrInvalidSpec       = errors.New("invalid container specification")
 	ErrImageNotFound     = errors.New("image not found")
 	ErrReplacementFailed = errors.New("replacement failed")
-	ErrDockerPermission  = errors.New("docker permission denied")
-	ErrDockerFailed      = errors.New("docker operation failed")
+	// Something on the host has a name this stack needs and is not this
+	// stack's. Distinct from a container name collision, because the thing in
+	// the way may be a volume holding somebody's data.
+	ErrStackConflict    = errors.New("a resource of that name belongs to something else")
+	ErrDockerPermission = errors.New("docker permission denied")
+	ErrDockerFailed     = errors.New("docker operation failed")
 )
 
 // Handler performs a capability. The context carries the per-capability
@@ -257,6 +261,8 @@ func Code(err error) string {
 		return "IMAGE_NOT_FOUND"
 	case errors.Is(err, ErrInvalidSpec):
 		return "INVALID_CONTAINER_SPEC"
+	case errors.Is(err, ErrStackConflict):
+		return "STACK_RESOURCE_CONFLICT"
 	case errors.Is(err, ErrReplacementFailed):
 		return "REPLACEMENT_FAILED"
 	case errors.Is(err, context.DeadlineExceeded):

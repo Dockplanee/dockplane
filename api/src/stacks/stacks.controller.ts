@@ -17,6 +17,7 @@ import { RequirePermissions } from '../rbac/permissions.decorator';
 import { AuthenticatedRequest, AuthenticatedUser } from '../auth/authenticated-request';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { ComposeCompilerService } from './compose-compiler.service';
+import { StackDeploymentService } from './stack-deployment.service';
 import { StackService } from './stack.service';
 
 /**
@@ -100,6 +101,16 @@ const revisionSchema = z.strictObject({
   environment: environmentSchema,
 });
 
+/**
+ * What a caller sends to deploy a stack.
+ *
+ * The revision and nothing else. No host, no agent, no Docker identifier and no
+ * plan: everything that decides what reaches a machine is resolved here, from
+ * what was saved. A browser that could name an agent or hand over a plan would
+ * be a browser that could deploy something nobody saved.
+ */
+const deploySchema = z.strictObject({ revisionId: z.uuid() });
+
 const validateSchema = z.strictObject({
   projectName: z.string().min(1).max(63),
   /*
@@ -143,6 +154,7 @@ export class StacksController {
   constructor(
     private readonly compiler: ComposeCompilerService,
     private readonly stacks: StackService,
+    private readonly deployments: StackDeploymentService,
   ) {}
 
   @Post()
@@ -211,6 +223,26 @@ export class StacksController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.stacks.createRevision(id, body, user, context(request));
+  }
+
+  /**
+   * Deploys a stack for the first time.
+   *
+   * Answers when the deployment is over, not when it was dispatched: a stack
+   * that is reported as deployed has been read back off its host. The wait is
+   * bounded by the capability's own timeout, and a request that outlives its
+   * answer leaves the attempt unresolved rather than guessing.
+   */
+  @Post(':id/deploy')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('stacks.deploy')
+  async deploy(
+    @Param('id', new ZodValidationPipe(idSchema)) id: string,
+    @Body(new ZodValidationPipe(deploySchema)) body: z.infer<typeof deploySchema>,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.deployments.deploy(id, body.revisionId, user, context(request));
   }
 
   @Post('validate')

@@ -29,6 +29,8 @@ export type EventType =
   | 'container.stopped'
   | 'container.restarted'
   | 'container.action.failed'
+  | 'stack.deployed'
+  | 'stack.deployment.failed'
   | 'compose.discovered'
   | 'compose.state.changed'
   | 'compose.removed'

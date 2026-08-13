@@ -10,9 +10,8 @@ Compose is read in one place — the control server — and never on a managed h
 The agent receives a resolved plan and has no Compose parser, no YAML of its
 own, and no Docker Compose CLI. There is no shell anywhere in the path.
 
-**Stacks cannot be deployed yet.** This build can save a stack and its
-configuration history, and say what a Compose file would create. Running one
-comes later — see [Stacks](../operations/stacks.md).
+A stack that has never run can be deployed from a saved revision. Changing what
+is already running comes later — see [Stacks](../operations/stacks.md).
 
 ## Supported
 
@@ -53,6 +52,7 @@ saying why.
 | Port ranges | A range publishes several ports; nothing expands one yet, so it would publish the first and drop the rest. |
 | `depends_on` conditions other than `service_started` | Dockplane starts dependencies in order. It cannot wait for a health check, so it will not accept a file that asks it to. |
 | Network and volume `driver_opts` | Not applied, so not accepted. |
+| `external` networks and volumes | Dockplane deploys what it creates. It does not attach a stack to a network or a volume it did not create. |
 | Scaling above one container per service | Not implemented. |
 
 Labels beginning `io.dockplane.` are refused. Dockplane sets those itself, and

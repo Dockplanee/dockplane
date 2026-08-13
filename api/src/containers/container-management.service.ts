@@ -653,6 +653,7 @@ export class ContainerManagementService {
         hostId: containers.hostId,
         dockerId: containers.dockerId,
         composeProjectId: containers.composeProjectId,
+        stackId: containers.stackId,
       })
       .from(containers)
       .where(eq(containers.id, containerId));
@@ -663,7 +664,13 @@ export class ContainerManagementService {
 
     await this.pending.assertOperable(containerId);
 
-    if (row.composeProjectId) {
+    if (row.composeProjectId || row.stackId) {
+      /*
+       * Its configuration comes from a stack's Compose file. Replacing or
+       * removing it on its own would leave the stack describing something that
+       * is not there, and the next deployment would find a container it did not
+       * make.
+       */
       throw AppError.conflict(
         'MANAGED_BY_STACK',
         'This container belongs to a Compose project, and its configuration comes from there.',

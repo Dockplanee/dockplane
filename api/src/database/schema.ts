@@ -272,6 +272,15 @@ export const containers = pgTable(
     health: text('health').notNull().default('none'),
     restartCount: integer('restart_count').notNull().default(0),
     composeProjectId: uuid('compose_project_id'),
+    /**
+     * The stack this container belongs to, and which of its services it is.
+     *
+     * Read from the labels Dockplane set when it created the container, never
+     * from a name that happened to match. Nulled rather than deleted when a
+     * stack goes, because the container may still be running on the host.
+     */
+    stackId: uuid('stack_id'),
+    stackService: text('stack_service'),
     dockerCreatedAt: timestamp('docker_created_at', { withTimezone: true }),
     startedAt: timestamp('started_at', { withTimezone: true }),
     /** Summary-level extras from discovery: the Compose service and status. */
@@ -334,6 +343,17 @@ export const containers = pgTable(
     uniqueIndex('containers_host_pending_name_unique')
       .on(table.hostId, sql`lower(${table.name})`)
       .where(sql`docker_id IS NULL`),
+    /*
+     * One container per service of a stack.
+     *
+     * A service is one container in this product, and the resource behind it
+     * stays the same across replacements. Two rows claiming one service would
+     * leave nothing able to say which container a service is.
+     */
+    uniqueIndex('containers_stack_service_unique')
+      .on(table.stackId, table.stackService)
+      .where(sql`stack_id IS NOT NULL AND stack_service IS NOT NULL`),
+    index('containers_stack_idx').on(table.stackId),
   ],
 );
 
@@ -590,6 +610,72 @@ export const stackRevisionEnvironment = pgTable(
 );
 
 /**
+ * One attempt to put a stack on a host.
+ *
+ * Written before an agent is asked for anything, for the same reason a
+ * container resource is: a control server that dies mid-deployment leaves
+ * containers on a host, and without a record of the attempt nothing afterwards
+ * could say they were meant to be there.
+ *
+ * An attempt is resolved or it is not. `succeeded` and `failed` are answers;
+ * `interrupted` and `needs_attention` are the states where the server does not
+ * know, or knows that a person has to look — and the database allows only one
+ * unresolved attempt per stack, which is the part a restart cannot forget.
+ */
+export const stackDeployments = pgTable(
+  'stack_deployments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    stackId: uuid('stack_id')
+      .notNull()
+      .references(() => stacks.id, { onDelete: 'cascade' }),
+    /** The revision this attempt was deploying, not the stack's newest. */
+    revisionId: uuid('revision_id')
+      .notNull()
+      .references(() => stackRevisions.id, { onDelete: 'cascade' }),
+    hostId: uuid('host_id')
+      .notNull()
+      .references(() => hosts.id, { onDelete: 'cascade' }),
+    /** `initial` is the only kind so far. */
+    kind: text('kind').notNull().default('initial'),
+    status: text('status').notNull().default('pending'),
+    actionId: uuid('action_id'),
+    startedBy: uuid('started_by').references(() => users.id, { onDelete: 'set null' }),
+    /**
+     * What happened to each service.
+     *
+     * Names, states and codes. Never anything from the plan: a plan carries
+     * resolved environment values, and this row is read by an interface.
+     */
+    detail: jsonb('detail').$type<{
+      readonly services: readonly {
+        readonly serviceName: string;
+        readonly containerId: string;
+        readonly state?: string;
+        readonly errorCode?: string;
+      }[];
+    } | null>(),
+    failureCode: text('failure_code'),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    index('stack_deployments_stack_idx').on(table.stackId),
+    index('stack_deployments_host_idx').on(table.hostId),
+    /*
+     * One unfinished deployment per stack.
+     *
+     * The in-memory lock covers one running process; this covers a restart,
+     * where the lock is empty and the half-deployed containers are still there.
+     */
+    uniqueIndex('stack_deployments_unresolved_unique')
+      .on(table.stackId)
+      .where(sql`status IN ('pending', 'running', 'interrupted', 'needs_attention')`),
+  ],
+);
+
+/**
  * A stack's environment, as variables rather than as a file.
  *
  * Structured because a `.env` blob cannot say which value is a secret, and
@@ -744,7 +830,17 @@ export const containersRelations = relations(containers, ({ one }) => ({
 export const stacksRelations = relations(stacks, ({ many, one }) => ({
   host: one(hosts, { fields: [stacks.hostId], references: [hosts.id] }),
   revisions: many(stackRevisions),
+  deployments: many(stackDeployments),
   environment: many(stackEnvironmentVariables),
+}));
+
+export const stackDeploymentsRelations = relations(stackDeployments, ({ one }) => ({
+  stack: one(stacks, { fields: [stackDeployments.stackId], references: [stacks.id] }),
+  revision: one(stackRevisions, {
+    fields: [stackDeployments.revisionId],
+    references: [stackRevisions.id],
+  }),
+  host: one(hosts, { fields: [stackDeployments.hostId], references: [hosts.id] }),
 }));
 
 export const stackRevisionsRelations = relations(stackRevisions, ({ one }) => ({
@@ -787,4 +883,7 @@ export type Agent = typeof agents.$inferSelect;
 export type Host = typeof hosts.$inferSelect;
 export type Container = typeof containers.$inferSelect;
 export type ComposeProject = typeof composeProjects.$inferSelect;
+export type Stack = typeof stacks.$inferSelect;
+export type StackRevision = typeof stackRevisions.$inferSelect;
+export type StackDeployment = typeof stackDeployments.$inferSelect;
 export type AuditEntry = typeof auditEntries.$inferSelect;

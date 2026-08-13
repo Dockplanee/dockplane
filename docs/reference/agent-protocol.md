@@ -148,15 +148,16 @@ new one, and one host's answer would be read as another's.
 - an identifier it has already handled, held in a bounded, time-limited cache
 - a capability it does not implement
 
-Three capabilities change a host, so a replayed request is a duplicated action:
-a restart delivered twice is a service interrupted twice. The guard applies to
-every request rather than to the mutating ones, so a capability that becomes
-mutating later is already covered.
+Several capabilities change a host, so a replayed request is a duplicated
+action: a restart delivered twice is a service interrupted twice. The guard
+applies to every request rather than to the mutating ones, so a capability that
+becomes mutating later is already covered.
 
 ## Capabilities
 
-Version 1 defines exactly ten. Six read, three change the run state of one
-container, and one streams a container's output:
+Version 1 defines exactly fourteen. Six read, three change the run state of one
+container, three build or remove one, one deploys a stack, and one streams a
+container's output:
 
 ```text
 host.inventory
@@ -168,14 +169,30 @@ compose.inspect
 container.start
 container.stop
 container.restart
+container.create
+container.replace
+container.remove
+stack.deploy
 container.logs
 ```
 
 `container.logs` answers over time rather than once. Nothing else does.
 
-A mutating capability takes a container identifier and nothing else, and the
-control server derives that identifier from the container the operator named —
-a caller never chooses which host or which Docker object an operation reaches.
+A capability that changes the run state of a container takes a container
+identifier and nothing else, and the control server derives that identifier from
+the container the operator named — a caller never chooses which host or which
+Docker object an operation reaches.
+
+The four that build things carry a typed specification instead: named fields for
+an image, an environment, ports, mounts, networks and a restart policy. What may
+be asked for is the shape of that type, so a Docker option Dockplane has not
+modelled cannot be requested at all — there is no field for `privileged`, for a
+raw bind list or for a host namespace.
+
+`stack.deploy` carries several of those specifications, plus the networks and
+volumes they need and the order the services start in. It does not carry a
+Compose file: Compose is read by the control server, and the agent has no parser
+for one.
 
 Both sides hold the list. A capability the server will not dispatch is also one
 the agent refuses to run, and a REST caller cannot pass a capability name

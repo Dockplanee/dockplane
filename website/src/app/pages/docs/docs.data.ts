@@ -62,7 +62,7 @@ export const DOC_SECTIONS: readonly DocSection[] = [
       },
       {
         "title": "Container Operations",
-        "summary": "Dockplane can start, stop and restart a container it has discovered. These are the only operations that change a managed host.",
+        "summary": "Dockplane can start, stop and restart a container it has discovered, and can create, change and remove a container it manages itself. These are the only operations that change a managed host.",
         "url": "https://github.com/Dockplanee/dockplane/blob/main/docs/operations/container-lifecycle.md"
       },
       {
@@ -84,6 +84,11 @@ export const DOC_SECTIONS: readonly DocSection[] = [
         "title": "Building a Release",
         "summary": "A Dockplane release has two halves, built by one command each: the control plane images, and the agent packages.",
         "url": "https://github.com/Dockplanee/dockplane/blob/main/docs/operations/releases.md"
+      },
+      {
+        "title": "Stacks",
+        "summary": "A stack is a Compose file, the environment it needs, and the host it belongs to. Dockplane keeps the whole history of what a stack has been configured to be.",
+        "url": "https://github.com/Dockplanee/dockplane/blob/main/docs/operations/stacks.md"
       }
     ]
   },
@@ -151,6 +156,11 @@ export const DOC_SECTIONS: readonly DocSection[] = [
         "title": "Interface Versions",
         "summary": "Three numbers decide whether two pieces of Dockplane can work together. They are frozen for the 0.1 series: a change to any of them is a deliberate act with a migration story, not something that happens because a struct was edited.",
         "url": "https://github.com/Dockplanee/dockplane/blob/main/docs/reference/interface-versions.md"
+      },
+      {
+        "title": "Compose Support",
+        "summary": "Dockplane reads Compose files with the Compose specification's own library and turns them into a typed deployment plan. Everything a Compose file can express that Dockplane does not deploy is refused rather than ignored: a file that asks for something unsupported is an error, not a deployment quietly missing part of what its author configured.",
+        "url": "https://github.com/Dockplanee/dockplane/blob/main/docs/reference/compose-support.md"
       }
     ]
   }

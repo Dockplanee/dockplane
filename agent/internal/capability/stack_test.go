@@ -130,13 +130,13 @@ func TestStackFailuresMapToCodesTheServerKnows(t *testing.T) {
 	known := map[string]bool{
 		"AGENT_CAPABILITY_UNSUPPORTED": true,
 		"VALIDATION_FAILED":            true,
-		"CONTAINER_NAME_IN_USE":        true,
+		"STACK_RESOURCE_CONFLICT":      true,
 	}
 
 	for _, err := range []error{
 		capability.ErrUnsupported,
 		capability.ErrInvalidPayload,
-		capability.ErrNameInUse,
+		capability.ErrStackConflict,
 	} {
 		if code := capability.Code(err); !known[code] {
 			t.Fatalf("%v maps to %q, which the server does not accept", err, code)

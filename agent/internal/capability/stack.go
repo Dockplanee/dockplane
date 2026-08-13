@@ -64,7 +64,7 @@ func wrapStack(err error) error {
 	case errors.Is(err, docker.ErrStackPlanInvalid):
 		return fmt.Errorf("%w: %v", ErrInvalidPayload, err)
 	case errors.Is(err, docker.ErrStackResourceConflict):
-		return fmt.Errorf("%w: %v", ErrNameInUse, err)
+		return fmt.Errorf("%w: %v", ErrStackConflict, err)
 	default:
 		return err
 	}

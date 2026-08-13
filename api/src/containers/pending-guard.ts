@@ -3,7 +3,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { AppError } from '../common/errors';
 import { Database } from '../database/database';
-import { actions, containerDesiredConfigs, containers } from '../database/schema';
+import { actions, containerDesiredConfigs, containers, stackDeployments } from '../database/schema';
 
 /**
  * The operations that leave something unfinished behind.
@@ -107,6 +107,7 @@ export class PendingMutationGuard {
    */
   async assertOperable(containerId: string): Promise<void> {
     await this.assertResolved(containerId);
+    await this.assertStackSettled(containerId);
 
     const [conflicted] = await this.db.client
       .select({ identityConflict: containers.identityConflict })
@@ -117,6 +118,43 @@ export class PendingMutationGuard {
       throw AppError.conflict(
         'CONTAINER_IDENTITY_CONFLICT',
         'More than one container claims to be this one, so nothing may be done to it until that is resolved.',
+      );
+    }
+  }
+
+  /**
+   * Refuses an operation on a container whose stack is mid-deployment.
+   *
+   * A stack's containers are created, started and observed as one thing. While
+   * a deployment of that stack has not resolved, stopping or replacing one of
+   * them changes the state the deployment is about to be judged against — and a
+   * deployment that concluded from a container somebody else had just stopped
+   * would record something that never happened.
+   *
+   * A container that belongs to no stack is unaffected, which is every
+   * container that existed before stacks could be deployed.
+   */
+  async assertStackSettled(containerId: string): Promise<void> {
+    const [deploying] = await this.db.client
+      .select({ id: stackDeployments.id })
+      .from(containers)
+      .innerJoin(stackDeployments, eq(stackDeployments.stackId, containers.stackId))
+      .where(
+        and(
+          eq(containers.id, containerId),
+          inArray(stackDeployments.status, [
+            'pending',
+            'running',
+            'interrupted',
+            'needs_attention',
+          ]),
+        ),
+      );
+
+    if (deploying) {
+      throw AppError.conflict(
+        'STACK_DEPLOYMENT_CONFLICT',
+        'A deployment of this container’s stack has not been resolved yet.',
       );
     }
   }

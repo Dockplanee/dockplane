@@ -10,13 +10,14 @@ typed capabilities and no way to run a command. This is the point of the
 product, not a gap in it. See
 [Security Model](../security/security-model.md).
 
-**Compose projects are read-only.** They are discovered and inspected. Bringing
-a project up or down, editing a Compose file, or redeploying a stack is not
-part of this release.
+**Compose projects found on a host are read-only.** They are discovered and
+inspected. Taking one over so that Dockplane deploys it is adoption, and that is
+not part of this release. A stack Dockplane created is a different thing and can
+be deployed.
 
-**Container removal, volume deletion and image management are not
-implemented.** Dockplane does not expose a destructive operation because the
-Docker API has one.
+**Volume deletion and image management are not implemented.** Dockplane does not
+expose a destructive operation because the Docker API has one. Removing a
+container never removes its volumes.
 
 **Dockplane does not install Docker.** It manages Docker Engine and expects it
 to be there.
@@ -43,6 +44,15 @@ older release.
 
 **An agent must reach the control plane at the hostname it was enrolled with.**
 Changing the control plane's domain means re-enrolling the hosts.
+
+**A stack can be deployed once and not changed afterwards.** Redeploying,
+rolling back, starting, stopping or removing a stack is not part of this
+release. A stack that has been deployed stays as it is.
+
+**A partly deployed stack has to be resolved by hand.** If a deployment creates
+some containers and then fails, Dockplane records that it needs attention and
+stops there: nothing is removed and no further deployment is accepted for that
+stack. Untangling it means acting on the host directly.
 
 **Notifications, alerting and scheduled automation are not in this release.**
 

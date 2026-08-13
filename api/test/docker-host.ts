@@ -32,6 +32,24 @@ export class FakeDockerHost {
   /** Set to make the host refuse an operation the way a real one would. */
   failWith = new Map<string, { code: string; message: string }>();
 
+  /**
+   * Stack plans this host was sent, in order.
+   *
+   * Kept so a test can assert what a plan carried — a plan legitimately holds
+   * resolved secrets, which is exactly why nothing else may.
+   */
+  readonly stackPlans: StackPlan[] = [];
+
+  /** Volumes and networks a deployment asked for, by the name Docker uses. */
+  readonly volumes = new Set<string>();
+  readonly networks = new Set<string>();
+
+  /** Services this host creates and does not start. */
+  readonly wontStart = new Set<string>();
+
+  /** Services this host refuses outright, stopping the deployment there. */
+  readonly wontCreate = new Set<string>();
+
   private next = 0;
 
   /** A container that was already there when Dockplane arrived. */
@@ -96,6 +114,8 @@ export class FakeDockerHost {
         return this.replace(payload);
       case 'container.remove':
         return this.remove(payload);
+      case 'stack.deploy':
+        return this.deployStack(payload);
       default:
         throw { code: 'CAPABILITY_UNSUPPORTED', message: `no such capability: ${capability}` };
     }
@@ -172,6 +192,84 @@ export class FakeDockerHost {
     return { removed: true, observedAt: iso() };
   }
 
+  /**
+   * Deploys a stack the way the agent does.
+   *
+   * Dependencies first, stopping at the first service that fails, and never
+   * removing anything that was already created — the shape the real agent has,
+   * because the server's conclusions are drawn from what is left behind.
+   */
+  private deployStack(payload: Record<string, unknown>) {
+    const plan = payload.plan as StackPlan;
+
+    this.stackPlans.push(plan);
+
+    if (this.silentlyIgnore.has('stack.deploy')) {
+      return { stackId: plan.stackId, revisionId: plan.revisionId, services: [], complete: false };
+    }
+
+    for (const network of plan.networks ?? []) {
+      this.networks.add(network.dockerName);
+    }
+
+    for (const volume of plan.volumes ?? []) {
+      this.volumes.add(volume.dockerName);
+    }
+
+    const services: Record<string, unknown>[] = [];
+
+    for (const service of order(plan)) {
+      if (this.wontCreate.has(service.serviceName)) {
+        services.push({
+          serviceName: service.serviceName,
+          containerId: service.containerId,
+          errorCode: 'IMAGE_PULL_FAILED',
+        });
+
+        return { stackId: plan.stackId, revisionId: plan.revisionId, services, complete: false };
+      }
+
+      const state = this.wontStart.has(service.serviceName) ? 'exited' : 'running';
+
+      const container: FakeContainer = {
+        dockerId: this.id(),
+        name: service.containerName,
+        image: service.spec.image,
+        state,
+        labels: {
+          ...(service.spec.labels ?? {}),
+          'io.dockplane.managed': 'true',
+          'io.dockplane.container-id': service.containerId,
+          'io.dockplane.stack-id': plan.stackId,
+          'io.dockplane.stack-revision-id': plan.revisionId,
+          'io.dockplane.stack-service': service.serviceName,
+        },
+      };
+
+      this.containers.set(container.dockerId, container);
+
+      services.push({
+        serviceName: service.serviceName,
+        containerId: service.containerId,
+        dockerId: container.dockerId,
+        state,
+        ...(state === 'running' ? {} : { errorCode: 'CONTAINER_NOT_RUNNING' }),
+      });
+
+      if (state !== 'running') {
+        return { stackId: plan.stackId, revisionId: plan.revisionId, services, complete: false };
+      }
+    }
+
+    return {
+      stackId: plan.stackId,
+      revisionId: plan.revisionId,
+      services,
+      complete: true,
+      observedAt: iso(),
+    };
+  }
+
   /** The labels the agent applies from what the server resolved, never from the spec. */
   private identity(payload: Record<string, unknown>): Record<string, string> {
     const spec = payload.spec as { labels?: Record<string, string> };
@@ -224,4 +322,49 @@ export class FakeDockerHost {
 
 function iso(): string {
   return new Date().toISOString();
+}
+
+export interface StackPlan {
+  planVersion: number;
+  stackId: string;
+  revisionId: string;
+  projectName: string;
+  networks: { name: string; dockerName: string }[];
+  volumes: { name: string; dockerName: string }[];
+  services: {
+    serviceName: string;
+    containerId: string;
+    containerName: string;
+    dependsOn?: string[];
+    spec: {
+      image: string;
+      labels?: Record<string, string>;
+      env?: { key: string; value: string }[];
+    };
+  }[];
+}
+
+/** Dependencies before dependants, which is the order the agent starts in. */
+function order(plan: StackPlan): StackPlan['services'] {
+  const remaining = [...plan.services];
+  const started = new Set<string>();
+  const sorted: StackPlan['services'] = [];
+
+  while (remaining.length > 0) {
+    const index = remaining.findIndex((service) =>
+      (service.dependsOn ?? []).every((dependency) => started.has(dependency)),
+    );
+
+    if (index === -1) {
+      // A cycle the server should never have sent. Deploy them as they came.
+      return [...sorted, ...remaining];
+    }
+
+    const [next] = remaining.splice(index, 1);
+
+    started.add(next.serviceName);
+    sorted.push(next);
+  }
+
+  return sorted;
 }
