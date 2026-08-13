@@ -19,6 +19,8 @@ import { PendingMutationGuard } from './containers/pending-guard';
 import { ReconciliationService } from './containers/reconciliation.service';
 import { RecoveryFinalizer } from './containers/recovery-finalizer';
 import { RecoveryOrchestrator } from './containers/recovery.orchestrator';
+import { ComposeCompilerService } from './stacks/compose-compiler.service';
+import { StacksController } from './stacks/stacks.controller';
 import { DetailService } from './discovery/detail.service';
 import { DiscoveryService } from './discovery/discovery.service';
 import { EventsService } from './events/events.service';
@@ -100,6 +102,7 @@ import { SecretBox } from './common/crypto';
     ComposeProjectsController,
     ContainerOperationsController,
     ContainerManagementController,
+    StacksController,
     ContainerLogsController,
     ActionsController,
   ],
@@ -131,6 +134,7 @@ import { SecretBox } from './common/crypto';
     ReconciliationService,
     RecoveryOrchestrator,
     ContainerManagementService,
+    ComposeCompilerService,
     LifecycleService,
     LogStreamService,
     DiscoveryScheduler,

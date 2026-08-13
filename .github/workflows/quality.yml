@@ -151,6 +151,28 @@ jobs:
         working-directory: agent
         run: go test ./...
 
+      # The Compose compiler is a module of its own, so `go test ./...` in the
+      # agent does not reach it. It ships inside the control server image and
+      # would otherwise be the one Go in the repository nothing checked.
+      - name: Compose compiler formatting
+        working-directory: compose-compiler
+        run: |
+          unformatted="$(gofmt -l .)"
+
+          if [[ -n "$unformatted" ]]; then
+            echo "not gofmt-clean:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+
+      - name: Compose compiler vet
+        working-directory: compose-compiler
+        run: go vet ./...
+
+      - name: Compose compiler tests
+        working-directory: compose-compiler
+        run: go test ./...
+
   packaging:
     name: Packaging and release scripts
     runs-on: ubuntu-24.04

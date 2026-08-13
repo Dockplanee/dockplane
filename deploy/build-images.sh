@@ -160,7 +160,8 @@ docker buildx build "${build_args[@]}" \
 	$(oci_export control-server) $(metadata_file control-server) \
 	--tag "$API_IMAGE:$VERSION" \
 	--file api/Dockerfile \
-	api
+	--build-arg "GO_VERSION=$GO_VERSION" \
+	.
 
 echo "==> web image"
 # shellcheck disable=SC2046

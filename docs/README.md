@@ -39,6 +39,7 @@ nothing here is maintained a second time somewhere else.
 | [Architecture](reference/architecture.md) | how the pieces fit together |
 | [Supported Platforms](reference/supported-platforms.md) | what is supported, and what is not |
 | [Known Limitations](reference/known-limitations.md) | what this release does not do |
+| [Compose Support](reference/compose-support.md) | which Compose features Dockplane reads, and which it refuses |
 | [Agent Protocol](reference/agent-protocol.md) | the wire protocol |
 | [Agent Gateway](reference/agent-gateway.md) | the mutual-TLS endpoint |
 | [Agent Identity](reference/agent-identity.md) | certificates and the authority |

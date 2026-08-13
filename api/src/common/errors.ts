@@ -93,6 +93,17 @@ export const ERROR_CODES = [
    * rather than a second change.
    */
   'OPERATION_OUTCOME_UNKNOWN',
+  /*
+   * The Compose file could not be turned into something deployable.
+   *
+   * Separate from a Compose file that is wrong: this is the compiler failing,
+   * timing out or answering with something this build does not understand.
+   * Either way nothing is deployed — a compile that did not finish is never
+   * treated as one that produced nothing to object to.
+   */
+  'COMPOSE_COMPILER_FAILED',
+  'COMPOSE_COMPILER_UNAVAILABLE',
+  'COMPOSE_INVALID',
   'ACTION_CONFLICT',
   'ACTION_TIMEOUT',
   'AGENT_OFFLINE',
@@ -224,6 +235,13 @@ function mapHttpStatus(status: number): ErrorCode {
        * misspelled.
        */
       return 'NOT_FOUND';
+    case HttpStatus.PAYLOAD_TOO_LARGE:
+      /*
+       * The body parser refused the request before any handler saw it. That is
+       * a request that is too big, which is a caller's to fix — reporting it as
+       * an internal failure would send somebody looking at the server.
+       */
+      return 'VALIDATION_FAILED';
     case HttpStatus.TOO_MANY_REQUESTS:
       return 'RATE_LIMITED';
     case HttpStatus.BAD_REQUEST:
@@ -243,6 +261,8 @@ function genericMessage(status: number): string {
       return 'You do not have permission to perform this action.';
     case HttpStatus.NOT_FOUND:
       return 'The requested resource does not exist.';
+    case HttpStatus.PAYLOAD_TOO_LARGE:
+      return 'The request is larger than this server accepts.';
     case HttpStatus.TOO_MANY_REQUESTS:
       return 'Too many requests. Try again later.';
     case HttpStatus.BAD_REQUEST:

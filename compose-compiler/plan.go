@@ -26,7 +26,7 @@ const PlanVersion = 1
 // differ in ways that mean nothing — and later, a stack revision would appear
 // to have changed when nothing had.
 type StackDeploymentPlan struct {
-	PlanVersion int `json:"planVersion"`
+	PlanVersion int    `json:"planVersion"`
 	ProjectName string `json:"projectName"`
 
 	Services []ServicePlan `json:"services"`
@@ -92,12 +92,12 @@ type HealthcheckPlan struct {
 	// The command Docker runs, exactly as Docker runs it. Dockplane adds no
 	// shell of its own: CMD-SHELL is Docker's own semantics, and a test that
 	// arrives as a bare string is Compose asking for it.
-	Test        []string `json:"test"`
-	IntervalMS  int64    `json:"intervalMs,omitempty"`
-	TimeoutMS   int64    `json:"timeoutMs,omitempty"`
-	StartPerMS  int64    `json:"startPeriodMs,omitempty"`
-	Retries     int      `json:"retries,omitempty"`
-	Disabled    bool     `json:"disabled,omitempty"`
+	Test       []string `json:"test"`
+	IntervalMS int64    `json:"intervalMs,omitempty"`
+	TimeoutMS  int64    `json:"timeoutMs,omitempty"`
+	StartPerMS int64    `json:"startPeriodMs,omitempty"`
+	Retries    int      `json:"retries,omitempty"`
+	Disabled   bool     `json:"disabled,omitempty"`
 }
 
 // NetworkPlan is a network the stack needs.

@@ -1,10 +1,38 @@
 # The Dockplane control server.
 #
-# Three stages, so that the image that runs in production carries the compiled
-# server and its production dependencies and nothing else: no sources, no test
-# suite, no build tooling, no package manager cache.
+# Four stages, so that the image that runs in production carries the compiled
+# server, its production dependencies and the Compose compiler, and nothing
+# else: no sources, no test suite, no build tooling, no package manager cache.
+#
+# Built from the repository root rather than from api/, because the Compose
+# compiler is a sibling of the server rather than part of it.
 
 ARG NODE_VERSION=22.23.2
+ARG GO_VERSION=1.26.5
+
+# --- The Compose compiler ---------------------------------------------------
+#
+# Compose files are parsed by this, in a process of its own, inside the control
+# server's container. It is not a service and has no port: the server writes a
+# request to its standard input and reads one answer back.
+#
+# Cross-compiled on the machine doing the building and targeted at the
+# architecture being produced, which is what keeps an emulated Go toolchain out
+# of the build without shipping the builder's own architecture into the image.
+# Static, so the runtime image needs no Go and no libc beyond its own.
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS compose-compiler
+
+ARG TARGETARCH
+
+WORKDIR /build
+
+COPY compose-compiler/go.mod compose-compiler/go.sum ./
+RUN go mod download
+
+COPY compose-compiler/ ./
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -trimpath -ldflags '-s -w' \
+	-o /out/dockplane-compose-compiler .
 
 # --- Production dependencies ------------------------------------------------
 #
@@ -20,7 +48,7 @@ FROM node:${NODE_VERSION}-bookworm-slim AS production-deps
 
 WORKDIR /build
 
-COPY package.json package-lock.json ./
+COPY api/package.json api/package-lock.json ./
 RUN npm ci --omit=dev
 
 # --- Build ------------------------------------------------------------------
@@ -32,10 +60,11 @@ FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS build
 
 WORKDIR /build
 
-COPY package.json package-lock.json tsconfig.json tsconfig.build.json nest-cli.json ./
+COPY api/package.json api/package-lock.json api/tsconfig.json api/tsconfig.build.json \
+	api/nest-cli.json ./
 RUN npm ci
 
-COPY src ./src
+COPY api/src ./src
 
 # Source maps and declaration files describe the layout of the source tree and
 # are of no use to a running server, so the runtime image does not carry them.
@@ -74,7 +103,12 @@ WORKDIR /app
 
 COPY --from=production-deps /build/node_modules ./node_modules
 COPY --from=build /build/dist ./dist
-COPY package.json ./
+COPY api/package.json ./
+
+# Owned by root and executable by everyone, like the rest of the image: the
+# server runs as `node` and only ever executes it.
+COPY --from=compose-compiler --chmod=0755 /out/dockplane-compose-compiler \
+	/usr/local/bin/dockplane-compose-compiler
 
 # The image ships no writable state. Everything durable — the certificate
 # authority, the gateway key pair — is mounted in, and the container is
