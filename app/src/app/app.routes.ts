@@ -69,6 +69,22 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/containers/container-list').then((m) => m.ContainerList),
   },
+  /*
+   * Before `containers/:id`, or the router would read `new` as an identifier
+   * and try to load a container by that name.
+   */
+  {
+    path: 'containers/new',
+    canActivate: [requiresPermission('containers.create')],
+    loadComponent: () =>
+      import('./features/containers/container-create').then((m) => m.ContainerCreate),
+  },
+  {
+    path: 'containers/:id/edit',
+    canActivate: [requiresPermission('containers.update')],
+    loadComponent: () =>
+      import('./features/containers/container-edit').then((m) => m.ContainerEdit),
+  },
   {
     path: 'containers/:id',
     canActivate: [requiresPermission('containers.read')],

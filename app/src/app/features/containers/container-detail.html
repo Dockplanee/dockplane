@@ -49,6 +49,27 @@
         <dp-icon name="refresh" />
         Restart
       </button>
+
+      @if (canEdit()) {
+        <a dpButton variant="secondary" [routerLink]="['/containers', container.id, 'edit']">
+          <dp-icon name="settings" />
+          Edit configuration
+        </a>
+      }
+
+      @if (canDelete()) {
+        <button
+          type="button"
+          dpButton
+          variant="danger"
+          [disabled]="!!undetermined()"
+          [attr.title]="undetermined() || null"
+          (click)="askToRemove()"
+        >
+          <dp-icon name="close" />
+          Delete
+        </button>
+      }
     </div>
   </header>
 
@@ -122,6 +143,17 @@
     [pending]="running()"
     (confirmed)="confirm()"
     (dismissed)="dismiss()"
+  />
+
+  <dp-confirm-dialog
+    #removeDialog
+    [heading]="'Delete ' + container.name + '?'"
+    description="This container will be removed. Volumes will be kept, and running containers are stopped gracefully before removal."
+    confirmLabel="Delete container"
+    [details]="removalDetails()"
+    [pending]="removing()"
+    (confirmed)="remove()"
+    (dismissed)="dismissRemoval()"
   />
 } @else {
   <dp-panel flush>

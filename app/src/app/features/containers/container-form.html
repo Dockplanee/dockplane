@@ -1,0 +1,529 @@
+<section class="section" aria-labelledby="section-general">
+  <h3 id="section-general" class="section__title">General</h3>
+
+  @if (mode() === 'create') {
+    <label class="field">
+      <span class="field-label">Host</span>
+      <select
+        class="field-input"
+        name="hostId"
+        [value]="model().hostId"
+        [attr.aria-invalid]="problem('hostId') ? 'true' : null"
+        [attr.aria-describedby]="problem('hostId') ? 'error-hostId' : null"
+        (change)="setHost($any($event.target).value)"
+      >
+        <option value="">Choose a host</option>
+        @for (host of hosts(); track host.id) {
+          <option [value]="host.id" [disabled]="!reachable(host)">
+            {{ host.name }}{{ reachable(host) ? '' : ' — not connected' }}
+          </option>
+        }
+      </select>
+      @if (problem('hostId'); as message) {
+        <span class="field-error" id="error-hostId">{{ message }}</span>
+      }
+      <span class="field-hint">A container is created on the host you choose.</span>
+    </label>
+  } @else {
+    <p class="readonly">
+      <span class="readonly__label">Host</span>
+      <span class="readonly__value">{{ hostName() }}</span>
+    </p>
+  }
+
+  <label class="field">
+    <span class="field-label">Container name</span>
+    <input
+      class="field-input"
+      type="text"
+      name="name"
+      autocomplete="off"
+      placeholder="shop-web"
+      [value]="model().name"
+      [attr.aria-invalid]="problem('name') ? 'true' : null"
+      [attr.aria-describedby]="problem('name') ? 'error-name' : null"
+      (input)="patch({ name: $any($event.target).value })"
+    />
+    @if (problem('name'); as message) {
+      <span class="field-error" id="error-name">{{ message }}</span>
+    }
+  </label>
+
+  <label class="field">
+    <span class="field-label">Hostname <span class="optional">optional</span></span>
+    <input
+      class="field-input"
+      type="text"
+      name="hostname"
+      autocomplete="off"
+      [value]="model().hostname"
+      (input)="patch({ hostname: $any($event.target).value })"
+    />
+    <span class="field-hint">The name the container knows itself by.</span>
+  </label>
+</section>
+
+<section class="section" aria-labelledby="section-image">
+  <h3 id="section-image" class="section__title">Image</h3>
+
+  <label class="field">
+    <span class="field-label">Image</span>
+    <input
+      class="field-input dp-mono"
+      type="text"
+      name="image"
+      autocomplete="off"
+      placeholder="nginx:1.29"
+      [value]="model().image"
+      [attr.aria-invalid]="problem('image') ? 'true' : null"
+      [attr.aria-describedby]="problem('image') ? 'error-image' : null"
+      (input)="patch({ image: $any($event.target).value })"
+    />
+    @if (problem('image'); as message) {
+      <span class="field-error" id="error-image">{{ message }}</span>
+    }
+    <span class="field-hint">Image name and optional tag.</span>
+  </label>
+</section>
+
+<section class="section" aria-labelledby="section-ports">
+  <h3 id="section-ports" class="section__title">Ports</h3>
+  <p class="section__hint">Published ports are reachable on the host.</p>
+
+  @for (port of model().ports; track $index) {
+    <fieldset class="row">
+      <legend class="dp-sr-only">Port mapping {{ $index + 1 }}</legend>
+
+      <label class="row__field row__field--narrow">
+        <span class="field-label">Host address</span>
+        <input
+          class="field-input"
+          type="text"
+          placeholder="all"
+          [value]="port.hostIp"
+          (input)="patchPort($index, { hostIp: $any($event.target).value })"
+        />
+      </label>
+
+      <label class="row__field row__field--narrow">
+        <span class="field-label">Host port</span>
+        <input
+          class="field-input"
+          type="text"
+          inputmode="numeric"
+          [value]="port.hostPort"
+          [attr.aria-invalid]="problem('ports.' + $index + '.hostPort') ? 'true' : null"
+          [attr.aria-describedby]="
+            problem('ports.' + $index + '.hostPort') ? 'error-port-host-' + $index : null
+          "
+          (input)="patchPort($index, { hostPort: $any($event.target).value })"
+        />
+        @if (problem('ports.' + $index + '.hostPort'); as message) {
+          <span class="field-error" [id]="'error-port-host-' + $index">{{ message }}</span>
+        }
+      </label>
+
+      <label class="row__field row__field--narrow">
+        <span class="field-label">Container port</span>
+        <input
+          class="field-input"
+          type="text"
+          inputmode="numeric"
+          [value]="port.containerPort"
+          [attr.aria-invalid]="problem('ports.' + $index + '.containerPort') ? 'true' : null"
+          [attr.aria-describedby]="
+            problem('ports.' + $index + '.containerPort') ? 'error-port-container-' + $index : null
+          "
+          (input)="patchPort($index, { containerPort: $any($event.target).value })"
+        />
+        @if (problem('ports.' + $index + '.containerPort'); as message) {
+          <span class="field-error" [id]="'error-port-container-' + $index">{{ message }}</span>
+        }
+      </label>
+
+      <label class="row__field row__field--narrow">
+        <span class="field-label">Protocol</span>
+        <select
+          class="field-input"
+          [value]="port.protocol"
+          (change)="patchPort($index, { protocol: $any($event.target).value })"
+        >
+          <option value="tcp">TCP</option>
+          <option value="udp">UDP</option>
+        </select>
+      </label>
+
+      <button
+        type="button"
+        dpButton
+        variant="ghost"
+        class="row__remove"
+        (click)="removePort($index)"
+      >
+        Remove port mapping {{ $index + 1 }}
+      </button>
+    </fieldset>
+  }
+
+  <button type="button" dpButton variant="secondary" (click)="addPort()">Add port mapping</button>
+</section>
+
+<section class="section" aria-labelledby="section-storage">
+  <h3 id="section-storage" class="section__title">Storage</h3>
+  <p class="section__hint">Volumes are kept when a container is recreated or removed.</p>
+
+  @for (mount of model().mounts; track $index) {
+    <fieldset class="row">
+      <legend class="dp-sr-only">Mount {{ $index + 1 }}</legend>
+
+      <label class="row__field row__field--narrow">
+        <span class="field-label">Type</span>
+        <select
+          class="field-input"
+          [value]="mount.type"
+          (change)="patchMount($index, { type: $any($event.target).value })"
+        >
+          <option value="volume">Named volume</option>
+          <option value="bind">Host path</option>
+        </select>
+      </label>
+
+      <label class="row__field">
+        <span class="field-label">{{ mount.type === 'bind' ? 'Host path' : 'Volume name' }}</span>
+        <input
+          class="field-input dp-mono"
+          type="text"
+          [value]="mount.source"
+          [attr.aria-invalid]="problem('mounts.' + $index + '.source') ? 'true' : null"
+          [attr.aria-describedby]="
+            problem('mounts.' + $index + '.source') ? 'error-mount-source-' + $index : null
+          "
+          (input)="patchMount($index, { source: $any($event.target).value })"
+        />
+        @if (problem('mounts.' + $index + '.source'); as message) {
+          <span class="field-error" [id]="'error-mount-source-' + $index">{{ message }}</span>
+        }
+      </label>
+
+      <label class="row__field">
+        <span class="field-label">Path in container</span>
+        <input
+          class="field-input dp-mono"
+          type="text"
+          placeholder="/data"
+          [value]="mount.target"
+          [attr.aria-invalid]="problem('mounts.' + $index + '.target') ? 'true' : null"
+          [attr.aria-describedby]="
+            problem('mounts.' + $index + '.target') ? 'error-mount-target-' + $index : null
+          "
+          (input)="patchMount($index, { target: $any($event.target).value })"
+        />
+        @if (problem('mounts.' + $index + '.target'); as message) {
+          <span class="field-error" [id]="'error-mount-target-' + $index">{{ message }}</span>
+        }
+      </label>
+
+      <label class="row__toggle">
+        <input
+          type="checkbox"
+          [checked]="mount.readOnly"
+          (change)="patchMount($index, { readOnly: $any($event.target).checked })"
+        />
+        <span>Read only</span>
+      </label>
+
+      <button
+        type="button"
+        dpButton
+        variant="ghost"
+        class="row__remove"
+        (click)="removeMount($index)"
+      >
+        Remove mount {{ $index + 1 }}
+      </button>
+    </fieldset>
+  }
+
+  <button type="button" dpButton variant="secondary" (click)="addMount()">Add mount</button>
+</section>
+
+<section class="section" aria-labelledby="section-environment">
+  <h3 id="section-environment" class="section__title">Environment</h3>
+  <p class="section__hint">
+    Values marked secret are stored encrypted and are never shown again. Anyone with access to the
+    Docker host can still read a container's environment from Docker.
+  </p>
+
+  @for (variable of model().environment; track $index) {
+    <fieldset class="row" [class.row--removed]="variable.action === 'remove'">
+      <legend class="dp-sr-only">Variable {{ $index + 1 }}</legend>
+
+      <label class="row__field">
+        <span class="field-label">Name</span>
+        <input
+          class="field-input dp-mono"
+          type="text"
+          autocomplete="off"
+          [value]="variable.key"
+          [disabled]="variable.stored"
+          [attr.aria-invalid]="problem('environment.' + $index + '.key') ? 'true' : null"
+          [attr.aria-describedby]="
+            problem('environment.' + $index + '.key') ? 'error-env-key-' + $index : null
+          "
+          (input)="patchVariable($index, { key: $any($event.target).value })"
+        />
+        @if (problem('environment.' + $index + '.key'); as message) {
+          <span class="field-error" [id]="'error-env-key-' + $index">{{ message }}</span>
+        }
+      </label>
+
+      <!--
+        A stored secret has no value here and is never given one. The interface
+        was not shown it, so it says what is being done to it instead.
+      -->
+      @if (variable.stored && variable.secret) {
+        <div class="row__field secret">
+          <span class="field-label">Value</span>
+
+          @if (variable.action === 'change') {
+            <input
+              class="field-input"
+              type="password"
+              autocomplete="new-password"
+              [attr.aria-label]="'New secret value for ' + variable.key"
+              [value]="variable.value"
+              [attr.aria-invalid]="problem('environment.' + $index + '.value') ? 'true' : null"
+              [attr.aria-describedby]="
+                problem('environment.' + $index + '.value') ? 'error-env-value-' + $index : null
+              "
+              (input)="patchVariable($index, { value: $any($event.target).value })"
+            />
+            @if (problem('environment.' + $index + '.value'); as message) {
+              <span class="field-error" [id]="'error-env-value-' + $index">{{ message }}</span>
+            }
+          } @else {
+            <p class="secret__state">
+              <span class="secret__mask" aria-hidden="true">••••••••</span>
+              <span class="secret__label">{{
+                variable.action === 'remove' ? 'Secret will be removed' : 'Secret stored'
+              }}</span>
+            </p>
+          }
+        </div>
+
+        <div class="row__actions">
+          @if (variable.action === 'change') {
+            <button
+              type="button"
+              dpButton
+              variant="ghost"
+              (click)="setVariableAction($index, 'unchanged')"
+            >
+              Keep current secret for {{ variable.key }}
+            </button>
+          } @else if (variable.action === 'remove') {
+            <button
+              type="button"
+              dpButton
+              variant="ghost"
+              (click)="setVariableAction($index, 'unchanged')"
+            >
+              Keep {{ variable.key }}
+            </button>
+          } @else {
+            <button
+              type="button"
+              dpButton
+              variant="ghost"
+              (click)="setVariableAction($index, 'change')"
+            >
+              Change secret for {{ variable.key }}
+            </button>
+            <button
+              type="button"
+              dpButton
+              variant="ghost"
+              (click)="setVariableAction($index, 'remove')"
+            >
+              Remove {{ variable.key }}
+            </button>
+          }
+        </div>
+      } @else {
+        <label class="row__field">
+          <span class="field-label">Value</span>
+          <input
+            class="field-input"
+            [type]="variable.secret ? 'password' : 'text'"
+            [attr.autocomplete]="variable.secret ? 'new-password' : 'off'"
+            [value]="variable.value"
+            [attr.aria-invalid]="problem('environment.' + $index + '.value') ? 'true' : null"
+            [attr.aria-describedby]="
+              problem('environment.' + $index + '.value') ? 'error-env-value-' + $index : null
+            "
+            (input)="patchVariable($index, { value: $any($event.target).value })"
+          />
+          @if (problem('environment.' + $index + '.value'); as message) {
+            <span class="field-error" [id]="'error-env-value-' + $index">{{ message }}</span>
+          }
+        </label>
+
+        <label class="row__toggle">
+          <input
+            type="checkbox"
+            [checked]="variable.secret"
+            [disabled]="variable.stored"
+            (change)="patchVariable($index, { secret: $any($event.target).checked })"
+          />
+          <span>Treat value as secret</span>
+        </label>
+
+        <button
+          type="button"
+          dpButton
+          variant="ghost"
+          class="row__remove"
+          (click)="removeVariable($index)"
+        >
+          Remove {{ variable.key || 'variable ' + ($index + 1) }}
+        </button>
+      }
+    </fieldset>
+  }
+
+  <button type="button" dpButton variant="secondary" (click)="addVariable()">Add variable</button>
+</section>
+
+<section class="section" aria-labelledby="section-networks">
+  <h3 id="section-networks" class="section__title">Networks</h3>
+  <p class="section__hint">
+    Networks the container joins. They have to exist on the host already — Dockplane does not create
+    them.
+  </p>
+
+  @for (network of model().networks; track $index) {
+    <fieldset class="row">
+      <legend class="dp-sr-only">Network {{ $index + 1 }}</legend>
+
+      <label class="row__field">
+        <span class="field-label">Network name</span>
+        <input
+          class="field-input dp-mono"
+          type="text"
+          autocomplete="off"
+          [value]="network"
+          (input)="patchNetwork($index, $any($event.target).value)"
+        />
+      </label>
+
+      <button
+        type="button"
+        dpButton
+        variant="ghost"
+        class="row__remove"
+        (click)="removeNetwork($index)"
+      >
+        Remove network {{ $index + 1 }}
+      </button>
+    </fieldset>
+  } @empty {
+    <p class="section__hint">The container joins Docker's default network.</p>
+  }
+
+  <button type="button" dpButton variant="secondary" (click)="addNetwork()">Add network</button>
+</section>
+
+<section class="section" aria-labelledby="section-runtime">
+  <h3 id="section-runtime" class="section__title">Runtime</h3>
+
+  <label class="field">
+    <span class="field-label">Restart policy</span>
+    <select
+      class="field-input"
+      name="restartPolicy"
+      [value]="model().restartPolicy"
+      (change)="patch({ restartPolicy: $any($event.target).value })"
+    >
+      @for (policy of restartPolicies; track policy.value) {
+        <option [value]="policy.value">{{ policy.label }}</option>
+      }
+    </select>
+    <span class="field-hint">What Docker does when the container stops.</span>
+  </label>
+</section>
+
+<section class="section" aria-labelledby="section-advanced">
+  <h3 id="section-advanced" class="section__title">Advanced</h3>
+
+  <label class="field">
+    <span class="field-label">Command <span class="optional">optional</span></span>
+    <input
+      class="field-input dp-mono"
+      type="text"
+      name="command"
+      autocomplete="off"
+      [value]="model().command"
+      (input)="patch({ command: $any($event.target).value })"
+    />
+    <span class="field-hint">Replaces the image's command. Split on spaces, never by a shell.</span>
+  </label>
+
+  <label class="field">
+    <span class="field-label">Entrypoint <span class="optional">optional</span></span>
+    <input
+      class="field-input dp-mono"
+      type="text"
+      name="entrypoint"
+      autocomplete="off"
+      [value]="model().entrypoint"
+      (input)="patch({ entrypoint: $any($event.target).value })"
+    />
+  </label>
+
+  <h4 class="section__subtitle">Labels</h4>
+
+  @for (entry of model().labels; track $index) {
+    <fieldset class="row">
+      <legend class="dp-sr-only">Label {{ $index + 1 }}</legend>
+
+      <label class="row__field">
+        <span class="field-label">Name</span>
+        <input
+          class="field-input dp-mono"
+          type="text"
+          [value]="entry.key"
+          [attr.aria-invalid]="problem('labels.' + $index + '.key') ? 'true' : null"
+          [attr.aria-describedby]="
+            problem('labels.' + $index + '.key') ? 'error-label-' + $index : null
+          "
+          (input)="patchLabel($index, { key: $any($event.target).value })"
+        />
+        @if (problem('labels.' + $index + '.key'); as message) {
+          <span class="field-error" [id]="'error-label-' + $index">{{ message }}</span>
+        }
+      </label>
+
+      <label class="row__field">
+        <span class="field-label">Value</span>
+        <input
+          class="field-input"
+          type="text"
+          [value]="entry.value"
+          (input)="patchLabel($index, { value: $any($event.target).value })"
+        />
+      </label>
+
+      <button
+        type="button"
+        dpButton
+        variant="ghost"
+        class="row__remove"
+        (click)="removeLabel($index)"
+      >
+        Remove label {{ $index + 1 }}
+      </button>
+    </fieldset>
+  }
+
+  <button type="button" dpButton variant="secondary" (click)="addLabel()">Add label</button>
+</section>

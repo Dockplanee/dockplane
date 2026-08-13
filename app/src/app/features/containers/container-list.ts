@@ -2,9 +2,13 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { toSignal } from '@angular/core/rxjs-interop';
 import { switchMap } from 'rxjs';
 
+import { RouterLink } from '@angular/router';
+
 import { InventoryRefresh } from '../../core/inventory-refresh';
+import { Permissions } from '../../core/permissions';
 import { PageContext } from '../../core/page-context';
 import { DockplaneApi } from '../../data/dockplane-api';
+import { Button } from '../../ui/button';
 import { Icon } from '../../ui/icon/icon';
 import { Panel } from '../../ui/panel/panel';
 import { SelectFilter } from '../../ui/select-filter/select-filter';
@@ -12,8 +16,17 @@ import { ContainerPanel } from '../shared/container-panel';
 
 @Component({
   selector: 'dp-container-list',
-  imports: [ContainerPanel, Icon, Panel, SelectFilter],
+  imports: [RouterLink, Button, ContainerPanel, Icon, Panel, SelectFilter],
   template: `
+    @if (canCreate()) {
+      <div class="lead">
+        <a dpButton variant="primary" routerLink="/containers/new">
+          <dp-icon name="plus" />
+          Create container
+        </a>
+      </div>
+    }
+
     <dp-panel flush>
       <div class="dp-controls">
         <div class="dp-controls__search">
@@ -62,11 +75,25 @@ import { ContainerPanel } from '../shared/container-panel';
       />
     </dp-panel>
   `,
+  styles: `
+    .lead {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 0.75rem;
+    }
+  `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ContainerList {
   private readonly api = inject(DockplaneApi);
   private readonly refresh = inject(InventoryRefresh);
+  private readonly permissions = inject(Permissions);
+
+  /*
+   * Offered where it could succeed. The control server authorizes the request
+   * again regardless — an absent button is a courtesy, not a boundary.
+   */
+  protected readonly canCreate = computed(() => this.permissions.has('containers.create'));
 
   protected readonly query = signal('');
   protected readonly hostFilter = signal('all');

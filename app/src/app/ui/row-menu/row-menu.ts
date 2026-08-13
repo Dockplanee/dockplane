@@ -283,5 +283,4 @@ export class RowMenu {
     element.style.left = `${left}px`;
     element.style.top = `${fits ? below : Math.max(this.margin, anchor.top - this.gap - height)}px`;
   }
-
 }

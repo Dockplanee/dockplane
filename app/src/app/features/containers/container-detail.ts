@@ -8,8 +8,9 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterLink, RouterOutlet } from '@angular/router';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterLink, RouterOutlet } from '@angular/router';
+import { catchError, combineLatest, of, switchMap } from 'rxjs';
 
 import { ApiError } from '../../core/api-error';
 import { InventoryRefresh } from '../../core/inventory-refresh';
@@ -77,8 +78,32 @@ export class ContainerDetail {
   private readonly page = inject(PageContext);
   private readonly permissions = inject(Permissions);
   private readonly refresh = inject(InventoryRefresh);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+
+  /**
+   * The configuration this container is meant to have.
+   *
+   * Read only so the removal dialog can name the volumes it keeps. A container
+   * Dockplane did not build has none, and the read fails harmlessly.
+   */
+  private readonly configuration = toSignal(
+    combineLatest([this.route.paramMap, this.refresh.changes]).pipe(
+      switchMap(([params]) =>
+        this.api
+          .containerConfiguration(params.get('id') ?? '')
+          .pipe(catchError(() => of(undefined))),
+      ),
+    ),
+    { initialValue: undefined },
+  );
   private readonly destroyRef = inject(DestroyRef);
   private readonly dialog = viewChild.required(ConfirmDialog);
+  /*
+   * Found by name rather than by type. Both dialogs on this page are the same
+   * component, and a query by type would answer with whichever is first.
+   */
+  private readonly removeDialog = viewChild.required('removeDialog', { read: ConfirmDialog });
 
   protected readonly store = inject(ContainerStore);
   protected readonly tabs = TABS;
@@ -216,6 +241,94 @@ export class ContainerDetail {
 
     return undefined;
   });
+
+  /**
+   * Whether the interface offers to change or remove this container.
+   *
+   * Only for containers Dockplane built. An external one has no configuration
+   * to edit, and inventing one from what can be observed would mean guessing at
+   * somebody else's workload — the environment is deliberately not observable.
+   */
+  protected readonly canEdit = computed(
+    () =>
+      this.permissions.has('containers.update') &&
+      this.store.container()?.management.kind === 'managed',
+  );
+
+  protected readonly canDelete = computed(
+    () =>
+      this.permissions.has('containers.delete') &&
+      this.store.container()?.management.kind === 'managed',
+  );
+
+  protected readonly removing = signal(false);
+
+  /**
+   * The volumes a removal keeps.
+   *
+   * Listed by name because "volumes will be kept" is easier to believe when the
+   * volumes are named. Read from the configuration Dockplane holds, which is
+   * the only place a managed container's named volumes are recorded.
+   */
+  protected readonly removalDetails = computed((): readonly ConfirmDetail[] => {
+    const volumes = (this.configuration()?.mounts ?? [])
+      .filter((mount) => mount.type === 'volume')
+      .map((mount) => mount.source);
+
+    return volumes.length > 0
+      ? volumes.map((volume) => ({ label: 'Volume kept', value: volume }))
+      : [];
+  });
+
+  protected askToRemove(): void {
+    this.removeDialog().open();
+  }
+
+  protected dismissRemoval(): void {
+    this.removing.set(false);
+  }
+
+  /**
+   * Removes the container.
+   *
+   * An outcome the server could not confirm is not treated as a removal: the
+   * container stays where it is and the page is reloaded, because Dockplane is
+   * about to establish what happened from the host and removing the row first
+   * would be showing an operator something nobody knows.
+   */
+  protected remove(): void {
+    if (this.removing()) {
+      return;
+    }
+
+    const container = this.store.container();
+
+    if (!container) {
+      return;
+    }
+
+    this.removing.set(true);
+
+    this.api.removeContainer(container.id, { stopFirst: true }).subscribe({
+      next: () => {
+        this.removing.set(false);
+        this.refresh.request();
+        void this.router.navigate(['/containers']);
+      },
+      error: (error: unknown) => {
+        const failure = ApiError.from(error);
+
+        this.removing.set(false);
+        this.failure.set({
+          message: failure.message,
+          code: failure.code,
+          requestId: failure.requestId ?? '',
+        });
+
+        this.refresh.request();
+      },
+    });
+  }
 
   protected readonly heading = computed(() => {
     const action = this.pending();
