@@ -1,6 +1,7 @@
 import { Observable } from 'rxjs';
 
 import { ComposeProject, Container, ContainerDetail, Host } from '../domain/inventory';
+import { Stack, StackRevision, StackService } from '../domain/stacks';
 import {
   Agent,
   AuditPage,
@@ -106,6 +107,46 @@ export abstract class DockplaneApi {
   abstract composeProjects(): Observable<readonly ComposeProject[]>;
   abstract composeProject(id: string): Observable<ComposeProject | undefined>;
 
+  abstract stacks(): Observable<readonly Stack[]>;
+  abstract stack(id: string): Observable<Stack | undefined>;
+  abstract stackRevisions(id: string): Observable<readonly StackRevision[]>;
+  abstract stackServices(id: string): Observable<readonly StackService[]>;
+
+  /**
+   * The Compose source and environment of one revision.
+   *
+   * The only response that carries a stack's source, which is why the server
+   * puts it behind the permission to change a stack rather than to see one: a
+   * Compose file can contain a credential its author wrote into it. Secret
+   * variables come back saying they are secret and carrying nothing else.
+   */
+  abstract stackConfiguration(stackId: string, revisionId: string): Observable<StackConfiguration>;
+
+  /** Asks the real compiler whether a Compose file is one Dockplane can deploy. */
+  abstract validateCompose(request: ValidateComposeRequest): Observable<ComposeValidation>;
+
+  abstract createStack(request: CreateStackRequest): Observable<SavedRevision>;
+
+  /**
+   * Saves a change as a new revision.
+   *
+   * The revision it was based on travels with it, so a save cannot silently
+   * overwrite one somebody else made in the meantime.
+   */
+  abstract createStackRevision(
+    stackId: string,
+    request: SaveRevisionRequest,
+  ): Observable<SavedRevision>;
+
+  /**
+   * Applies a revision to the stack's host.
+   *
+   * Deploying, redeploying, rolling back and repairing are one operation with
+   * one endpoint: make this revision the one that is running. The browser names
+   * a revision and nothing else — no host, no agent, no plan.
+   */
+  abstract applyStackRevision(stackId: string, revisionId: string): Observable<ApplyOutcome>;
+
   abstract agents(): Observable<readonly Agent[]>;
   abstract createEnrollmentToken(intendedHostname?: string): Observable<EnrollmentToken>;
   abstract revokeAgent(id: string, reason: string): Observable<void>;
@@ -140,6 +181,80 @@ export abstract class DockplaneApi {
 
   /** Replaces every recovery code. Previously issued ones stop working. */
   abstract regenerateRecoveryCodes(code: string): Observable<readonly string[]>;
+}
+
+/** A stack's configuration, as an editor receives it. */
+export interface StackConfiguration {
+  readonly revisionId: string;
+  readonly revisionNumber: number;
+  readonly compose: string;
+  readonly environment: readonly EnvironmentVariable[];
+  readonly summary?: {
+    readonly services: readonly string[];
+    readonly networks: readonly string[];
+    readonly volumes: readonly string[];
+  } | null;
+}
+
+export interface ValidateComposeRequest {
+  readonly projectName: string;
+  readonly compose: string;
+  /** Values are needed to resolve the file, and are neither stored nor echoed. */
+  readonly environment: readonly { key: string; value: string; secret?: boolean }[];
+}
+
+/** One reason a Compose file was not accepted, as the compiler states it. */
+export interface ComposeProblem {
+  readonly path?: string;
+  readonly code: string;
+  readonly message: string;
+}
+
+export interface ComposeValidation {
+  readonly valid: boolean;
+  readonly errors: readonly ComposeProblem[];
+  readonly summary?: {
+    readonly projectName: string;
+    readonly services: readonly {
+      readonly name: string;
+      readonly image: string;
+      readonly ports: number;
+      readonly mounts: number;
+      readonly environment: readonly string[];
+      readonly networks: readonly string[];
+      readonly dependsOn: readonly string[];
+    }[];
+    readonly networks: readonly { readonly name: string; readonly external: boolean }[];
+    readonly volumes: readonly { readonly name: string; readonly external: boolean }[];
+  };
+}
+
+export interface CreateStackRequest {
+  readonly name: string;
+  readonly hostId: string;
+  readonly compose: string;
+  readonly environment: readonly EnvironmentChange[];
+}
+
+export interface SaveRevisionRequest {
+  readonly baseRevisionId: string;
+  readonly compose: string;
+  readonly environment: readonly EnvironmentChange[];
+}
+
+export interface SavedRevision {
+  readonly stackId: string;
+  readonly revisionId: string;
+  readonly revisionNumber: number;
+}
+
+/** What came of applying a revision. */
+export interface ApplyOutcome {
+  readonly deploymentId: string;
+  readonly stackId: string;
+  readonly revisionId: string;
+  readonly kind: string;
+  readonly status: string;
 }
 
 export interface MfaSetup {

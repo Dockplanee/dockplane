@@ -46,6 +46,23 @@ export type ApiErrorCode =
   | 'CAPABILITY_UNSUPPORTED'
   | 'COMPOSE_PROJECT_NOT_FOUND'
   | 'COMPOSE_DETAIL_UNAVAILABLE'
+  | 'STACK_NOT_FOUND'
+  | 'STACK_NAME_CONFLICT'
+  | 'STACK_REVISION_CONFLICT'
+  | 'STACK_REVISION_ALREADY_DEPLOYED'
+  | 'STACK_DEPLOYMENT_CONFLICT'
+  | 'STACK_NEEDS_ATTENTION'
+  | 'STACK_REPAIR_AMBIGUOUS'
+  | 'STACK_APPLY_FAILED'
+  | 'STACK_DEPLOYMENT_PARTIAL'
+  | 'STACK_ROLLBACK_INCOMPLETE'
+  | 'STACK_STATE_AMBIGUOUS'
+  | 'STACK_RESOURCE_CONFLICT'
+  | 'STACK_CONFIGURATION_INVALID'
+  | 'RESOURCE_NAME_CONFLICT'
+  | 'VOLUME_MISSING'
+  | 'COMPOSE_COMPILER_FAILED'
+  | 'COMPOSE_COMPILER_UNAVAILABLE'
   | 'NOT_FOUND'
   | 'HOST_NOT_FOUND'
   | 'HOST_SETUP_NOT_FOUND'
@@ -78,6 +95,14 @@ export class ApiError extends Error {
     override readonly message: string,
     readonly status: number,
     readonly requestId?: string,
+    /**
+     * What the server said was wrong, where it said it in parts.
+     *
+     * Only the Compose compiler produces these, and they are the whole value of
+     * its answer: a path and a sentence an operator can act on, rather than
+     * "invalid configuration". Nothing else is read out of the body.
+     */
+    readonly details: readonly ErrorDetail[] = [],
   ) {
     super(message);
     this.name = 'ApiError';
@@ -112,11 +137,44 @@ export class ApiError extends Error {
       return new ApiError('NETWORK_UNAVAILABLE', MESSAGES.NETWORK_UNAVAILABLE, 0);
     }
 
-    const body = (error.error ?? {}) as { code?: string; message?: string; requestId?: string };
+    const body = (error.error ?? {}) as {
+      code?: string;
+      message?: string;
+      requestId?: string;
+      details?: unknown;
+    };
+
     const code = isApiErrorCode(body.code) ? body.code : fallbackCode(error.status);
 
-    return new ApiError(code, messageFor(code), error.status, body.requestId);
+    return new ApiError(
+      code,
+      messageFor(code),
+      error.status,
+      body.requestId,
+      detailsOf(body.details),
+    );
   }
+}
+
+/** One reason, as the compiler states them: where, and what. */
+export interface ErrorDetail {
+  readonly path?: string;
+  readonly code: string;
+  readonly message: string;
+}
+
+function detailsOf(value: unknown): readonly ErrorDetail[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter(
+    (entry): entry is ErrorDetail =>
+      typeof entry === 'object' &&
+      entry !== null &&
+      typeof (entry as ErrorDetail).code === 'string' &&
+      typeof (entry as ErrorDetail).message === 'string',
+  );
 }
 
 const GENERIC_MESSAGE = 'Something went wrong. Please try again.';
@@ -180,6 +238,32 @@ const MESSAGES: Record<ApiErrorCode, string> = {
   COMPOSE_PROJECT_NOT_FOUND: 'This Compose project no longer exists on its host.',
   COMPOSE_DETAIL_UNAVAILABLE:
     'The host has not been reachable since this project was discovered, so no detail has been read yet.',
+  STACK_NOT_FOUND: 'This stack no longer exists.',
+  STACK_NAME_CONFLICT: 'That host already has a stack of that name.',
+  STACK_REVISION_CONFLICT:
+    'This stack changed while you were editing it. Reload the latest revision before saving your changes.',
+  STACK_REVISION_ALREADY_DEPLOYED: 'This stack is already running that revision.',
+  STACK_DEPLOYMENT_CONFLICT:
+    'An attempt to apply a revision to this stack has not been resolved yet. Wait for it to settle.',
+  STACK_NEEDS_ATTENTION:
+    'This stack is neither one revision nor another. Apply a revision to it before operating its containers individually.',
+  STACK_REPAIR_AMBIGUOUS:
+    'More than one container on the host claims to be the same service of this stack. Dockplane will not choose between them; resolve it on the host and try again.',
+  STACK_APPLY_FAILED: 'The revision was not applied. The stack is as it was.',
+  STACK_DEPLOYMENT_PARTIAL:
+    'The stack is now neither the revision it was nor the one it was going to. Nothing was removed; it needs attention.',
+  STACK_ROLLBACK_INCOMPLETE:
+    'The revision did not come up and the host could not be fully put back. The stack needs attention.',
+  STACK_STATE_AMBIGUOUS:
+    'The containers of this stack on its host do not say clearly which revision it is running.',
+  STACK_RESOURCE_CONFLICT:
+    'A container, volume or network on that host has a name this stack needs and was not created by it.',
+  STACK_CONFIGURATION_INVALID: 'This Compose configuration is not one Dockplane can deploy.',
+  RESOURCE_NAME_CONFLICT: 'Something on that host already has a name this stack needs.',
+  VOLUME_MISSING:
+    'A volume this stack was using is not on the host. Dockplane will not create an empty one in its place.',
+  COMPOSE_COMPILER_FAILED: 'The Compose file could not be compiled.',
+  COMPOSE_COMPILER_UNAVAILABLE: 'This Dockplane build cannot compile Compose files.',
   NOT_FOUND: 'That does not exist.',
   HOST_NOT_FOUND: 'This host is no longer registered.',
   HOST_SETUP_NOT_FOUND: 'This host setup no longer exists.',

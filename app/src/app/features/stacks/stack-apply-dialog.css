@@ -1,0 +1,157 @@
+/*
+ * Wider than an ordinary confirmation, because it carries a diff.
+ *
+ * Still bounded by the viewport: on a phone the review scrolls inside the
+ * dialog rather than pushing the buttons off the bottom of the screen.
+ */
+dialog {
+  width: min(46rem, calc(100vw - 2rem));
+  max-height: min(44rem, calc(100vh - 3rem));
+  padding: 1.25rem;
+  border: 1px solid var(--dp-line-strong);
+  border-radius: var(--dp-radius-lg);
+  background-color: var(--dp-surface);
+  color: var(--dp-fg);
+  overflow: auto;
+}
+
+h2 {
+  font-size: 1rem;
+}
+
+.description {
+  margin-top: 0.5rem;
+  color: var(--dp-fg-muted);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--dp-line);
+  border-radius: var(--dp-radius-sm);
+  background-color: var(--dp-surface-inset);
+}
+
+.details div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.8125rem;
+}
+
+dt {
+  color: var(--dp-fg-muted);
+}
+
+dd {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-align: right;
+}
+
+.review {
+  margin-top: 1.25rem;
+}
+
+.review h3 {
+  font-size: 0.875rem;
+}
+
+.review__empty {
+  margin-top: 0.5rem;
+  color: var(--dp-fg-muted);
+  font-size: 0.8125rem;
+}
+
+.environment {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3125rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+}
+
+.environment li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+/* The kind is a word, so the change survives greyscale. */
+.environment__kind {
+  color: var(--dp-fg-muted);
+}
+
+.environment__values {
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * The Compose diff.
+ *
+ * Scrolls in its own box: a Compose line can be long, and a dialog that grew
+ * sideways with it would be unusable on the screens where it matters most.
+ */
+.diff {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0;
+  border: 1px solid var(--dp-line);
+  border-radius: var(--dp-radius-sm);
+  background-color: var(--dp-surface-inset);
+  overflow-x: auto;
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+.diff:focus-visible {
+  outline: 2px solid var(--dp-accent);
+  outline-offset: 1px;
+}
+
+.diff__line {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  white-space: pre;
+}
+
+.diff__mark {
+  width: 0.75rem;
+  flex: none;
+  text-align: center;
+  color: var(--dp-fg-muted);
+}
+
+.diff__line--added {
+  background-color: var(--dp-status-ok-soft);
+}
+
+.diff__line--added .diff__mark {
+  color: var(--dp-status-ok);
+}
+
+.diff__line--removed {
+  background-color: var(--dp-status-critical-soft);
+}
+
+.diff__line--removed .diff__mark {
+  color: var(--dp-status-critical);
+}
+
+footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}

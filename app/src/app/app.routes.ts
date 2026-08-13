@@ -126,6 +126,49 @@ export const routes: Routes = [
     ],
   },
 
+  /*
+   * Before `stacks/:id`, or the router would read `new` as an identifier and
+   * try to load a stack by that name.
+   */
+  {
+    path: 'stacks/new',
+    canActivate: [requiresPermission('stacks.create')],
+    loadComponent: () => import('./features/stacks/stack-create').then((m) => m.StackCreate),
+  },
+  {
+    path: 'stacks/:id/edit',
+    canActivate: [requiresPermission('stacks.update')],
+    loadComponent: () => import('./features/stacks/stack-edit').then((m) => m.StackEdit),
+  },
+  {
+    path: 'stacks',
+    canActivate: [requiresPermission('stacks.read')],
+    loadComponent: () => import('./features/stacks/stack-list').then((m) => m.StackList),
+  },
+  {
+    path: 'stacks/:id',
+    canActivate: [requiresPermission('stacks.read')],
+    loadComponent: () => import('./features/stacks/stack-detail').then((m) => m.StackDetail),
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'overview' },
+      {
+        path: 'overview',
+        loadComponent: () =>
+          import('./features/stacks/stack-overview-tab').then((m) => m.StackOverviewTab),
+      },
+      {
+        path: 'revisions',
+        loadComponent: () =>
+          import('./features/stacks/stack-revisions-tab').then((m) => m.StackRevisionsTab),
+      },
+      {
+        path: 'services',
+        loadComponent: () =>
+          import('./features/stacks/stack-services-tab').then((m) => m.StackServicesTab),
+      },
+    ],
+  },
+
   {
     path: 'compose',
     canActivate: [requiresPermission('compose.read')],

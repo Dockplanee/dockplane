@@ -16,6 +16,7 @@ import {
   ResourceUsage,
 } from '../domain/inventory';
 import { OperatorSession } from '../domain/sessions';
+import { Stack, StackRevision, StackService } from '../domain/stacks';
 import {
   Agent,
   AuditEntry,
@@ -61,6 +62,13 @@ import {
   LogOptions,
   LogSnapshot,
   MfaSetup,
+  ApplyOutcome,
+  ComposeValidation,
+  CreateStackRequest,
+  SaveRevisionRequest,
+  SavedRevision,
+  StackConfiguration,
+  ValidateComposeRequest,
 } from './dockplane-api';
 
 /** A page large enough for a fleet view without asking the server for everything. */
@@ -212,6 +220,54 @@ export class RealDockplaneApi extends DockplaneApi {
     return this.api
       .get<{ project: ComposeProjectResponse }>(`/api/v1/compose-projects/${id}`)
       .pipe(map((response) => toComposeProject(response.project)));
+  }
+
+  stacks(): Observable<readonly Stack[]> {
+    return this.api
+      .get<{ stacks: readonly Stack[] }>('/api/v1/stacks', { limit: PAGE_SIZE })
+      .pipe(map((response) => response.stacks));
+  }
+
+  stack(id: string): Observable<Stack | undefined> {
+    return this.api
+      .get<{ stack: Stack }>(`/api/v1/stacks/${id}`)
+      .pipe(map((response) => response.stack));
+  }
+
+  stackRevisions(id: string): Observable<readonly StackRevision[]> {
+    return this.api
+      .get<{ revisions: readonly StackRevision[] }>(`/api/v1/stacks/${id}/revisions`, {
+        limit: PAGE_SIZE,
+      })
+      .pipe(map((response) => response.revisions));
+  }
+
+  stackServices(id: string): Observable<readonly StackService[]> {
+    return this.api
+      .get<{ services: readonly StackService[] }>(`/api/v1/stacks/${id}/services`)
+      .pipe(map((response) => response.services));
+  }
+
+  stackConfiguration(stackId: string, revisionId: string): Observable<StackConfiguration> {
+    return this.api.get<StackConfiguration>(
+      `/api/v1/stacks/${stackId}/revisions/${revisionId}/configuration`,
+    );
+  }
+
+  validateCompose(request: ValidateComposeRequest): Observable<ComposeValidation> {
+    return this.api.post<ComposeValidation>('/api/v1/stacks/validate', request);
+  }
+
+  createStack(request: CreateStackRequest): Observable<SavedRevision> {
+    return this.api.post<SavedRevision>('/api/v1/stacks', request);
+  }
+
+  createStackRevision(stackId: string, request: SaveRevisionRequest): Observable<SavedRevision> {
+    return this.api.post<SavedRevision>(`/api/v1/stacks/${stackId}/revisions`, request);
+  }
+
+  applyStackRevision(stackId: string, revisionId: string): Observable<ApplyOutcome> {
+    return this.api.post<ApplyOutcome>(`/api/v1/stacks/${stackId}/deploy`, { revisionId });
   }
 
   agents(): Observable<readonly Agent[]> {

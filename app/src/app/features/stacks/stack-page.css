@@ -1,0 +1,102 @@
+:host {
+  display: block;
+}
+
+/*
+ * The Compose file and what the compiler makes of it, side by side.
+ *
+ * The panel beside the editor is where the answer to "would this deploy?" goes,
+ * so it stays visible while the file is being written on a wide screen and
+ * follows it on a narrow one rather than being dropped.
+ */
+.layout {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (min-width: 64rem) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 22rem;
+  }
+
+  .side {
+    position: sticky;
+    top: 1rem;
+  }
+}
+
+.side__title {
+  margin: 0 0 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.side__title + .side__title,
+.side__list + .side__title {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--dp-border);
+}
+
+.side__result {
+  margin-top: 0.875rem;
+}
+
+.side__list {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.375rem 0.875rem;
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.side__list dt {
+  color: var(--dp-text-muted);
+}
+
+.side__list dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.side__list dd span {
+  display: block;
+}
+
+.side__note {
+  margin: 1rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--dp-border);
+  font-size: 0.8125rem;
+  color: var(--dp-text-muted);
+}
+
+.failure {
+  margin: 1rem 0 0;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--dp-status-critical);
+  border-radius: var(--dp-radius-sm);
+  background-color: var(--dp-status-critical-soft);
+  font-size: 0.8125rem;
+}
+
+.notice {
+  margin: 1rem 0 0;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--dp-border);
+  border-radius: var(--dp-radius-sm);
+  background-color: var(--dp-surface-alt);
+  font-size: 0.8125rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--dp-border);
+}

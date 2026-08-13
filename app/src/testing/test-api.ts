@@ -2,6 +2,13 @@ import { Observable, Subject, of, throwError } from 'rxjs';
 
 import { ApiError } from '../app/core/api-error';
 import {
+  ApplyOutcome,
+  ComposeValidation,
+  CreateStackRequest,
+  SaveRevisionRequest,
+  SavedRevision,
+  StackConfiguration,
+  ValidateComposeRequest,
   ActionOutcome,
   ActionRecord,
   ContainerConfiguration,
@@ -26,6 +33,7 @@ import {
   User,
 } from '../app/domain/operations';
 import { OperatorSession } from '../app/domain/sessions';
+import { Stack, StackRevision, StackService } from '../app/domain/stacks';
 
 /** What a test wants the control server to answer with. */
 export interface TestData {
@@ -58,6 +66,13 @@ export interface TestData {
   regeneratedHostSetup?: CreatedHostSetup;
   /** What a later read of the setup reports, so a flow can advance. */
   hostSetupState?: HostSetup;
+  stacks?: readonly Stack[];
+  stackRevisions?: readonly StackRevision[];
+  stackServices?: readonly StackService[];
+  stackConfiguration?: StackConfiguration;
+  validation?: ComposeValidation;
+  /** Set to make applying a revision fail the way the server would. */
+  applyFailure?: unknown;
 }
 
 /**
@@ -69,6 +84,8 @@ export interface TestData {
  */
 export class TestApi extends DockplaneApi {
   readonly calls: string[] = [];
+  /** Every request body a mutation was given, so a test can assert on it. */
+  readonly requests: unknown[] = [];
 
   constructor(private readonly data: TestData = {}) {
     super();
@@ -219,6 +236,70 @@ export class TestApi extends DockplaneApi {
 
   /** What a running stream delivers, driven by the test. */
   readonly logEvents = new Subject<LogEvent>();
+
+  stacks(): Observable<readonly Stack[]> {
+    this.calls.push('stacks');
+    return of(this.data.stacks ?? []);
+  }
+
+  stack(id: string): Observable<Stack | undefined> {
+    this.calls.push(`stack:${id}`);
+    return of((this.data.stacks ?? []).find((stack) => stack.id === id));
+  }
+
+  stackRevisions(id: string): Observable<readonly StackRevision[]> {
+    this.calls.push(`stackRevisions:${id}`);
+    return of(this.data.stackRevisions ?? []);
+  }
+
+  stackServices(id: string): Observable<readonly StackService[]> {
+    this.calls.push(`stackServices:${id}`);
+    return of(this.data.stackServices ?? []);
+  }
+
+  stackConfiguration(stackId: string, revisionId: string): Observable<StackConfiguration> {
+    this.calls.push(`stackConfiguration:${stackId}:${revisionId}`);
+
+    return this.data.stackConfiguration
+      ? of(this.data.stackConfiguration)
+      : throwError(() => new Error('no stack configuration in this fixture'));
+  }
+
+  validateCompose(request: ValidateComposeRequest): Observable<ComposeValidation> {
+    this.calls.push(`validateCompose:${request.projectName}`);
+
+    return this.data.validation
+      ? of(this.data.validation)
+      : of({ valid: true, errors: [] as const });
+  }
+
+  createStack(request: CreateStackRequest): Observable<SavedRevision> {
+    this.calls.push(`createStack:${request.name}`);
+    this.requests.push(request);
+
+    return of({ stackId: 'stack-1', revisionId: 'revision-1', revisionNumber: 1 });
+  }
+
+  createStackRevision(stackId: string, request: SaveRevisionRequest): Observable<SavedRevision> {
+    this.calls.push(`createStackRevision:${stackId}`);
+    this.requests.push(request);
+
+    return of({ stackId, revisionId: 'revision-2', revisionNumber: 2 });
+  }
+
+  applyStackRevision(stackId: string, revisionId: string): Observable<ApplyOutcome> {
+    this.calls.push(`applyStackRevision:${stackId}:${revisionId}`);
+
+    return this.data.applyFailure
+      ? throwError(() => this.data.applyFailure)
+      : of({
+          deploymentId: 'deployment-1',
+          stackId,
+          revisionId,
+          kind: 'deploy',
+          status: 'succeeded',
+        });
+  }
 
   composeProjects(): Observable<readonly ComposeProject[]> {
     return of(this.data.composeProjects ?? []);

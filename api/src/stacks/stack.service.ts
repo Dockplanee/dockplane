@@ -1,5 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, count, desc, eq, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+
 import { AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/authenticated-request';
 import { SecretBox } from '../common/crypto';
@@ -8,7 +10,9 @@ import { SECRET_BOX } from '../config/tokens';
 import { Database } from '../database/database';
 import {
   composeProjects,
+  containers,
   hosts,
+  stackDeployments,
   stackRevisionEnvironment,
   stackRevisions,
   stacks,
@@ -206,32 +210,92 @@ export class StackService {
   /** Stacks, as a listing describes them: no source, no environment. */
   async list(page: { limit: number; offset: number }) {
     const rows = await this.db.client
-      .select({ stack: stacks, host: hosts, revision: stackRevisions })
+      .select({ stack: stacks, host: hosts, revision: stackRevisions, running: running })
       .from(stacks)
       .innerJoin(hosts, eq(hosts.id, stacks.hostId))
       .leftJoin(stackRevisions, eq(stackRevisions.id, stacks.latestRevisionId))
+      .leftJoin(running, eq(running.id, stacks.currentRevisionId))
       .orderBy(hosts.hostname, stacks.name)
       .limit(page.limit)
       .offset(page.offset);
 
     const [{ value: total }] = await this.db.client.select({ value: count() }).from(stacks);
+    const unresolved = await this.unresolvedStacks();
 
-    return { stacks: rows.map((row) => present(row)), total };
+    return {
+      stacks: rows.map((row) => present(row, unresolved.has(row.stack.id))),
+      total,
+    };
   }
 
   async detail(stackId: string) {
     const [row] = await this.db.client
-      .select({ stack: stacks, host: hosts, revision: stackRevisions })
+      .select({ stack: stacks, host: hosts, revision: stackRevisions, running: running })
       .from(stacks)
       .innerJoin(hosts, eq(hosts.id, stacks.hostId))
       .leftJoin(stackRevisions, eq(stackRevisions.id, stacks.latestRevisionId))
+      .leftJoin(running, eq(running.id, stacks.currentRevisionId))
       .where(eq(stacks.id, stackId));
 
     if (!row) {
       throw AppError.notFound('STACK_NOT_FOUND', 'The stack does not exist.');
     }
 
-    return present(row);
+    const unresolved = await this.unresolvedStacks(stackId);
+
+    return present(row, unresolved.has(stackId));
+  }
+
+  /**
+   * The services of a stack, as its host shows them.
+   *
+   * The container resources Dockplane allocated, each with what the host says
+   * about it. Named by service rather than by Docker identifier: the service
+   * and the Dockplane container are what stay the same across revisions, and
+   * the Docker container changes every time one is applied.
+   */
+  async services(stackId: string) {
+    await this.find(stackId);
+
+    const rows = await this.db.client
+      .select({
+        containerId: containers.id,
+        serviceName: containers.stackService,
+        name: containers.name,
+        image: containers.image,
+        state: containers.state,
+        health: containers.health,
+        dockerId: containers.dockerId,
+        revisionId: containers.stackRevisionId,
+        observedAt: containers.observedAt,
+      })
+      .from(containers)
+      .where(eq(containers.stackId, stackId))
+      .orderBy(containers.stackService);
+
+    return {
+      services: rows.map((row) => ({ ...row, serviceName: row.serviceName ?? '' })),
+    };
+  }
+
+  /**
+   * Stacks with an attempt that has not resolved.
+   *
+   * What the interface needs to say "this is being reconciled" rather than
+   * offering an operation that would be refused.
+   */
+  private async unresolvedStacks(stackId?: string): Promise<Set<string>> {
+    const rows = await this.db.client
+      .select({ stackId: stackDeployments.stackId })
+      .from(stackDeployments)
+      .where(
+        and(
+          inArray(stackDeployments.status, ['pending', 'running', 'interrupted']),
+          ...(stackId ? [eq(stackDeployments.stackId, stackId)] : []),
+        ),
+      );
+
+    return new Set(rows.map((row) => row.stackId));
   }
 
   /** What has been saved, newest first. No source and no values. */
@@ -460,6 +524,9 @@ export class StackService {
   }
 }
 
+/** The revision a stack is running, joined beside the newest one saved. */
+const running = alias(stackRevisions, 'running_revision');
+
 /** The contract a revision was validated under. */
 const COMPILER_PROTOCOL_VERSION = 1;
 
@@ -470,11 +537,23 @@ interface RequestContext {
 
 type Transaction = Parameters<Parameters<Database['client']['transaction']>[0]>[0];
 
-function present(row: {
-  stack: typeof stacks.$inferSelect;
-  host: typeof hosts.$inferSelect;
-  revision: typeof stackRevisions.$inferSelect | null;
-}) {
+/**
+ * A stack as every listing and detail describes one.
+ *
+ * Saved and running are two separate things and are reported as two separate
+ * things: the newest revision anybody wrote down, and the one Dockplane has
+ * confirmed is on the host. An interface that had only one of them would have
+ * to guess which it was showing.
+ */
+function present(
+  row: {
+    stack: typeof stacks.$inferSelect;
+    host: typeof hosts.$inferSelect;
+    revision: typeof stackRevisions.$inferSelect | null;
+    running: typeof stackRevisions.$inferSelect | null;
+  },
+  reconciling: boolean,
+) {
   return {
     id: row.stack.id,
     name: row.stack.name,
@@ -486,7 +565,12 @@ function present(row: {
       ? { id: row.revision.id, number: row.revision.number, summary: row.revision.summary }
       : null,
     /* Nothing has been deployed yet, and this says so rather than implying it. */
+    runningRevision: row.running
+      ? { id: row.running.id, number: row.running.number, summary: row.running.summary }
+      : null,
     deployedRevisionId: row.stack.currentRevisionId,
+    /** An attempt that has not resolved. No further operation may be started. */
+    reconciling,
     lastDeployedAt: row.stack.lastDeployedAt,
     createdAt: row.stack.createdAt,
     updatedAt: row.stack.updatedAt,

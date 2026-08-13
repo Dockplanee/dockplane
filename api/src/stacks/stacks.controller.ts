@@ -182,6 +182,18 @@ export class StacksController {
     return { stack: await this.stacks.detail(id) };
   }
 
+  /**
+   * The services of a stack, as its host shows them.
+   *
+   * Behind `stacks.read`: it carries names, images and states, which is what
+   * any listing of containers carries and nothing more.
+   */
+  @Get(':id/services')
+  @RequirePermissions('stacks.read')
+  async services(@Param('id', new ZodValidationPipe(idSchema)) id: string) {
+    return this.stacks.services(id);
+  }
+
   @Get(':id/revisions')
   @RequirePermissions('stacks.read')
   async revisions(

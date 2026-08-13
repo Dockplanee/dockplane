@@ -1,0 +1,97 @@
+@if (store.stack(); as stack) {
+  <header class="head">
+    <div class="identity">
+      <h2>{{ stack.name }}</h2>
+      <dp-status-badge [tone]="tone(stack)" [label]="label(stack)" plated />
+      <span class="kind">Managed by Dockplane</span>
+    </div>
+
+    <div class="actions">
+      @if (canEdit()) {
+        <a dpButton variant="secondary" [routerLink]="['/stacks', stack.id, 'edit']">
+          Edit configuration
+        </a>
+      }
+
+      @if (applicable(); as target) {
+        <button
+          type="button"
+          dpButton
+          variant="primary"
+          [disabled]="!!blocked()"
+          [attr.title]="blocked() || null"
+          (click)="requestApply()"
+        >
+          {{ applyLabel() }}
+        </button>
+      }
+    </div>
+  </header>
+
+  <p class="meta">
+    <span>{{ stack.hostname }}</span>
+    <span>Saved {{ latest() ? '#' + latest()!.number : '—' }}</span>
+    <span>Running {{ running() ? '#' + running()!.number : 'Not deployed' }}</span>
+  </p>
+
+  <!--
+    The states an operator has to act on, in the order they matter. Needing
+    attention outranks everything: a stack that is neither one revision nor
+    another is not "has unsaved changes".
+  -->
+  @if (state() === 'needs_attention') {
+    <div class="notice notice--critical" role="alert">
+      <h3 class="notice__title">This stack needs attention</h3>
+      <p>
+        The containers on the host do not match one complete confirmed revision of this stack.
+        Nothing has been removed. Its containers cannot be started, stopped or restarted
+        individually until it is resolved.
+      </p>
+      <p>
+        Choose the revision this stack should be, from the revisions section, and apply it.
+        Dockplane will converge the host on it.
+      </p>
+    </div>
+  } @else if (state() === 'reconciling') {
+    <div class="notice" role="status">
+      <h3 class="notice__title">Reconciling</h3>
+      <p>
+        Dockplane sent an operation to the host and is establishing what happened. It will not
+        repeat it, and no further deployment can be started until this is settled.
+      </p>
+    </div>
+  } @else if (state() === 'not_deployed' && latest()) {
+    <div class="notice" role="status">
+      <h3 class="notice__title">Not deployed</h3>
+      <p>This stack has been saved but has not been deployed.</p>
+    </div>
+  } @else if (state() === 'changes_pending' && latest()) {
+    <div class="notice" role="status">
+      <h3 class="notice__title">Changes not deployed</h3>
+      <p>Revision #{{ latest()!.number }} contains saved changes that are not currently running.</p>
+    </div>
+  }
+
+  @if (apply.unresolved(); as message) {
+    <div class="notice" role="status">
+      <h3 class="notice__title">The result has not been confirmed</h3>
+      <p>{{ message }}</p>
+    </div>
+  }
+
+  @if (apply.failure(); as message) {
+    <div class="notice notice--critical" role="alert">
+      <p>{{ message }}</p>
+    </div>
+  }
+
+  <dp-tab-bar class="tabs" [tabs]="tabs" label="Stack sections" />
+
+  <router-outlet />
+
+  <dp-stack-apply-dialog />
+} @else {
+  <dp-panel flush>
+    <dp-empty-state icon="compose" title="Stack not found" detail="This stack no longer exists." />
+  </dp-panel>
+}

@@ -1,0 +1,248 @@
+@if (identityEditable()) {
+  <section class="section" aria-labelledby="section-general">
+    <h3 id="section-general" class="section__title">General</h3>
+
+    <div class="fields">
+      <label class="field">
+        <span class="field-label">Stack name</span>
+        <input
+          id="stack-name"
+          class="field-input"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="shop"
+          [value]="model().name"
+          [attr.aria-invalid]="problem('name') ? 'true' : null"
+          [attr.aria-describedby]="problem('name') ? 'error-name' : 'hint-name'"
+          (input)="patch({ name: $any($event.target).value })"
+        />
+        @if (problem('name'); as message) {
+          <span class="field-error" id="error-name">{{ message }}</span>
+        } @else {
+          <span class="field-hint" id="hint-name">
+            Also the Compose project name on the host. Lower-case letters, digits, hyphens and
+            underscores.
+          </span>
+        }
+      </label>
+
+      <label class="field">
+        <span class="field-label">Host</span>
+        <select
+          id="stack-host"
+          class="field-input"
+          [value]="model().hostId"
+          [attr.aria-invalid]="problem('hostId') ? 'true' : null"
+          [attr.aria-describedby]="problem('hostId') ? 'error-host' : 'hint-host'"
+          (change)="patch({ hostId: $any($event.target).value })"
+        >
+          <option value="">Choose a host</option>
+          @for (host of hosts(); track host.id) {
+            <option [value]="host.id">{{ host.name }}</option>
+          }
+        </select>
+        @if (problem('hostId'); as message) {
+          <span class="field-error" id="error-host">{{ message }}</span>
+        } @else {
+          <span class="field-hint" id="hint-host">
+            @if (hostOffline()) {
+              This host's agent is offline. The stack can be saved now and deployed once the agent
+              is connected.
+            } @else {
+              The machine this stack's containers will run on.
+            }
+          </span>
+        }
+      </label>
+    </div>
+  </section>
+}
+
+<section class="section" aria-labelledby="section-compose">
+  <h3 id="section-compose" class="section__title">Compose file</h3>
+  <p class="section__hint">
+    Stored exactly as written, encrypted at rest. Dockplane does not reformat it. For sensitive
+    values, reference an environment variable from Compose and mark the value as secret below.
+  </p>
+
+  <div class="editor">
+    <label class="dp-sr-only" for="stack-compose">Compose file</label>
+    <textarea
+      id="stack-compose"
+      class="editor__input dp-mono"
+      spellcheck="false"
+      autocomplete="off"
+      autocapitalize="off"
+      autocorrect="off"
+      wrap="off"
+      rows="22"
+      [value]="model().compose"
+      [attr.aria-invalid]="problem('compose') ? 'true' : null"
+      [attr.aria-describedby]="problem('compose') ? 'error-compose' : null"
+      (input)="patch({ compose: $any($event.target).value })"
+    ></textarea>
+    @if (problem('compose'); as message) {
+      <span class="field-error" id="error-compose">{{ message }}</span>
+    }
+  </div>
+</section>
+
+<section class="section" aria-labelledby="section-environment">
+  <h3 id="section-environment" class="section__title">Environment</h3>
+  <p class="section__hint">
+    Use <code class="dp-mono">${{ '{' }}VARIABLE{{ '}' }}</code> in your Compose file and define its
+    value here. Values marked secret are stored encrypted and are never shown again. Anyone with
+    access to the Docker host can still read a container's environment from Docker.
+  </p>
+
+  @for (variable of model().environment; track $index) {
+    <div class="row">
+      <label class="row__field">
+        <span class="field-label">Name</span>
+        <input
+          class="field-input dp-mono"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          [value]="variable.key"
+          [disabled]="variable.stored"
+          [attr.aria-invalid]="problem('environment.' + $index + '.key') ? 'true' : null"
+          [attr.aria-describedby]="
+            problem('environment.' + $index + '.key') ? 'error-env-key-' + $index : null
+          "
+          (input)="patchVariable($index, { key: $any($event.target).value })"
+        />
+        @if (problem('environment.' + $index + '.key'); as message) {
+          <span class="field-error" [id]="'error-env-key-' + $index">{{ message }}</span>
+        }
+      </label>
+
+      <!--
+        A stored secret has no value here and is never given one. The interface
+        was not shown it, so it says what is being done to it instead.
+      -->
+      @if (variable.stored && variable.secret) {
+        <div class="row__field secret">
+          <span class="field-label">Value</span>
+
+          @if (variable.action === 'change') {
+            <input
+              class="field-input"
+              type="password"
+              autocomplete="new-password"
+              [attr.aria-label]="'New secret value for ' + variable.key"
+              [value]="variable.value"
+              [attr.aria-invalid]="problem('environment.' + $index + '.value') ? 'true' : null"
+              [attr.aria-describedby]="
+                problem('environment.' + $index + '.value') ? 'error-env-value-' + $index : null
+              "
+              (input)="patchVariable($index, { value: $any($event.target).value })"
+            />
+            @if (problem('environment.' + $index + '.value'); as message) {
+              <span class="field-error" [id]="'error-env-value-' + $index">{{ message }}</span>
+            }
+          } @else {
+            <p class="secret__state">
+              <span class="secret__mask" aria-hidden="true">••••••••</span>
+              <span class="secret__label">{{
+                variable.action === 'remove' ? 'Secret will be removed' : 'Secret stored'
+              }}</span>
+            </p>
+          }
+        </div>
+
+        <div class="row__actions">
+          @if (variable.action === 'unchanged') {
+            <button
+              type="button"
+              dpButton
+              variant="ghost"
+              (click)="setVariableAction($index, 'change')"
+            >
+              Change secret for {{ variable.key }}
+            </button>
+            <button
+              type="button"
+              dpButton
+              variant="ghost"
+              (click)="setVariableAction($index, 'remove')"
+            >
+              Remove {{ variable.key }}
+            </button>
+          } @else {
+            <button
+              type="button"
+              dpButton
+              variant="ghost"
+              (click)="setVariableAction($index, 'unchanged')"
+            >
+              Keep current secret for {{ variable.key }}
+            </button>
+          }
+        </div>
+      } @else {
+        <label class="row__field">
+          <span class="field-label">Value</span>
+          <input
+            class="field-input"
+            [type]="variable.secret ? 'password' : 'text'"
+            [attr.autocomplete]="variable.secret ? 'new-password' : 'off'"
+            [value]="variable.value"
+            [attr.aria-invalid]="problem('environment.' + $index + '.value') ? 'true' : null"
+            [attr.aria-describedby]="
+              problem('environment.' + $index + '.value') ? 'error-env-value-' + $index : null
+            "
+            (input)="patchVariable($index, { value: $any($event.target).value })"
+          />
+          @if (problem('environment.' + $index + '.value'); as message) {
+            <span class="field-error" [id]="'error-env-value-' + $index">{{ message }}</span>
+          }
+        </label>
+
+        <div class="row__actions">
+          @if (variable.stored) {
+            @if (variable.action === 'remove') {
+              <button
+                type="button"
+                dpButton
+                variant="ghost"
+                (click)="setVariableAction($index, 'unchanged')"
+              >
+                Keep {{ variable.key }}
+              </button>
+            } @else {
+              <button
+                type="button"
+                dpButton
+                variant="ghost"
+                (click)="setVariableAction($index, 'remove')"
+              >
+                Remove {{ variable.key }}
+              </button>
+            }
+          } @else {
+            <button type="button" dpButton variant="ghost" (click)="removeVariable($index)">
+              Remove variable {{ $index + 1 }}
+            </button>
+          }
+        </div>
+      }
+
+      @if (variable.stored && variable.action === 'remove') {
+        <p class="row__note">This variable will not be part of the next revision.</p>
+      }
+    </div>
+  } @empty {
+    <p class="section__empty">No environment variables.</p>
+  }
+
+  <div class="section__actions">
+    <button type="button" dpButton variant="secondary" (click)="addVariable(false)">
+      Add variable
+    </button>
+    <button type="button" dpButton variant="secondary" (click)="addVariable(true)">
+      Add secret
+    </button>
+  </div>
+</section>

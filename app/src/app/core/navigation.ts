@@ -42,6 +42,13 @@ export const NAVIGATION: readonly NavGroup[] = [
         icon: 'containers',
         permission: 'containers.read',
       },
+      { label: 'Stacks', path: '/stacks', icon: 'compose', permission: 'stacks.read' },
+      /*
+       * Compose projects found on a host, which Dockplane did not create and
+       * does not deploy. A separate entry from Stacks on purpose: the two look
+       * alike and the difference — who is responsible for the configuration —
+       * is the whole point.
+       */
       { label: 'Compose', path: '/compose', icon: 'compose', permission: 'compose.read' },
     ],
   },
