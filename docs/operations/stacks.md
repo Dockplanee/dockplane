@@ -206,8 +206,89 @@ according to what is actually there.
 ### Containers of a stack
 
 A container that belongs to a stack is configured by that stack. It cannot be
-edited or removed on its own, and while a deployment of its stack is unresolved
-it cannot be started, stopped or restarted either.
+edited or removed on its own, and while a deployment or an operation of its
+stack is unresolved it cannot be started, stopped or restarted either.
+
+## Starting, stopping and restarting
+
+A deployed stack can be stopped and started again. None of these deploys
+anything: no revision is applied, no container is created or recreated, and the
+revision the stack is deployed with is the same afterwards.
+
+**Stop** stops every running service, in reverse dependency order — whatever
+depends on something goes down before the thing it depends on, so a database is
+not taken away from a service still writing to it.
+
+**Start** starts every service in dependency order. A service that is already
+running is left alone.
+
+**Restart** stops the stack and starts it again, in those same two orders. It is
+deliberately not a Docker restart of each container: those would overlap, and a
+service would spend the window talking to something on its way down. Nothing is
+recreated, so every container keeps its identifier, its image, its configuration
+and its volumes.
+
+### A stopped stack is still deployed
+
+The interface reports the deployed revision and the runtime state separately,
+because they answer different questions. A stopped stack still has a deployed
+revision; starting it again runs that revision.
+
+**Stopping and starting never deploy saved changes.** A stack deployed with
+revision 4 while revision 5 is the newest thing saved is stopped as revision 4
+and started as revision 4. Deploying revision 5 is a separate, deliberate act.
+
+### No Compose file is read
+
+A lifecycle operation compiles nothing and decrypts nothing. It works from the
+containers that are already there and the identities Dockplane gave them.
+
+That is deliberate: a stack whose Compose source no longer compiles — because a
+variable it needs was removed, or because the compiler or the encryption key is
+unavailable — is still one an operator can stop. The path needed during an
+incident is the one with the fewest things in it.
+
+### What is refused
+
+A stack that has never been deployed cannot be started: there are no containers
+to start, and creating them is deploying a revision.
+
+A stack that needs attention cannot be started, stopped or restarted. Whoever
+resolves it does so by applying a revision, and that decision is made from what
+is on the host; changing what is there first changes the evidence.
+
+A stack with an unresolved deployment or operation accepts neither. Only one
+thing may be deciding what a stack is.
+
+Nothing is created to make an operation possible. If a service the stack should
+have has no container on the host, if two containers claim to be the same
+service, or if a container carries an identity Dockplane did not give it, the
+operation stops before anything moves.
+
+### When only part of the stack moves
+
+If some services move and others do not, nothing is undone. The stack says it
+needs attention, and neither its containers nor the stack itself accept further
+operations until somebody applies a revision to it — which recreates every
+service and therefore converges the whole stack on one state.
+
+Starting the stopped ones again to tidy up would be a mutation nobody asked for,
+on a host that has just demonstrated it does not do what it is told.
+
+### When the answer does not come back
+
+As with a deployment: Dockplane says so rather than guessing, sends nothing
+again, and settles the operation from the host the next time it is read
+completely.
+
+A restart is the one case a final state cannot answer on its own. The stack was
+running before and is running after, with the same containers and the same
+configuration — nothing an observer could compare has changed except when Docker
+last started each container. Dockplane records that immediately before it
+dispatches a restart, and afterwards a restart counts as having happened only
+where every service is the same container, running, and started later than it
+had been. A restart that cannot be demonstrated is recorded as one that did not
+happen.
 
 ## Validation
 

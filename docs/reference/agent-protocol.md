@@ -173,6 +173,9 @@ container.create
 container.replace
 container.remove
 stack.deploy
+stack.start
+stack.stop
+stack.restart
 container.logs
 ```
 
@@ -193,6 +196,13 @@ raw bind list or for a host namespace.
 volumes they need and the order the services start in. It does not carry a
 Compose file: Compose is read by the control server, and the agent has no parser
 for one.
+
+`stack.start`, `stack.stop` and `stack.restart` carry less: the stack, the
+revision the control server believes is deployed, the services it expects and
+which of them waits for which. No image, no specification and nothing that could
+create a container — these move containers that already exist. Three named
+operations rather than one that takes the word to perform, for the same reason
+the container operations are three.
 
 The plan it carries has a version of its own, separate from the protocol's. A
 plan describes a revision to *apply* — the agent may find the stack already
