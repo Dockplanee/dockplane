@@ -48,6 +48,9 @@ import {
 } from './api-contract';
 import {
   ActionOutcome,
+  ContainerConfiguration,
+  ContainerSpecRequest,
+  ManagementOutcome,
   ActionRecord,
   AuditQuery,
   ContainerFilter,
@@ -121,6 +124,32 @@ export class RealDockplaneApi extends DockplaneApi {
     containerId: string,
   ): Observable<ActionOutcome> {
     return this.api.post<ActionOutcome>(`/api/v1/containers/${containerId}/${operation}`);
+  }
+
+  containerConfiguration(id: string): Observable<ContainerConfiguration> {
+    return this.api
+      .get<{
+        configuration: Omit<ContainerConfiguration, 'reconciling'>;
+        reconciling: boolean;
+      }>(`/api/v1/containers/${id}/configuration`)
+      .pipe(map((response) => ({ ...response.configuration, reconciling: response.reconciling })));
+  }
+
+  createContainer(request: ContainerSpecRequest): Observable<ManagementOutcome> {
+    return this.api.post<ManagementOutcome>('/api/v1/containers', request);
+  }
+
+  replaceContainer(id: string, request: ContainerSpecRequest): Observable<ManagementOutcome> {
+    return this.api.put<ManagementOutcome>(`/api/v1/containers/${id}`, request);
+  }
+
+  removeContainer(
+    id: string,
+    options: { stopFirst?: boolean } = {},
+  ): Observable<ManagementOutcome> {
+    return this.api.delete<ManagementOutcome>(`/api/v1/containers/${id}`, {
+      stopFirst: options.stopFirst ?? false,
+    });
   }
 
   containerLogs(containerId: string, options: LogOptions = {}): Observable<LogSnapshot> {

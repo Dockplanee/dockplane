@@ -51,6 +51,41 @@ export abstract class DockplaneApi {
     containerId: string,
   ): Observable<ActionOutcome>;
 
+  /**
+   * What a container is configured to be.
+   *
+   * The configuration Dockplane holds, which is what an edit starts from — not
+   * the inspect projection, which describes the container Docker is running.
+   * The two agree until somebody changes one.
+   */
+  abstract containerConfiguration(id: string): Observable<ContainerConfiguration>;
+
+  /**
+   * Creates a container on a host.
+   *
+   * The host is named as a Dockplane resource. Neither the agent nor any Docker
+   * identifier appears in the request: the server resolves both.
+   */
+  abstract createContainer(request: ContainerSpecRequest): Observable<ManagementOutcome>;
+
+  /**
+   * Replaces a container with a new configuration.
+   *
+   * The whole configuration, not a patch — Docker cannot change a running
+   * container's ports or environment, so applying a change means rebuilding it.
+   * The Dockplane container is the same one afterwards.
+   */
+  abstract replaceContainer(
+    id: string,
+    request: ContainerSpecRequest,
+  ): Observable<ManagementOutcome>;
+
+  /** Removes a container. Its volumes are kept, and cannot be asked for. */
+  abstract removeContainer(
+    id: string,
+    options?: { stopFirst?: boolean },
+  ): Observable<ManagementOutcome>;
+
   abstract actions(options?: {
     limit?: number;
     offset?: number;
@@ -115,6 +150,81 @@ export interface MfaSetup {
 }
 
 export type ContainerOperation = 'start' | 'stop' | 'restart';
+
+/** A published port, as Dockplane describes one. */
+export interface PortSpec {
+  readonly containerPort: number;
+  readonly hostPort?: number;
+  readonly protocol: 'tcp' | 'udp';
+  readonly hostIp?: string;
+}
+
+export interface MountSpec {
+  readonly type: 'volume' | 'bind';
+  readonly source: string;
+  readonly target: string;
+  readonly readOnly?: boolean;
+}
+
+/**
+ * What is being done to one environment variable.
+ *
+ * The operation is explicit because a masked value must never be mistaken for a
+ * new one: an interface that has not been shown a secret says the variable is
+ * unchanged, and carries no value at all.
+ */
+export type EnvironmentChange =
+  | { readonly operation: 'set'; readonly key: string; readonly value: string }
+  | { readonly operation: 'set-secret'; readonly key: string; readonly value: string }
+  | { readonly operation: 'unchanged'; readonly key: string }
+  | { readonly operation: 'remove'; readonly key: string };
+
+/** A container as it is asked for. Deliberately not a Docker API payload. */
+export interface ContainerSpecRequest {
+  readonly hostId?: string;
+  readonly name?: string;
+  readonly image: string;
+  readonly hostname?: string;
+  readonly command?: readonly string[];
+  readonly entrypoint?: readonly string[];
+  readonly ports?: readonly PortSpec[];
+  readonly mounts?: readonly MountSpec[];
+  readonly environment?: readonly EnvironmentChange[];
+  readonly networks?: readonly string[];
+  readonly restartPolicy?: 'no' | 'always' | 'unless-stopped' | 'on-failure';
+  readonly labels?: Readonly<Record<string, string>>;
+}
+
+/** An environment variable as the server reports it: a secret carries no value. */
+export interface EnvironmentVariable {
+  readonly key: string;
+  readonly secret: boolean;
+  readonly value?: string;
+}
+
+export interface ContainerConfiguration {
+  readonly name: string;
+  readonly image: string;
+  readonly hostname?: string;
+  readonly command?: readonly string[];
+  readonly entrypoint?: readonly string[];
+  readonly ports: readonly PortSpec[];
+  readonly mounts: readonly MountSpec[];
+  readonly networks: readonly string[];
+  readonly restartPolicy: string;
+  readonly labels: Readonly<Record<string, string>>;
+  readonly environment: readonly EnvironmentVariable[];
+  /** True while a change to this container has not been settled. */
+  readonly reconciling: boolean;
+}
+
+/** What came of a change to a container. */
+export interface ManagementOutcome {
+  readonly actionId: string;
+  readonly containerId: string;
+  readonly status: string;
+  readonly state?: string;
+}
 
 /** What came of an operation, as the server observed it afterwards. */
 export interface ActionOutcome {

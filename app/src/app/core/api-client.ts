@@ -43,8 +43,23 @@ export class ApiClient {
       .pipe(catchError(fail));
   }
 
-  delete<T>(path: string): Observable<T> {
-    return this.http.delete<T>(this.url(path), { withCredentials: true }).pipe(catchError(fail));
+  put<T>(path: string, body?: unknown): Observable<T> {
+    return this.http
+      .put<T>(this.url(path), body ?? {}, { withCredentials: true })
+      .pipe(catchError(fail));
+  }
+
+  /**
+   * A body is allowed here because one endpoint needs it.
+   *
+   * Removing a container carries whether to stop it first. It is a property of
+   * the removal rather than of the resource, and putting it in the query string
+   * would put an instruction somewhere that gets logged.
+   */
+  delete<T>(path: string, body?: unknown): Observable<T> {
+    return this.http
+      .delete<T>(this.url(path), { withCredentials: true, body })
+      .pipe(catchError(fail));
   }
 
   private url(path: string): string {

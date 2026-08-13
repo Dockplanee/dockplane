@@ -4,9 +4,12 @@ import { ApiError } from '../app/core/api-error';
 import {
   ActionOutcome,
   ActionRecord,
+  ContainerConfiguration,
   ContainerFilter,
   ContainerOperation,
+  ContainerSpecRequest,
   DockplaneApi,
+  ManagementOutcome,
   LogEvent,
   LogOptions,
   LogSnapshot,
@@ -26,6 +29,10 @@ import { OperatorSession } from '../app/domain/sessions';
 
 /** What a test wants the control server to answer with. */
 export interface TestData {
+  /** What the configuration read returns; absent means the container is not managed. */
+  readonly configuration?: ContainerConfiguration;
+  /** What a create, replace or remove returns when it succeeds. */
+  readonly managementOutcome?: ManagementOutcome;
   hosts?: readonly Host[];
   containers?: readonly Container[];
   containerDetail?: ContainerDetail;
@@ -115,6 +122,58 @@ export class TestApi extends DockplaneApi {
     return this.mutate(
       this.data.actionOutcome ?? { actionId: 'action-1', status: 'succeeded', state: 'running' },
       operation,
+    );
+  }
+
+  containerConfiguration(id: string): Observable<ContainerConfiguration> {
+    this.calls.push(`containerConfiguration:${id}`);
+
+    return this.data.configuration
+      ? of(this.data.configuration)
+      : throwError(
+          () => new ApiError('CONTAINER_NOT_MANAGED', 'Dockplane did not create this.', 409),
+        );
+  }
+
+  createContainer(request: ContainerSpecRequest): Observable<ManagementOutcome> {
+    // Recorded as JSON so a test can assert what was actually sent — which for
+    // the environment is the only way to check that a secret nobody changed
+    // travelled as `unchanged` and carried no value.
+    this.calls.push(`createContainer:${JSON.stringify(request)}`);
+
+    return this.mutate(
+      this.data.managementOutcome ?? {
+        actionId: 'action-1',
+        containerId: 'container-1',
+        status: 'succeeded',
+      },
+      'create',
+    );
+  }
+
+  replaceContainer(id: string, request: ContainerSpecRequest): Observable<ManagementOutcome> {
+    this.calls.push(`replaceContainer:${id}:${JSON.stringify(request)}`);
+
+    return this.mutate(
+      this.data.managementOutcome ?? {
+        actionId: 'action-1',
+        containerId: id,
+        status: 'succeeded',
+      },
+      'replace',
+    );
+  }
+
+  removeContainer(id: string, options?: { stopFirst?: boolean }): Observable<ManagementOutcome> {
+    this.calls.push(`removeContainer:${id}:${options?.stopFirst ?? false}`);
+
+    return this.mutate(
+      this.data.managementOutcome ?? {
+        actionId: 'action-1',
+        containerId: id,
+        status: 'succeeded',
+      },
+      'remove',
     );
   }
 

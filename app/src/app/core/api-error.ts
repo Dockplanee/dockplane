@@ -24,6 +24,17 @@ export type ApiErrorCode =
   | 'CONTAINER_ALREADY_RUNNING'
   | 'CONTAINER_ALREADY_STOPPED'
   | 'ACTION_CONFLICT'
+  | 'OPERATION_OUTCOME_UNKNOWN'
+  | 'CONTAINER_IDENTITY_CONFLICT'
+  | 'CONTAINER_NOT_MANAGED'
+  | 'MANAGED_BY_STACK'
+  | 'CONTAINER_NAME_IN_USE'
+  | 'INVALID_CONTAINER_SPEC'
+  | 'IMAGE_NOT_FOUND'
+  | 'REPLACEMENT_FAILED'
+  | 'CONTAINER_CREATE_FAILED'
+  | 'CONTAINER_REMOVE_FAILED'
+  | 'CONTAINER_STATE_UNRESOLVED'
   | 'AGENT_OFFLINE'
   | 'DOCKER_UNAVAILABLE'
   | 'DOCKER_PERMISSION_DENIED'
@@ -135,6 +146,26 @@ const MESSAGES: Record<ApiErrorCode, string> = {
   CONTAINER_ALREADY_RUNNING: 'This container is already running, so nothing was started.',
   CONTAINER_ALREADY_STOPPED: 'This container is not running, so nothing was stopped.',
   ACTION_CONFLICT: 'Another operation is already running on this container. Wait for it to finish.',
+  /*
+   * Not a failure, and worded so that nobody reads it as one. The host may have
+   * done exactly what was asked; what is missing is the confirmation.
+   */
+  OPERATION_OUTCOME_UNKNOWN:
+    'Dockplane sent the operation to the host but could not confirm the result. It is establishing what happened and will not repeat the operation.',
+  CONTAINER_IDENTITY_CONFLICT:
+    'More than one Docker container claims to be this one. Nothing can be done to it until that is resolved.',
+  CONTAINER_NOT_MANAGED:
+    'Dockplane did not create this container, so it will not change or remove it.',
+  MANAGED_BY_STACK:
+    'This container belongs to a Compose project, and its configuration comes from there.',
+  CONTAINER_NAME_IN_USE: 'A container with this name already exists on that host.',
+  INVALID_CONTAINER_SPEC: 'This configuration is not one Dockplane accepts.',
+  IMAGE_NOT_FOUND: 'That image could not be found or pulled on the host.',
+  REPLACEMENT_FAILED: 'The change was not applied. The container is as it was.',
+  CONTAINER_CREATE_FAILED: 'The container was not created.',
+  CONTAINER_REMOVE_FAILED: 'The container was not removed.',
+  CONTAINER_STATE_UNRESOLVED:
+    'The state of this container could not be established. Somebody needs to look at it.',
   AGENT_OFFLINE: 'The agent is not connected, so the operation was not carried out.',
   DOCKER_UNAVAILABLE: 'The Docker daemon on this host could not be reached.',
   DOCKER_PERMISSION_DENIED: 'The Docker daemon refused the operation for the agent.',
