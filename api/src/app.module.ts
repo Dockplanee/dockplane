@@ -20,6 +20,7 @@ import { InventoryService } from './inventory/inventory.service';
 import { ContainerLogsController } from './logs/logs.controller';
 import { LogStreamService } from './logs/log-stream.service';
 import { LifecycleService } from './operations/lifecycle.service';
+import { MutationRegistry } from './operations/mutation-registry';
 import {
   ActionsController,
   ContainerOperationsController,
@@ -120,6 +121,7 @@ import { SecretBox } from './common/crypto';
     DetailService,
     EventsService,
     InventoryService,
+    MutationRegistry,
     LifecycleService,
     LogStreamService,
     DiscoveryScheduler,

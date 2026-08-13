@@ -58,6 +58,21 @@ export const ERROR_CODES = [
   'CONTAINER_DETAIL_UNAVAILABLE',
   'CONTAINER_ALREADY_RUNNING',
   'CONTAINER_ALREADY_STOPPED',
+  /*
+   * Two Docker containers claim one Dockplane identity, which is what a crash
+   * midway through a replacement leaves behind. Choosing between them would
+   * mean guessing, and a wrong guess removes a workload, so every mutation is
+   * refused until a person resolves it. Reading is still allowed.
+   */
+  'CONTAINER_IDENTITY_CONFLICT',
+  /* The container belongs to a stack, and its configuration comes from there. */
+  'MANAGED_BY_STACK',
+  /* The container was found by discovery; Dockplane was never told what it should be. */
+  'CONTAINER_NOT_MANAGED',
+  'INVALID_CONTAINER_SPEC',
+  'CONTAINER_NAME_IN_USE',
+  'IMAGE_NOT_FOUND',
+  'REPLACEMENT_FAILED',
   'ACTION_CONFLICT',
   'ACTION_TIMEOUT',
   'AGENT_OFFLINE',

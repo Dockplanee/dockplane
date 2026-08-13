@@ -15,6 +15,7 @@ import { Database } from '../database/database';
 import { actions, agents, containers, hosts } from '../database/schema';
 import { DetailService } from '../discovery/detail.service';
 import { EventsService } from '../events/events.service';
+import { MutationRegistry } from './mutation-registry';
 
 /** What an operator asked for, and what came of it. */
 export interface ActionOutcome {
@@ -76,17 +77,8 @@ export type Operation = keyof typeof OPERATIONS;
  */
 @Injectable()
 export class LifecycleService {
-  /**
-   * Containers with an operation in flight.
-   *
-   * Per container rather than global, so one slow restart does not block a
-   * fleet. A second operation on the same container is refused rather than
-   * queued: with two in flight, neither the operator nor the audit trail could
-   * say which one produced the state that resulted.
-   */
-  private readonly inFlight = new Set<string>();
-
   constructor(
+    private readonly mutations: MutationRegistry,
     private readonly db: Database,
     private readonly dispatch: AgentDispatchService,
     private readonly connections: AgentConnectionManager,
@@ -113,14 +105,14 @@ export class LifecycleService {
     const target = await this.resolve(containerId);
     const agentId = await this.connectedAgent(target.hostId);
 
-    if (this.inFlight.has(containerId)) {
-      throw AppError.conflict(
-        'ACTION_CONFLICT',
-        'Another operation is already running on this container.',
-      );
-    }
-
-    this.inFlight.add(containerId);
+    /*
+     * The same lock every other mutation takes.
+     *
+     * Starting a container while it is being replaced would operate on a
+     * container that is about to stop existing, and the result would depend on
+     * which finished first.
+     */
+    const release = this.mutations.acquire(containerId, operation);
 
     const correlationId = context.requestId ?? randomUUID();
     const requestedAt = new Date();
@@ -163,13 +155,13 @@ export class LifecycleService {
     } catch (error) {
       return await this.fail(action.id, operation, target, actor, context, error);
     } finally {
-      this.inFlight.delete(containerId);
+      release();
     }
   }
 
   /** Containers with an operation in flight, so the read model can say so. */
   isRunning(containerId: string): boolean {
-    return this.inFlight.has(containerId);
+    return this.mutations.isBusy(containerId);
   }
 
   private async succeed(
