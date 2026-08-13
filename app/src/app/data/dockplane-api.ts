@@ -1,7 +1,7 @@
 import { Observable } from 'rxjs';
 
 import { ComposeProject, Container, ContainerDetail, Host } from '../domain/inventory';
-import { Stack, StackRevision, StackService } from '../domain/stacks';
+import { Stack, StackOperation, StackRevision, StackService } from '../domain/stacks';
 import {
   Agent,
   AuditPage,
@@ -147,6 +147,14 @@ export abstract class DockplaneApi {
    */
   abstract applyStackRevision(stackId: string, revisionId: string): Observable<ApplyOutcome>;
 
+  /**
+   * Starts, stops or restarts what is already deployed.
+   *
+   * No revision and no body: the operation is the route, and which containers
+   * it means is the server's to resolve.
+   */
+  abstract operateStack(stackId: string, operation: StackOperation): Observable<OperationOutcome>;
+
   abstract agents(): Observable<readonly Agent[]>;
   abstract createEnrollmentToken(intendedHostname?: string): Observable<EnrollmentToken>;
   abstract revokeAgent(id: string, reason: string): Observable<void>;
@@ -254,6 +262,14 @@ export interface ApplyOutcome {
   readonly stackId: string;
   readonly revisionId: string;
   readonly kind: string;
+  readonly status: string;
+}
+
+/** What came of starting, stopping or restarting a stack. */
+export interface OperationOutcome {
+  readonly operationId: string;
+  readonly stackId: string;
+  readonly operation: string;
   readonly status: string;
 }
 

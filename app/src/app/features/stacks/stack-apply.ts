@@ -155,7 +155,7 @@ export class StackApply {
    */
   private loadDiff(target: RevisionRef): void {
     const stack = this.store.stack();
-    const from = stack?.runningRevision;
+    const from = stack?.deployedRevision;
 
     if (!this.canReview() || !from || from.id === target.id) {
       return;

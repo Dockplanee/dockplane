@@ -89,7 +89,7 @@ import { TableShell } from '../../ui/table/table-shell';
                 <th scope="col">Host</th>
                 <th scope="col">Status</th>
                 <th scope="col">Saved</th>
-                <th scope="col">Running</th>
+                <th scope="col">Deployed</th>
                 <th scope="col">Services</th>
                 <th scope="col">Updated</th>
               </tr>
@@ -109,7 +109,7 @@ import { TableShell } from '../../ui/table/table-shell';
                   </td>
                   <td class="dp-mono">
                     {{
-                      stack.runningRevision ? '#' + stack.runningRevision.number : 'Not deployed'
+                      stack.deployedRevision ? '#' + stack.deployedRevision.number : 'Not deployed'
                     }}
                   </td>
                   <td class="dp-mono">{{ serviceCount(stack) }}</td>
@@ -186,7 +186,7 @@ export class StackList {
 
   /** From the revision that is running where there is one, else what was saved. */
   protected serviceCount(stack: Stack): string {
-    const revision = stack.runningRevision ?? stack.latestRevision;
+    const revision = stack.deployedRevision ?? stack.latestRevision;
 
     return revision?.summary ? String(revision.summary.services.length) : '—';
   }

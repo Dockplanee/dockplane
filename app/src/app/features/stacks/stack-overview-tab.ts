@@ -125,7 +125,7 @@ export class StackOverviewTab {
   protected readonly summary = computed(() => {
     const stack = this.store.stack();
 
-    return (stack?.runningRevision ?? stack?.latestRevision)?.summary ?? undefined;
+    return (stack?.deployedRevision ?? stack?.latestRevision)?.summary ?? undefined;
   });
 
   protected readonly details = computed((): readonly DetailItem[] => {
@@ -145,8 +145,8 @@ export class StackOverviewTab {
         mono: true,
       },
       {
-        label: 'Running revision',
-        value: stack.runningRevision ? `#${stack.runningRevision.number}` : 'Not deployed',
+        label: 'Deployed revision',
+        value: stack.deployedRevision ? `#${stack.deployedRevision.number}` : 'Not deployed',
         mono: true,
       },
       { label: 'Services', value: String(this.summary()?.services.length ?? 0), mono: true },

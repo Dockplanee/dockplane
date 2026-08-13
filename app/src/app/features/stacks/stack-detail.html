@@ -13,6 +13,25 @@
         </a>
       }
 
+      <!--
+        Moving what is deployed between running and stopped. Offered only in the
+        states where it means something: a stack that needs attention or is
+        being reconciled offers none of these, because what it needs first is a
+        decision about which revision it should be.
+      -->
+      @for (operation of operate.available(); track operation) {
+        <button
+          type="button"
+          dpButton
+          variant="secondary"
+          [disabled]="!!operate.blocked()"
+          [attr.title]="operate.blocked() || null"
+          (click)="operate.request(operation)"
+        >
+          {{ operationLabel(operation) }}
+        </button>
+      }
+
       @if (applicable(); as target) {
         <button
           type="button"
@@ -31,7 +50,7 @@
   <p class="meta">
     <span>{{ stack.hostname }}</span>
     <span>Saved {{ latest() ? '#' + latest()!.number : '—' }}</span>
-    <span>Running {{ running() ? '#' + running()!.number : 'Not deployed' }}</span>
+    <span>Deployed {{ deployed() ? '#' + deployed()!.number : 'Not deployed' }}</span>
   </p>
 
   <!--
@@ -65,6 +84,18 @@
       <h3 class="notice__title">Not deployed</h3>
       <p>This stack has been saved but has not been deployed.</p>
     </div>
+  } @else if (state() === 'stopped') {
+    <div class="notice" role="status">
+      <h3 class="notice__title">Stopped</h3>
+      <p>
+        Every service of this stack is stopped. It is still deployed with revision #{{
+          deployed()!.number
+        }}; starting it again runs that revision.
+      </p>
+      @if (latest() && latest()!.id !== deployed()!.id) {
+        <p>Revision #{{ latest()!.number }} contains saved changes that have not been deployed.</p>
+      }
+    </div>
   } @else if (state() === 'changes_pending' && latest()) {
     <div class="notice" role="status">
       <h3 class="notice__title">Changes not deployed</h3>
@@ -72,14 +103,14 @@
     </div>
   }
 
-  @if (apply.unresolved(); as message) {
+  @if (apply.unresolved() || operate.unresolved(); as message) {
     <div class="notice" role="status">
       <h3 class="notice__title">The result has not been confirmed</h3>
       <p>{{ message }}</p>
     </div>
   }
 
-  @if (apply.failure(); as message) {
+  @if (apply.failure() || operate.failure(); as message) {
     <div class="notice notice--critical" role="alert">
       <p>{{ message }}</p>
     </div>
@@ -90,6 +121,16 @@
   <router-outlet />
 
   <dp-stack-apply-dialog />
+
+  <dp-confirm-dialog
+    #operationDialog
+    [heading]="operate.heading()"
+    [description]="operate.description()"
+    [confirmLabel]="operate.label()"
+    [pending]="operate.busy()"
+    (confirmed)="operate.confirm()"
+    (dismissed)="operate.cancel()"
+  />
 } @else {
   <dp-panel flush>
     <dp-empty-state icon="compose" title="Stack not found" detail="This stack no longer exists." />

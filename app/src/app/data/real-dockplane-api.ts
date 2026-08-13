@@ -16,7 +16,7 @@ import {
   ResourceUsage,
 } from '../domain/inventory';
 import { OperatorSession } from '../domain/sessions';
-import { Stack, StackRevision, StackService } from '../domain/stacks';
+import { Stack, StackOperation, StackRevision, StackService } from '../domain/stacks';
 import {
   Agent,
   AuditEntry,
@@ -63,6 +63,7 @@ import {
   LogSnapshot,
   MfaSetup,
   ApplyOutcome,
+  OperationOutcome,
   ComposeValidation,
   CreateStackRequest,
   SaveRevisionRequest,
@@ -271,6 +272,10 @@ export class RealDockplaneApi extends DockplaneApi {
 
   applyStackRevision(stackId: string, revisionId: string): Observable<ApplyOutcome> {
     return this.api.post<ApplyOutcome>(`/api/v1/stacks/${stackId}/deploy`, { revisionId });
+  }
+
+  operateStack(stackId: string, operation: StackOperation): Observable<OperationOutcome> {
+    return this.api.post<OperationOutcome>(`/api/v1/stacks/${stackId}/${operation}`, {});
   }
 
   agents(): Observable<readonly Agent[]> {

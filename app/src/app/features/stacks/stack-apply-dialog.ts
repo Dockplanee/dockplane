@@ -45,8 +45,8 @@ import { StackStore } from './stack-store';
           <dt>Running</dt>
           <dd>
             {{
-              store.stack()?.runningRevision
-                ? '#' + store.stack()!.runningRevision!.number
+              store.stack()?.deployedRevision
+                ? '#' + store.stack()!.deployedRevision!.number
                 : 'Not deployed'
             }}
           </dd>

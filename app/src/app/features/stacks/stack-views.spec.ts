@@ -26,7 +26,7 @@ const stack = (overrides: Partial<Stack> = {}): Stack => ({
     number: 2,
     summary: { services: ['web'], networks: [], volumes: [] },
   },
-  runningRevision: {
+  deployedRevision: {
     id: 'revision-2',
     number: 2,
     summary: { services: ['web'], networks: [], volumes: [] },
@@ -66,7 +66,7 @@ describe('the stack list', () => {
         stacks: [
           stack({
             latestRevision: { id: 'revision-3', number: 3 },
-            runningRevision: { id: 'revision-2', number: 2 },
+            deployedRevision: { id: 'revision-2', number: 2 },
           }),
         ],
       },
@@ -78,7 +78,7 @@ describe('the stack list', () => {
 
   it('says when a stack has never been deployed', async () => {
     const fixture = await renderView(StackList, {
-      data: { stacks: [stack({ runningRevision: null, status: 'not_deployed' })] },
+      data: { stacks: [stack({ deployedRevision: null, status: 'not_deployed' })] },
       permissions: ['stacks.read'],
     });
 
@@ -93,7 +93,7 @@ describe('the stack list', () => {
           stack({
             status: 'needs_attention',
             latestRevision: { id: 'revision-3', number: 3 },
-            runningRevision: { id: 'revision-2', number: 2 },
+            deployedRevision: { id: 'revision-2', number: 2 },
           }),
         ],
       },
@@ -128,7 +128,7 @@ describe('one stack', () => {
     const fixture = await render(
       {
         latestRevision: { id: 'revision-3', number: 3 },
-        runningRevision: { id: 'revision-2', number: 2 },
+        deployedRevision: { id: 'revision-2', number: 2 },
       },
       ['stacks.read', 'stacks.update', 'stacks.deploy'],
     );
@@ -141,7 +141,7 @@ describe('one stack', () => {
     const fixture = await render(
       {
         latestRevision: { id: 'revision-3', number: 3 },
-        runningRevision: { id: 'revision-2', number: 2 },
+        deployedRevision: { id: 'revision-2', number: 2 },
       },
       ['stacks.read'],
     );
@@ -163,7 +163,7 @@ describe('one stack', () => {
     const fixture = await render(
       {
         latestRevision: { id: 'revision-1', number: 1 },
-        runningRevision: { id: 'revision-2', number: 2 },
+        deployedRevision: { id: 'revision-2', number: 2 },
       },
       ['stacks.read', 'stacks.deploy'],
     );
@@ -187,6 +187,93 @@ describe('one stack', () => {
 
   it('has no accessibility violations', async () => {
     const fixture = await render({}, ['stacks.read', 'stacks.update', 'stacks.deploy']);
+    const { violations } = await checkAccessibility(fixture);
+
+    expect(violations.join('\n\n')).toBe('');
+  });
+});
+
+/**
+ * Which of start, stop and restart a stack is offered.
+ *
+ * The states matter more than the buttons. A stack that needs attention or is
+ * being reconciled is one where nobody yet knows what the host is, and offering
+ * to stop half of it is how somebody ends up deciding a repair from evidence
+ * that changed underneath them.
+ */
+describe('operating one stack', () => {
+  const render = (overrides: Partial<Stack>, permissions: string[] = ['stacks.read', 'stacks.deploy']) =>
+    renderView(StackDetail, {
+      params: { id: 'stack-1' },
+      data: { stacks: [stack(overrides)] },
+      permissions: permissions as never,
+    });
+
+  it('offers stopping and restarting a running stack', async () => {
+    const fixture = await render({});
+
+    expect(textOf(fixture)).toContain('Stop stack');
+    expect(textOf(fixture)).toContain('Restart stack');
+    expect(textOf(fixture)).not.toContain('Start stack');
+  });
+
+  it('offers starting a stopped one', async () => {
+    const fixture = await render({ status: 'stopped' });
+
+    expect(textOf(fixture)).toContain('Start stack');
+    expect(textOf(fixture)).not.toContain('Stop stack');
+  });
+
+  /*
+   * A stopped stack is still deployed. The word has to carry that, or an
+   * operator reads "not running" as "not deployed" and deploys it again.
+   */
+  it('says a stopped stack is still deployed with its revision', async () => {
+    const fixture = await render({ status: 'stopped' });
+
+    expect(textOf(fixture)).toContain('Stopped');
+    expect(textOf(fixture)).toContain('still deployed with revision #2');
+  });
+
+  it('offers nothing to a stack that needs attention', async () => {
+    const fixture = await render({ status: 'needs_attention' });
+
+    expect(textOf(fixture)).not.toContain('Stop stack');
+    expect(textOf(fixture)).not.toContain('Restart stack');
+    expect(textOf(fixture)).not.toContain('Start stack');
+  });
+
+  it('offers nothing while the stack is being reconciled', async () => {
+    const fixture = await render({ reconciling: true });
+
+    expect(textOf(fixture)).not.toContain('Stop stack');
+    expect(textOf(fixture)).not.toContain('Restart stack');
+  });
+
+  it('offers nothing to a stack that has never been deployed', async () => {
+    const fixture = await render({ deployedRevision: null, status: 'not_deployed' });
+
+    expect(textOf(fixture)).not.toContain('Start stack');
+  });
+
+  it('offers nothing to somebody who may only look', async () => {
+    const fixture = await render({}, ['stacks.read']);
+
+    expect(textOf(fixture)).not.toContain('Stop stack');
+  });
+
+  /* A stack with changes saved is still a running stack that may be stopped. */
+  it('offers stopping a stack that has changes saved', async () => {
+    const fixture = await render({
+      latestRevision: { id: 'revision-3', number: 3 },
+      deployedRevision: { id: 'revision-2', number: 2 },
+    });
+
+    expect(textOf(fixture)).toContain('Stop stack');
+  });
+
+  it('has no accessibility violations when stopped', async () => {
+    const fixture = await render({ status: 'stopped' });
     const { violations } = await checkAccessibility(fixture);
 
     expect(violations.join('\n\n')).toBe('');

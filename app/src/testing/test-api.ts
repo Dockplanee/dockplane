@@ -4,6 +4,7 @@ import { ApiError } from '../app/core/api-error';
 import {
   ApplyOutcome,
   ComposeValidation,
+  OperationOutcome,
   CreateStackRequest,
   SaveRevisionRequest,
   SavedRevision,
@@ -33,7 +34,7 @@ import {
   User,
 } from '../app/domain/operations';
 import { OperatorSession } from '../app/domain/sessions';
-import { Stack, StackRevision, StackService } from '../app/domain/stacks';
+import { Stack, StackOperation, StackRevision, StackService } from '../app/domain/stacks';
 
 /** What a test wants the control server to answer with. */
 export interface TestData {
@@ -73,6 +74,8 @@ export interface TestData {
   validation?: ComposeValidation;
   /** Set to make applying a revision fail the way the server would. */
   applyFailure?: unknown;
+  /** Set to make starting, stopping or restarting fail the way the server would. */
+  operationFailure?: unknown;
 }
 
 /**
@@ -285,6 +288,14 @@ export class TestApi extends DockplaneApi {
     this.requests.push(request);
 
     return of({ stackId, revisionId: 'revision-2', revisionNumber: 2 });
+  }
+
+  operateStack(stackId: string, operation: StackOperation): Observable<OperationOutcome> {
+    this.calls.push(`operateStack:${stackId}:${operation}`);
+
+    return this.data.operationFailure
+      ? throwError(() => this.data.operationFailure)
+      : of({ operationId: 'operation-1', stackId, operation, status: 'succeeded' });
   }
 
   applyStackRevision(stackId: string, revisionId: string): Observable<ApplyOutcome> {

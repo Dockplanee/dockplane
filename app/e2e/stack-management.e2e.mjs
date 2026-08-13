@@ -312,7 +312,7 @@ async function run() {
     const meta = await page.locator('dp-stack-detail > .meta').innerText();
 
     check('the first revision is the saved one', meta.includes('Saved #1'), meta);
-    check('and nothing is running', meta.includes('Running Not deployed'), meta);
+    check('and nothing is running', meta.includes('Deployed Not deployed'), meta);
 
     const created = sent.find((request) => request.url.endsWith('/api/v1/stacks'));
 
@@ -399,7 +399,7 @@ async function run() {
     const afterSave = await page.locator('dp-stack-detail > .meta').innerText();
 
     check('the newest saved revision is the second', afterSave.includes('Saved #2'), afterSave);
-    check('and nothing was deployed by saving', afterSave.includes('Running Not deployed'));
+    check('and nothing was deployed by saving', afterSave.includes('Deployed Not deployed'));
 
     console.log('\n== deploying ==');
 
@@ -414,12 +414,12 @@ async function run() {
     await page.locator('dialog[open] button:has-text("Deploy revision #2")').click();
 
     await until('the stack to report the revision running', async () =>
-      (await page.locator('dp-stack-detail > .meta').innerText()).includes('Running #2'),
+      (await page.locator('dp-stack-detail > .meta').innerText()).includes('Deployed #2'),
     );
 
     const deployed = await page.locator('dp-stack-detail > .meta').innerText();
 
-    check('the deployed revision is the one that was applied', deployed.includes('Running #2'));
+    check('the deployed revision is the one that was applied', deployed.includes('Deployed #2'));
     check('and the newest saved revision did not change', deployed.includes('Saved #2'));
 
     await page.click('a:has-text("Services")');
@@ -453,12 +453,12 @@ async function run() {
     await page.locator('dialog[open] button:has-text("Roll back")').click();
 
     await until('the older revision to be running', async () =>
-      (await page.locator('dp-stack-detail > .meta').innerText()).includes('Running #1'),
+      (await page.locator('dp-stack-detail > .meta').innerText()).includes('Deployed #1'),
     );
 
     const rolledBack = await page.locator('dp-stack-detail > .meta').innerText();
 
-    check('the running revision went back', rolledBack.includes('Running #1'));
+    check('the running revision went back', rolledBack.includes('Deployed #1'));
     check('and the newest saved revision stayed where it was', rolledBack.includes('Saved #2'));
 
     console.log('\n== an answer that never came back ==');
@@ -497,12 +497,12 @@ async function run() {
     await until('the stack to be settled from the host', async () => {
       await page.goto(stackUrl, { waitUntil: 'networkidle' });
 
-      return (await page.locator('dp-stack-detail > .meta').innerText()).includes('Running #2');
+      return (await page.locator('dp-stack-detail > .meta').innerText()).includes('Deployed #2');
     });
 
     check(
       'the host settles what the reply did not say',
-      (await page.locator('dp-stack-detail > .meta').innerText()).includes('Running #2'),
+      (await page.locator('dp-stack-detail > .meta').innerText()).includes('Deployed #2'),
     );
 
     console.log('\n== a stack that needs attention ==');
@@ -552,7 +552,7 @@ async function run() {
     await until('the stack to be running the chosen revision', async () => {
       await page.goto(stackUrl, { waitUntil: 'networkidle' });
 
-      return (await page.locator('dp-stack-detail > .meta').innerText()).includes('Running #1');
+      return (await page.locator('dp-stack-detail > .meta').innerText()).includes('Deployed #1');
     });
 
     const repaired = await page.locator('body').innerText();
@@ -560,12 +560,203 @@ async function run() {
     check('needing attention is cleared', !repaired.includes('needs attention'));
     check(
       'and the chosen revision is the running one',
-      (await page.locator('dp-stack-detail > .meta').innerText()).includes('Running #1'),
+      (await page.locator('dp-stack-detail > .meta').innerText()).includes('Deployed #1'),
     );
     check(
       'the repair was one new attempt',
       sent.filter((request) => request.url.endsWith('/deploy')).length === repairs + 1,
     );
+
+    console.log('\n== stopping and starting ==');
+
+    /*
+     * A saved revision the stack is not running, kept for the rest of this
+     * section: stopping and starting must not deploy it, which is the way a
+     * lifecycle button could most easily do something nobody asked for.
+     */
+    await page.goto(`${stackUrl}/revisions`, { waitUntil: 'networkidle' });
+
+    const savedBeforeStop = await page.locator('dp-stack-detail > .meta').innerText();
+
+    check('a revision is saved that is not deployed', savedBeforeStop.includes('Saved #2'));
+    check('and the deployed one is the older', savedBeforeStop.includes('Deployed #1'));
+
+    await page.goto(stackUrl, { waitUntil: 'networkidle' });
+
+    const serviceLinks = async () => {
+      await page.goto(`${stackUrl}/services`, { waitUntil: 'networkidle' });
+
+      return page.evaluate(() =>
+        [...document.querySelectorAll('a[href*="/containers/"]')].map((link) => link.getAttribute('href')),
+      );
+    };
+
+    const linksBefore = await serviceLinks();
+
+    await page.goto(stackUrl, { waitUntil: 'networkidle' });
+    await clickWhenEnabled(page, 'button:has-text("Stop stack")');
+    await until('the stop confirmation', async () => await page.locator('dialog[open]').count());
+
+    const stopDialog = await page.locator('dialog[open]').innerText();
+
+    check('the confirmation says what stopping does', stopDialog.includes('reverse dependency'));
+    check('and that nothing is deleted', stopDialog.includes('no data is deleted'));
+
+    await page.locator('dialog[open] button:has-text("Stop stack")').click();
+
+    await until('the stack to report that it is stopped', async () => {
+      await page.goto(stackUrl, { waitUntil: 'networkidle' });
+
+      return (await page.locator('body').innerText()).includes('Stopped');
+    });
+
+    const stopped = await page.locator('dp-stack-detail > .meta').innerText();
+
+    check('the deployed revision did not change', stopped.includes('Deployed #1'));
+    check('and neither did the newest saved one', stopped.includes('Saved #2'));
+    check(
+      'a stopped stack is still described as deployed',
+      (await page.locator('body').innerText()).includes('still deployed with revision #1'),
+    );
+    check(
+      'stopping is no longer offered',
+      (await page.locator('button:has-text("Stop stack")').count()) === 0,
+    );
+
+    await page.goto(`${stackUrl}/services`, { waitUntil: 'networkidle' });
+
+    const stoppedServices = await page.locator('dp-stack-services-tab').innerText();
+
+    check(
+      'the services report that they are stopped',
+      stoppedServices.includes('Stopped') && !stoppedServices.includes('Running'),
+      stoppedServices.slice(0, 80),
+    );
+
+    await page.goto(stackUrl, { waitUntil: 'networkidle' });
+    await clickWhenEnabled(page, 'button:has-text("Start stack")');
+    await until('the start confirmation', async () => await page.locator('dialog[open]').count());
+    await page.locator('dialog[open] button:has-text("Start stack")').click();
+
+    await until('the stack to be running again', async () => {
+      await page.goto(stackUrl, { waitUntil: 'networkidle' });
+
+      return !(await page.locator('body').innerText()).includes('Stopped');
+    });
+
+    const started = await page.locator('dp-stack-detail > .meta').innerText();
+
+    check('starting deployed nothing new', started.includes('Deployed #1'));
+    check('and the saved revision is still only saved', started.includes('Saved #2'));
+    // The same containers: starting one is not building one.
+    check(
+      'the services are the same resources',
+      JSON.stringify(await serviceLinks()) === JSON.stringify(linksBefore),
+    );
+
+    console.log('\n== restarting ==');
+
+    await page.goto(stackUrl, { waitUntil: 'networkidle' });
+    await clickWhenEnabled(page, 'button:has-text("Restart stack")');
+    await until('the restart confirmation', async () => await page.locator('dialog[open]').count());
+
+    const restartDialog = await page.locator('dialog[open]').innerText();
+
+    check('the confirmation says the stack is briefly down', restartDialog.includes('briefly down'));
+    check('and that nothing is recreated', restartDialog.includes('Nothing is recreated'));
+
+    await page.locator('dialog[open] button:has-text("Restart stack")').click();
+
+    await until('the restart to be over', async () => {
+      await page.goto(stackUrl, { waitUntil: 'networkidle' });
+
+      return (await page.locator('button:has-text("Restart stack")').count()) > 0;
+    });
+
+    const restarted = await page.locator('dp-stack-detail > .meta').innerText();
+
+    check('a restart deploys nothing', restarted.includes('Deployed #1'));
+    check('and leaves the newest saved revision alone', restarted.includes('Saved #2'));
+    check(
+      'and keeps every container it restarted',
+      JSON.stringify(await serviceLinks()) === JSON.stringify(linksBefore),
+    );
+
+    console.log('\n== an operation whose answer is lost ==');
+
+    await page.goto(stackUrl, { waitUntil: 'networkidle' });
+
+    const stopsBefore = sent.filter((request) => request.url.endsWith('/stop')).length;
+
+    // The host does the work and the answer goes with the connection.
+    await agent.dropNext('stack.stop', { apply: true });
+
+    await clickWhenEnabled(page, 'button:has-text("Stop stack")');
+    await until('the confirmation', async () => await page.locator('dialog[open]').count());
+    await page.locator('dialog[open] button:has-text("Stop stack")').click();
+
+    await until('the interface to say the result is not known', async () =>
+      (await page.locator('body').innerText()).includes('has not been confirmed'),
+    );
+
+    const unknown = await page.locator('body').innerText();
+
+    check('an unknown outcome is not called a failure', !unknown.toLowerCase().includes('failed'));
+    check(
+      'and nothing offers to send it again',
+      (await page.locator('button:has-text("Stop stack")').count()) === 0,
+    );
+    check(
+      'the operation reached the host once',
+      sent.filter((request) => request.url.endsWith('/stop')).length === stopsBefore + 1,
+    );
+
+    await agent.reconnect();
+
+    // Settled from the host itself, which had in fact stopped the stack.
+    await until('the host to settle what happened', async () => {
+      await page.goto(stackUrl, { waitUntil: 'networkidle' });
+
+      return (await page.locator('body').innerText()).includes('Stopped');
+    });
+
+    check(
+      'the host settles it without the operation being repeated',
+      sent.filter((request) => request.url.endsWith('/stop')).length === stopsBefore + 1,
+    );
+
+    console.log('\n== a stack left half stopped ==');
+
+    await page.goto(stackUrl, { waitUntil: 'networkidle' });
+    await clickWhenEnabled(page, 'button:has-text("Start stack")');
+    await until('the confirmation', async () => await page.locator('dialog[open]').count());
+    await page.locator('dialog[open] button:has-text("Start stack")').click();
+
+    await until('the stack to be running again', async () => {
+      await page.goto(stackUrl, { waitUntil: 'networkidle' });
+
+      return (await page.locator('button:has-text("Stop stack")').count()) > 0;
+    });
+
+    await agent.stackBehaviour({ wontStop: ['web'] });
+
+    await clickWhenEnabled(page, 'button:has-text("Stop stack")');
+    await until('the confirmation', async () => await page.locator('dialog[open]').count());
+    await page.locator('dialog[open] button:has-text("Stop stack")').click();
+
+    await until('the stack to need attention', async () =>
+      (await page.locator('body').innerText()).includes('needs attention'),
+    );
+
+    const halfStopped = await page.locator('body').innerText();
+
+    check('a half moved stack says it needs attention', halfStopped.includes('needs attention'));
+    check('and offers no lifecycle operations',
+      (await page.locator('button:has-text("Stop stack")').count()) === 0 &&
+        (await page.locator('button:has-text("Start stack")').count()) === 0,
+    );
+
+    await agent.stackBehaviour({});
 
     console.log('\n== Compose projects found on a host ==');
 

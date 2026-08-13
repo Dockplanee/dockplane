@@ -1,23 +1,34 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  viewChild,
+} from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
 
 import { PageContext } from '../../core/page-context';
 import { Permissions } from '../../core/permissions';
 import {
   APPLY_LABELS,
+  OPERATION_LABELS,
   STACK_STATE_LABELS,
   STACK_STATE_TONES,
   Stack,
+  StackOperation,
   applyKind,
   stackState,
 } from '../../domain/stacks';
 import { Button } from '../../ui/button';
+import { ConfirmDialog } from '../../ui/confirm-dialog/confirm-dialog';
 import { EmptyState } from '../../ui/empty-state/empty-state';
 import { Panel } from '../../ui/panel/panel';
 import { StatusBadge } from '../../ui/status-badge/status-badge';
 import { TabBar } from '../../ui/tabs/tab-bar';
 import { StackApply } from './stack-apply';
 import { StackApplyDialog } from './stack-apply-dialog';
+import { StackOperate } from './stack-operate';
 import { StackStore } from './stack-store';
 
 const TABS = [
@@ -39,6 +50,7 @@ const TABS = [
     RouterLink,
     RouterOutlet,
     Button,
+    ConfirmDialog,
     EmptyState,
     Panel,
     StackApplyDialog,
@@ -47,12 +59,13 @@ const TABS = [
   ],
   templateUrl: './stack-detail.html',
   styleUrl: './stack-detail.css',
-  providers: [StackStore, StackApply],
+  providers: [StackStore, StackApply, StackOperate],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StackDetail {
   protected readonly store = inject(StackStore);
   protected readonly apply = inject(StackApply);
+  protected readonly operate = inject(StackOperate);
   private readonly permissions = inject(Permissions);
   private readonly page = inject(PageContext);
 
@@ -64,7 +77,7 @@ export class StackDetail {
   protected readonly canDeploy = computed(() => this.permissions.has('stacks.deploy'));
 
   protected readonly latest = computed(() => this.store.stack()?.latestRevision ?? null);
-  protected readonly running = computed(() => this.store.stack()?.runningRevision ?? null);
+  protected readonly deployed = computed(() => this.store.stack()?.deployedRevision ?? null);
 
   /**
    * Whether a revision may be applied at all right now.
@@ -105,7 +118,7 @@ export class StackDetail {
 
     // Applying the revision that is already running does nothing, unless the
     // stack needs attention — where doing it again is exactly the repair.
-    if (stack.runningRevision?.id === latest.id && stackState(stack) !== 'needs_attention') {
+    if (stack.deployedRevision?.id === latest.id && stackState(stack) !== 'needs_attention') {
       return null;
     }
 
@@ -119,6 +132,8 @@ export class StackDetail {
     return stack && target ? APPLY_LABELS[applyKind(stack, target)](target.number) : '';
   });
 
+  private readonly operationDialog = viewChild<ConfirmDialog>('operationDialog');
+
   constructor() {
     effect(() => {
       const stack = this.store.stack();
@@ -130,6 +145,30 @@ export class StackDetail {
         });
       }
     });
+
+    /*
+     * The dialog follows what is waiting to be confirmed rather than being
+     * opened by the button. One source of truth for whether a confirmation is
+     * open, which is what stops a dismissed dialog leaving an operation
+     * half-requested behind it.
+     */
+    effect(() => {
+      const dialog = this.operationDialog();
+
+      if (!dialog) {
+        return;
+      }
+
+      if (this.operate.pending()) {
+        dialog.open();
+      } else {
+        dialog.close();
+      }
+    });
+  }
+
+  protected operationLabel(operation: StackOperation): string {
+    return OPERATION_LABELS[operation];
   }
 
   protected label(stack: Stack): string {
