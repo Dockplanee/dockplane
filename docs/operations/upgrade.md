@@ -122,6 +122,24 @@ control server as long as both speak the same protocol version, which
 `dockplane-agent version` and `/api/v1/version` both report. See
 [Interface Versions](../reference/interface-versions.md).
 
+**Upgrade the control plane first, then the agents.** A fleet is not upgraded
+in one moment, and this is the order that behaves predictably while it is
+half-done:
+
+- Everything the older agent already did goes on working: inventory, metrics,
+  container listing and inspection, logs, and starting, stopping and restarting
+  containers.
+- An operation the newer control server added is **refused** on a host whose
+  agent does not have it, with `This host does not support that operation.`
+  Nothing is changed on that host, and nothing is recorded as if it had been.
+  Upgrade that host's agent and the operation works.
+- An agent upgraded ahead of its control plane is equally safe. A release never
+  removes a capability, so a newer agent serves every request an older control
+  server makes.
+
+`GET /api/v1/agents/{id}` reports the capabilities each agent advertised, which
+is how to tell which hosts are still on an older one.
+
 ## Afterwards
 
 ```bash

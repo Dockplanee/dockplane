@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service';
 import { AppError } from '../common/errors';
 import { Database } from '../database/database';
 import { agents, hosts } from '../database/schema';
+import { isCapability } from './capabilities';
 
 export interface AgentIdentity {
   readonly id: string;
@@ -101,8 +102,22 @@ export class AgentRegistryService {
     return row;
   }
 
-  /** Records that an authenticated agent is connected. */
-  async markConnected(agentId: string, agentVersion?: string): Promise<void> {
+  /**
+   * Records that an authenticated agent is connected, and what it can do.
+   *
+   * The advertised set is filtered through the catalog rather than stored as it
+   * arrived. A host is not trusted to name capabilities this server does not
+   * have, and this value is read back through the API — an agent that could put
+   * arbitrary strings there would be writing into the API's own vocabulary.
+   *
+   * It is what an operator upgrading a fleet reads to see which hosts are still
+   * on an older agent.
+   */
+  async markConnected(
+    agentId: string,
+    agentVersion?: string,
+    advertised: readonly string[] = [],
+  ): Promise<void> {
     const now = new Date();
 
     await this.db.client
@@ -112,6 +127,7 @@ export class AgentRegistryService {
         lastSeenAt: now,
         firstSeenAt: undefined,
         version: agentVersion,
+        capabilities: advertised.filter(isCapability),
         updatedAt: now,
       })
       .where(eq(agents.id, agentId));

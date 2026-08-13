@@ -312,7 +312,7 @@ export class AgentGatewayService implements OnModuleInit, OnApplicationShutdown 
 
     switch (message.type) {
       case 'hello':
-        await this.onHello(socket, state, identity.id, message.agentVersion);
+        await this.onHello(socket, state, identity.id, message.agentVersion, message.capabilities);
         return;
 
       case 'heartbeat':
@@ -461,12 +461,13 @@ export class AgentGatewayService implements OnModuleInit, OnApplicationShutdown 
     state: ConnectionState,
     agentId: string,
     agentVersion?: string,
+    capabilities: readonly string[] = [],
   ): Promise<void> {
     state.agentId = agentId;
     state.helloReceived = true;
 
     this.connections.register(agentId, socket);
-    await this.registry.markConnected(agentId, agentVersion);
+    await this.registry.markConnected(agentId, agentVersion, capabilities);
 
     socket.setTimeout(IDLE_TIMEOUT_MS);
 

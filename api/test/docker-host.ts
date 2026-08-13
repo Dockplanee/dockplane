@@ -41,6 +41,14 @@ export class FakeDockerHost {
   failWith = new Map<string, { code: string; message: string }>();
 
   /**
+   * Capabilities this host's agent does not have.
+   *
+   * How an agent from an earlier release answers a control server that has
+   * learned to ask for more than it can do.
+   */
+  readonly unsupported = new Set<string>();
+
+  /**
    * Stack plans this host was sent, in order.
    *
    * Kept so a test can assert what a plan carried — a plan legitimately holds
@@ -111,6 +119,13 @@ export class FakeDockerHost {
   /** Answers one capability, changing the host where the capability does. */
   handle(capability: string, payload: Record<string, unknown>): unknown {
     this.received.push(capability);
+
+    if (this.unsupported.has(capability)) {
+      throw {
+        code: 'AGENT_CAPABILITY_UNSUPPORTED',
+        message: `capability not supported: ${capability}`,
+      };
+    }
 
     const failure = this.failWith.get(capability);
 
@@ -546,7 +561,10 @@ export class FakeDockerHost {
       }
 
       if (claims.length === 0) {
-        throw { code: 'STACK_SERVICE_MISSING', message: `${service.serviceName} is not on the host` };
+        throw {
+          code: 'STACK_SERVICE_MISSING',
+          message: `${service.serviceName} is not on the host`,
+        };
       }
 
       if (claims[0].labels['io.dockplane.container-id'] !== service.containerId) {
