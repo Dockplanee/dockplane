@@ -283,7 +283,7 @@ func build(projectName string, project *types.Project) (*StackDeploymentPlan, []
 	}
 
 	for _, name := range sortedKeys(project.Services) {
-		service, serviceProblems := servicePlan(name, project.Services[name])
+		service, serviceProblems := servicePlan(projectName, name, project.Services[name])
 
 		problems = append(problems, serviceProblems...)
 
@@ -353,7 +353,27 @@ func build(projectName string, project *types.Project) (*StackDeploymentPlan, []
 	return plan, nil
 }
 
-func servicePlan(name string, service types.ServiceConfig) (*ServicePlan, []Problem) {
+/*
+containerName is the name Docker will know a service's container by.
+
+Compose's own convention when the file does not name one: the project, the
+service and the ordinal, joined by hyphens. It is resolved here rather than by
+whatever consumes the plan, because this is the program that knows Compose's
+rules and one naming scheme is enough.
+*/
+func containerName(projectName string, service string, requested string) string {
+	if requested != "" {
+		return requested
+	}
+
+	return fmt.Sprintf("%s-%s-1", projectName, service)
+}
+
+func servicePlan(
+	projectName string,
+	name string,
+	service types.ServiceConfig,
+) (*ServicePlan, []Problem) {
 	at := func(property string) string { return "services." + name + "." + property }
 
 	problems := unsupportedIn(name, service)
@@ -386,7 +406,7 @@ func servicePlan(name string, service types.ServiceConfig) (*ServicePlan, []Prob
 
 	plan := &ServicePlan{
 		ServiceName:   name,
-		ContainerName: service.ContainerName,
+		ContainerName: containerName(projectName, name, service.ContainerName),
 		Image:         service.Image,
 		Hostname:      service.Hostname,
 		Command:       []string(service.Command),

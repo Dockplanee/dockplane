@@ -41,10 +41,11 @@ type StackDeploymentPlan struct {
 // container an operator described by hand end up on a host the same way.
 type ServicePlan struct {
 	ServiceName string `json:"serviceName"`
-	// Set only where the Compose file asked for a specific name. Otherwise the
-	// control server derives one, because it is the thing that knows what other
-	// containers a host already has.
-	ContainerName string `json:"containerName,omitempty"`
+	// Always resolved: the name from the Compose file where it asked for one,
+	// and Compose's own default otherwise. Deriving it anywhere else would put
+	// a second copy of Compose's naming rules outside the program that reads
+	// Compose.
+	ContainerName string `json:"containerName"`
 
 	Image      string   `json:"image"`
 	Hostname   string   `json:"hostname,omitempty"`

@@ -550,3 +550,35 @@ func itoa(value int) string {
 
 	return digits
 }
+
+/*
+Every service comes out with the name Docker will know it by.
+
+Compose's own default where the file did not ask for one, so that the thing
+deploying a plan never has to know how Compose names containers — and so that a
+service which does ask keeps the name its author chose.
+*/
+func TestEveryServiceIsGivenAContainerName(t *testing.T) {
+	plan := mustCompile(t, `
+services:
+  web:
+    image: nginx
+  database:
+    image: postgres
+    container_name: shop-db
+`, nil)
+
+	names := map[string]string{}
+
+	for _, service := range plan.Services {
+		names[service.ServiceName] = service.ContainerName
+	}
+
+	if names["web"] != "shop-web-1" {
+		t.Errorf("web = %q, want shop-web-1", names["web"])
+	}
+
+	if names["database"] != "shop-db" {
+		t.Errorf("database = %q, want the name the file asked for", names["database"])
+	}
+}
