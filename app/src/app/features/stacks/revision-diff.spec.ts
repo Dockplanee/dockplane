@@ -39,7 +39,10 @@ describe('comparing environments', () => {
     secret ? { key, secret: true } : { key, secret: false, value: value ?? '' };
 
   it('reports an ordinary value that changed, with both values', () => {
-    const entries = diffEnvironment([variable('APP_ENV', 'staging')], [variable('APP_ENV', 'production')]);
+    const entries = diffEnvironment(
+      [variable('APP_ENV', 'staging')],
+      [variable('APP_ENV', 'production')],
+    );
 
     expect(entries).toEqual([
       { key: 'APP_ENV', kind: 'changed', from: 'staging', to: 'production' },

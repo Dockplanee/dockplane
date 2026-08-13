@@ -40,6 +40,9 @@ const SECOND_CANARY = 'canary-stack-secret-2deadbeef';
 /** Named after this run, so nothing here collides with another suite's fixture. */
 const RUN = Math.random().toString(36).slice(2, 8);
 
+/** The host this suite brings, and the only one it deploys to. */
+const HOSTNAME = `e2e-stacks-${RUN}`;
+
 const SIZES = [
   { w: 1440, h: 1000 },
   { w: 1024, h: 768 },
@@ -183,19 +186,42 @@ const COMPOSE = (image) =>
     '',
   ].join('\n');
 
+/**
+ * The host this suite's own agent is connected to.
+ *
+ * The instance is shared with the other suites in the run and their hosts are
+ * still records after their agents have gone, so taking whichever host the form
+ * offers first would deploy against one nothing is connected to. The name is no
+ * good either: a host is called what it reports about itself once its first
+ * inventory arrives, and every test host reports the same thing.
+ */
+async function ownHost(session, agentId) {
+  return until('this suite’s host to be registered', async () => {
+    const response = await fetch(`${BASE}/api/v1/hosts`, { headers: { cookie: session.cookie } });
+
+    if (!response.ok) {
+      return '';
+    }
+
+    const { hosts } = await response.json();
+
+    return hosts.find((host) => host.agent?.id === agentId)?.id ?? '';
+  });
+}
+
 /** Fills the create form. The compose field is set as a whole, as an editor is. */
-async function fillCreateForm(page, { name, compose, secret = CANARY }) {
+async function fillCreateForm(page, { hostId, name, compose, secret = CANARY }) {
   /*
    * The hosts arrive from the server, so the form opens with nothing to choose
    * for a moment. Selecting during that moment picks the placeholder and the
    * form is submitted without a host.
    */
-  const hostValue = await until('a host to choose', async () =>
+  const hostValue = await until('the host to be offered', async () =>
     page.evaluate(
-      () =>
-        [...document.querySelectorAll('#stack-host option')].find(
-          (entry) => entry.value && !entry.disabled,
-        )?.value ?? '',
+      (wanted) =>
+        [...document.querySelectorAll('#stack-host option')].find((entry) => entry.value === wanted)
+          ?.value ?? '',
+      hostId,
     ),
   );
 
@@ -216,7 +242,9 @@ async function fillCreateForm(page, { name, compose, secret = CANARY }) {
 
 async function run() {
   const session = await apiSignIn(instance);
-  const agent = await startAgent(instance, { hostname: `e2e-stacks-${RUN}`, session });
+  const agent = await startAgent(instance, { hostname: HOSTNAME, session });
+
+  const hostId = await ownHost(session, agent.agentId);
 
   const browser = await chromium.launch();
   const context = await browser.newContext({
@@ -256,7 +284,7 @@ async function run() {
     await page.click('a:has-text("Create stack")');
     await page.waitForURL('**/stacks/new');
 
-    await fillCreateForm(page, { name: stackName, compose: COMPOSE('nginx:1.27') });
+    await fillCreateForm(page, { hostId, name: stackName, compose: COMPOSE('nginx:1.27') });
 
     // The real compiler answers this, not the browser.
     await page.click('button:has-text("Validate")');
@@ -305,6 +333,7 @@ async function run() {
 
     await page.goto(`${BASE}/stacks/new`, { waitUntil: 'networkidle' });
     await fillCreateForm(page, {
+      hostId,
       name: `broken${RUN}`,
       compose: 'services:\n  web:\n    build: .\n',
       secret: SECOND_CANARY,
