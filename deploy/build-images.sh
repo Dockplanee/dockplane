@@ -324,6 +324,12 @@ install -m 0644 deploy/backup-restore.sh "$BUNDLE/backup-restore.sh"
 install -m 0644 deploy/compose/compose.yaml "$BUNDLE/compose/compose.yaml"
 install -m 0644 deploy/compose/Caddyfile "$BUNDLE/compose/Caddyfile"
 install -m 0644 deploy/compose/.env.example "$BUNDLE/compose/.env.example"
+# The example names the release it was packed with rather than whichever one
+# the file happened to be edited for. Compose refuses to start without this
+# value, so an operator reading the example off a bundle gets the version that
+# bundle contains.
+sed -i.bak "s|^DOCKPLANE_VERSION=.*|DOCKPLANE_VERSION=$VERSION|" "$BUNDLE/compose/.env.example"
+rm -f "$BUNDLE/compose/.env.example.bak"
 install -m 0644 LICENSE "$BUNDLE/LICENSE"
 install -m 0644 "$OUT/release-manifest.json" "$BUNDLE/release-manifest.json"
 
