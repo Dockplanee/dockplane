@@ -82,7 +82,13 @@ var (
 	// Something on the host has a name this stack needs and is not this
 	// stack's. Distinct from a container name collision, because the thing in
 	// the way may be a volume holding somebody's data.
-	ErrStackConflict    = errors.New("a resource of that name belongs to something else")
+	ErrStackConflict = errors.New("a resource of that name belongs to something else")
+	// The host does not say clearly enough what the stack currently is: two
+	// containers claim one service, or one claims an identity nobody gave it.
+	ErrStackAmbiguous = errors.New("the stack's containers on this host are ambiguous")
+	// A volume the running stack mounts is gone. Never replaced with an empty
+	// one of the same name.
+	ErrVolumeMissing    = errors.New("a volume this stack uses does not exist")
 	ErrDockerPermission = errors.New("docker permission denied")
 	ErrDockerFailed     = errors.New("docker operation failed")
 )
@@ -263,6 +269,10 @@ func Code(err error) string {
 		return "INVALID_CONTAINER_SPEC"
 	case errors.Is(err, ErrStackConflict):
 		return "STACK_RESOURCE_CONFLICT"
+	case errors.Is(err, ErrStackAmbiguous):
+		return "STACK_STATE_AMBIGUOUS"
+	case errors.Is(err, ErrVolumeMissing):
+		return "VOLUME_MISSING"
 	case errors.Is(err, ErrReplacementFailed):
 		return "REPLACEMENT_FAILED"
 	case errors.Is(err, context.DeadlineExceeded):

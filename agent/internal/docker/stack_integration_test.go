@@ -4,6 +4,8 @@ package docker_test
 
 import (
 	"context"
+	"errors"
+	"net"
 	"os/exec"
 	"strings"
 	"testing"
@@ -102,7 +104,7 @@ func TestStackDeploysOntoARealDaemon(t *testing.T) {
 	plan := stackPlan(t, "stack-"+runID, "stack")
 	cleanUpStack(t, plan)
 
-	result, err := engine.DeployStack(ctx, plan)
+	result, err := engine.ApplyStack(ctx, plan)
 
 	if err != nil {
 		t.Fatalf("deploy: %v", err)
@@ -170,7 +172,7 @@ func TestStackRefusesARealContainerItDoesNotOwn(t *testing.T) {
 
 	foreignContainer(t, plan.Services[0].ContainerName)
 
-	if _, err := engine.DeployStack(ctx, plan); err == nil {
+	if _, err := engine.ApplyStack(ctx, plan); err == nil {
 		t.Fatal("a stack was deployed over a container it does not own")
 	}
 
@@ -203,7 +205,7 @@ func TestStackWithAnUnavailableImageChangesNothing(t *testing.T) {
 	plan.Services[1].Spec.Image = "dockplane.invalid/no-such-image:" + runID
 	cleanUpStack(t, plan)
 
-	if _, err := engine.DeployStack(ctx, plan); err == nil {
+	if _, err := engine.ApplyStack(ctx, plan); err == nil {
 		t.Fatal("a stack with an unavailable image was deployed")
 	}
 
@@ -246,4 +248,310 @@ func exists(t *testing.T, kind string, name string) bool {
 	}
 
 	return exec.Command("docker", arguments...).Run() == nil
+}
+
+/*
+Moving a real stack from one revision to another.
+
+The daemon is where this is decided. A stack-wide staging that works against a
+model and not against Docker would be worth nothing: the alias a stopped
+container keeps, the port it still holds and the name it still occupies are all
+daemon behaviour, and the whole design of the transition is a response to them.
+*/
+func TestStackTransitionsBetweenRealRevisions(t *testing.T) {
+	engine := requireDocker(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	first := stackPlan(t, "stack-transition-"+runID, "transition")
+	cleanUpStack(t, first)
+
+	if _, err := engine.ApplyStack(ctx, first); err != nil {
+		t.Fatalf("first apply: %v", err)
+	}
+
+	for _, service := range first.Services {
+		adopt(t, service.ContainerName, inspect(t, service.ContainerName, "{{.Id}}"))
+	}
+
+	was := map[string]string{}
+
+	for _, service := range first.Services {
+		was[service.ServiceName] = inspect(t, service.ContainerName, "{{.Id}}")
+	}
+
+	// Something only a volume can prove: the data is the same data afterwards.
+	writeIntoVolume(t, first, "the-data-must-survive")
+
+	second := stackPlan(t, first.StackID, "transition")
+	second.RevisionID = "revision-two-" + runID
+
+	// Two services swapping the host port they publish, which is the case a
+	// per-service replacement could not do at all.
+	second.Services[0].Spec.Ports = []docker.PortSpec{{ContainerPort: 81, HostPort: freePort(t), Protocol: "tcp"}}
+	second.Services[1].Spec.Ports = []docker.PortSpec{{ContainerPort: 82, HostPort: freePort(t), Protocol: "tcp"}}
+
+	result, err := engine.ApplyStack(ctx, second)
+
+	if err != nil {
+		t.Fatalf("second apply: %v", err)
+	}
+
+	if result.Outcome != docker.OutcomeApplied {
+		t.Fatalf("outcome = %q: %+v", result.Outcome, result.Services)
+	}
+
+	for _, service := range second.Services {
+		adopt(t, service.ContainerName, inspect(t, service.ContainerName, "{{.Id}}"))
+
+		if now := inspect(t, service.ContainerName, "{{.Id}}"); now == was[service.ServiceName] {
+			t.Errorf("%s was not recreated", service.ServiceName)
+		}
+
+		if revision := label(t, service.ContainerName, docker.LabelStackRevisionID); revision != second.RevisionID {
+			t.Errorf("%s carries revision %q", service.ServiceName, revision)
+		}
+
+		if identity := label(t, service.ContainerName, docker.LabelContainerID); identity == "" {
+			t.Errorf("%s lost its Dockplane identity", service.ServiceName)
+		}
+	}
+
+	// Nothing of the old revision is left behind, staged or otherwise.
+	if staged := run(t, "ps", "-a", "--filter", "name=dockplane-staged", "--format", "{{.Names}}"); staged != "" {
+		t.Errorf("staged containers were left behind: %s", staged)
+	}
+
+	if data := readFromVolume(t, second); data != "the-data-must-survive" {
+		t.Errorf("the volume now holds %q", data)
+	}
+}
+
+/*
+A revision that cannot start, on a real daemon.
+
+The image exists, so everything gets past preflight and the stack is genuinely
+taken down before the failure happens. What is being proved is that it comes
+back: same containers, same names, same networks, same data.
+*/
+func TestStackPutsARealStackBackWhenTheTargetWillNotStart(t *testing.T) {
+	engine := requireDocker(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	first := stackPlan(t, "stack-rollback-"+runID, "rollback")
+	cleanUpStack(t, first)
+
+	if _, err := engine.ApplyStack(ctx, first); err != nil {
+		t.Fatalf("first apply: %v", err)
+	}
+
+	for _, service := range first.Services {
+		adopt(t, service.ContainerName, inspect(t, service.ContainerName, "{{.Id}}"))
+	}
+
+	was := map[string]string{}
+	networks := map[string]string{}
+
+	for _, service := range first.Services {
+		was[service.ServiceName] = inspect(t, service.ContainerName, "{{.Id}}")
+		networks[service.ServiceName] = inspect(t, service.ContainerName,
+			"{{range $name, $_ := .NetworkSettings.Networks}}{{$name}} {{end}}")
+	}
+
+	writeIntoVolume(t, first, "still-here-after-a-failed-deploy")
+
+	broken := stackPlan(t, first.StackID, "rollback")
+	broken.RevisionID = "revision-broken-" + runID
+	// A command the image has and that exits immediately: the container is
+	// created and started, and is not running a moment later.
+	broken.Services[0].Spec.Command = []string{"sh", "-c", "exit 1"}
+
+	result, err := engine.ApplyStack(ctx, broken)
+
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+
+	if result.Outcome != docker.OutcomeRolledBack {
+		t.Fatalf("outcome = %q: %+v", result.Outcome, result.Services)
+	}
+
+	for _, service := range first.Services {
+		now := inspect(t, service.ContainerName, "{{.Id}}")
+
+		if now != was[service.ServiceName] {
+			t.Errorf("%s is a different container now", service.ServiceName)
+		}
+
+		if state := inspect(t, service.ContainerName, "{{.State.Status}}"); state != "running" {
+			t.Errorf("%s is %s", service.ServiceName, state)
+		}
+
+		if revision := label(t, service.ContainerName, docker.LabelStackRevisionID); revision != first.RevisionID {
+			t.Errorf("%s carries revision %q", service.ServiceName, revision)
+		}
+
+		attached := inspect(t, service.ContainerName,
+			"{{range $name, $_ := .NetworkSettings.Networks}}{{$name}} {{end}}")
+
+		if attached != networks[service.ServiceName] {
+			t.Errorf("%s is on %q, was on %q", service.ServiceName, attached, networks[service.ServiceName])
+		}
+	}
+
+	if staged := run(t, "ps", "-a", "--filter", "name=dockplane-staged", "--format", "{{.Names}}"); staged != "" {
+		t.Errorf("staged containers were left behind: %s", staged)
+	}
+
+	if data := readFromVolume(t, first); data != "still-here-after-a-failed-deploy" {
+		t.Errorf("the volume now holds %q", data)
+	}
+}
+
+/*
+Services reach each other by service name while a revision is being replaced.
+
+The reason old containers are disconnected rather than merely renamed. A stopped
+container keeps its endpoint on the network, and Docker refuses a second
+endpoint answering to the same alias — so without the disconnect the new
+container of a service could not be attached at all.
+*/
+func TestStackServicesResolveEachOtherOnARealDaemon(t *testing.T) {
+	engine := requireDocker(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	first := stackPlan(t, "stack-alias-"+runID, "alias")
+	cleanUpStack(t, first)
+
+	if _, err := engine.ApplyStack(ctx, first); err != nil {
+		t.Fatalf("first apply: %v", err)
+	}
+
+	for _, service := range first.Services {
+		adopt(t, service.ContainerName, inspect(t, service.ContainerName, "{{.Id}}"))
+	}
+
+	// The alias is what a Compose file refers to a service by.
+	resolve := func(from string, to string) string {
+		output, err := exec.Command("docker", "exec", from, "nslookup", to).CombinedOutput()
+
+		if err != nil || !strings.Contains(string(output), "Address") {
+			return ""
+		}
+
+		return strings.TrimSpace(string(output))
+	}
+
+	if resolve(first.Services[0].ContainerName, "database") == "" {
+		t.Fatal("web cannot resolve database by its service name")
+	}
+
+	second := stackPlan(t, first.StackID, "alias")
+	second.RevisionID = "revision-alias-two-" + runID
+
+	if _, err := engine.ApplyStack(ctx, second); err != nil {
+		t.Fatalf("second apply: %v", err)
+	}
+
+	for _, service := range second.Services {
+		adopt(t, service.ContainerName, inspect(t, service.ContainerName, "{{.Id}}"))
+	}
+
+	if resolve(second.Services[0].ContainerName, "database") == "" {
+		t.Error("web cannot resolve database after the revision was replaced")
+	}
+}
+
+/*
+A volume the running stack mounts, removed behind Dockplane's back.
+
+Docker would create an empty one of the same name and everything would look
+successful. The data would be gone, and the deployment record would say the
+stack is fine.
+*/
+func TestStackRefusesWhenARealVolumeIsMissing(t *testing.T) {
+	engine := requireDocker(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	first := stackPlan(t, "stack-volume-"+runID, "volume")
+	cleanUpStack(t, first)
+
+	if _, err := engine.ApplyStack(ctx, first); err != nil {
+		t.Fatalf("first apply: %v", err)
+	}
+
+	for _, service := range first.Services {
+		adopt(t, service.ContainerName, inspect(t, service.ContainerName, "{{.Id}}"))
+	}
+
+	/*
+	 * Taken away outside Dockplane, which is the only way this state happens.
+	 * The container mounting it has to go first — Docker will not remove a
+	 * volume something is using — which is exactly the shape of the accident
+	 * this refusal exists for.
+	 */
+	run(t, "rm", "-f", first.Services[1].ContainerName)
+	delete(created, first.Services[1].ContainerName)
+	run(t, "volume", "rm", "-f", first.Volumes[0].DockerName)
+
+	second := stackPlan(t, first.StackID, "volume")
+	second.RevisionID = "revision-volume-two-" + runID
+	// The control server marks a volume the stack was already using, which is
+	// what tells the agent this one is not new.
+	second.Volumes[0].MustExist = true
+
+	_, err := engine.ApplyStack(ctx, second)
+
+	if err == nil {
+		t.Fatal("a stack was deployed over a volume that had gone")
+	}
+
+	if !errors.Is(err, docker.ErrStackVolumeMissing) {
+		t.Fatalf("err = %v", err)
+	}
+
+	if exists(t, "volume", first.Volumes[0].DockerName) {
+		t.Error("an empty volume was created in its place")
+	}
+
+	if state := inspect(t, first.Services[0].ContainerName, "{{.State.Status}}"); state != "running" {
+		t.Errorf("the rest of the stack is %s", state)
+	}
+}
+
+/** Writes a known string into the stack's volume, through its own container. */
+func writeIntoVolume(t *testing.T, plan *docker.StackPlan, content string) {
+	t.Helper()
+
+	run(t, "exec", plan.Services[1].ContainerName, "sh", "-c", "echo "+content+" > /data/marker")
+}
+
+func readFromVolume(t *testing.T, plan *docker.StackPlan) string {
+	t.Helper()
+
+	return run(t, "exec", plan.Services[1].ContainerName, "cat", "/data/marker")
+}
+
+/*
+A host port nothing is listening on.
+
+Asked of the operating system rather than guessed, so a machine that happens to
+be running something on a chosen number does not fail this suite.
+*/
+func freePort(t *testing.T) uint16 {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+
+	if err != nil {
+		t.Fatalf("no free port: %v", err)
+	}
+
+	port := listener.Addr().(*net.TCPAddr).Port
+	_ = listener.Close()
+
+	return uint16(port)
 }

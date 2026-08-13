@@ -646,6 +646,24 @@ func portPlanFor(path string, port types.ServicePortConfig) (*PortPlan, []Proble
 func mountPlanFor(path string, volume types.ServiceVolumeConfig) (*MountPlan, []Problem) {
 	switch volume.Type {
 	case "volume":
+		/*
+		 * An anonymous volume has no name to find it by again.
+		 *
+		 * Docker creates one per container and gives it a random identity, so a
+		 * service that is recreated — which is what deploying a new revision
+		 * does — comes back mounted on a different, empty volume while the old
+		 * one stays behind with the data in it. Dockplane cannot deploy that
+		 * safely, and quietly moving somebody's data to an empty volume is the
+		 * worst way to find out.
+		 */
+		if volume.Source == "" {
+			return nil, []Problem{{
+				Path:    path,
+				Code:    codeUnsupported,
+				Message: "An anonymous volume cannot be found again after a container is recreated. Give it a name, or use a path on the host.",
+			}}
+		}
+
 		return &MountPlan{
 			Type:     "volume",
 			Source:   volume.Source,

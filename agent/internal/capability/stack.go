@@ -11,12 +11,17 @@ import (
 )
 
 /*
-Deploying a stack.
+Applying a revision of a stack.
 
 The payload is a plan the control server produced from a Compose file it read
 and validated. This side has no Compose parser and no YAML: what may be asked
 for is the shape of the plan type, and a field nobody modelled cannot be
 requested however a Compose file was written.
+
+One capability covers a stack that has never run, one moving to another revision
+and one being converged after a deployment that stopped halfway. They are the
+same operation — put this revision on the host — and differ only in what is
+already there, which the agent reads rather than being told.
 
 The plan is validated again here. The server checked it too; this is the copy
 that runs on the machine, and it is the one that matters when the server is
@@ -39,7 +44,7 @@ func registerStack(registry *Registry, sources Sources) {
 				return nil, err
 			}
 
-			result, err := sources.Docker.DeployStack(ctx, &request.Plan)
+			result, err := sources.Docker.ApplyStack(ctx, &request.Plan)
 
 			if err != nil {
 				return nil, wrapStack(err)
@@ -65,6 +70,10 @@ func wrapStack(err error) error {
 		return fmt.Errorf("%w: %v", ErrInvalidPayload, err)
 	case errors.Is(err, docker.ErrStackResourceConflict):
 		return fmt.Errorf("%w: %v", ErrStackConflict, err)
+	case errors.Is(err, docker.ErrStackStateAmbiguous):
+		return fmt.Errorf("%w: %v", ErrStackAmbiguous, err)
+	case errors.Is(err, docker.ErrStackVolumeMissing):
+		return fmt.Errorf("%w: %v", ErrVolumeMissing, err)
 	default:
 		return err
 	}

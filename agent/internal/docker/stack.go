@@ -20,11 +20,16 @@ Like every other payload the agent accepts, a field that is not modelled here
 cannot be asked for — whatever a Compose file contained.
 */
 
-// StackPlanVersion is the plan shape this agent understands.
-//
-// A plan from a newer control server is refused rather than partly applied: the
-// parts it does understand would be a deployment nobody described.
-const StackPlanVersion = 1
+/*
+StackPlanVersion is the plan shape this agent understands.
+
+Version 2 is a plan to *apply*, not only to create: the agent may find the stack
+already on the host and has to move it from whatever revision is there to this
+one. A version 1 plan meant "create these"; running it under the new semantics
+would be reading an older server's intention into a newer operation, so a plan
+that is not this version is refused rather than partly applied.
+*/
+const StackPlanVersion = 2
 
 // Labels a stack's resources carry, so the agent can recognise its own work.
 const (
@@ -79,6 +84,16 @@ type StackVolume struct {
 	Name       string `json:"name"`
 	DockerName string `json:"dockerName"`
 	Driver     string `json:"driver,omitempty"`
+	/*
+	 * Whether this volume is expected to be on the host already.
+	 *
+	 * Set by the control server for a volume the stack was already using, which
+	 * is the only side that knows the difference between a volume that is new to
+	 * this revision and one that should be there and is not. Creating an empty
+	 * volume in the second case would start the stack on top of nothing and
+	 * report success.
+	 */
+	MustExist bool `json:"mustExist,omitempty"`
 }
 
 var (
@@ -87,6 +102,23 @@ var (
 	// Something on the host has the name this stack wants and is not this
 	// stack's. Nothing is renamed, removed or adopted on that basis.
 	ErrStackResourceConflict = errors.New("a resource of that name belongs to something else")
+	/*
+	 * The host does not say clearly enough what this stack currently is.
+	 *
+	 * Two containers claiming one service, or a container claiming a service
+	 * under an identity the control server did not give it. Applying a revision
+	 * over that would mean choosing which of two containers is the real one,
+	 * and being wrong destroys somebody's workload.
+	 */
+	ErrStackStateAmbiguous = errors.New("the stack's containers on this host are ambiguous")
+	/*
+	 * A volume the running stack mounts is gone.
+	 *
+	 * Creating an empty one of the same name would let a deployment report
+	 * success over data that is no longer there, which is the worst way for an
+	 * operator to find out.
+	 */
+	ErrStackVolumeMissing = errors.New("a volume this stack uses does not exist")
 )
 
 /*

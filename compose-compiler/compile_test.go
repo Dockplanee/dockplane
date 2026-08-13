@@ -606,3 +606,20 @@ func TestExternalResourcesAreRefused(t *testing.T) {
 		codeUnsupported,
 	)
 }
+
+/*
+A volume with no name.
+
+`- /data` asks Docker for a volume whose identity it invents, so a service that
+is recreated comes back mounted on a new empty one while the data stays in the
+old. Deploying a revision recreates every service, which makes this a way to
+lose a database quietly.
+*/
+func TestAnonymousVolumesAreRefused(t *testing.T) {
+	refuses(
+		t,
+		"services:\n  db:\n    image: postgres\n    volumes:\n      - /var/lib/postgresql/data\n",
+		"services.db.volumes[0]",
+		codeUnsupported,
+	)
+}
