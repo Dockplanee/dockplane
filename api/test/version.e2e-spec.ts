@@ -73,13 +73,24 @@ describe('the version endpoint', () => {
     expect(before.missing).toEqual([]);
     expect(before.applied).toBe(EXPECTED_SCHEMA_VERSION);
 
-    // The ledger is what the migrator writes; removing its last row is what an
-    // upgrade looks like from the perspective of a build that ran too early.
-    await db.client.execute(
-      sql`delete from drizzle.__drizzle_migrations where id = (
-        select id from drizzle.__drizzle_migrations order by created_at desc limit 1
-      )`,
-    );
+    /*
+     * The ledger is what the migrator writes, and removing its last row is what
+     * an upgrade looks like to a build that started too early.
+     *
+     * The row is kept so it can be put back exactly. A stand-in with a fresh
+     * timestamp would restore the count without restoring the ledger, and the
+     * migrator — which decides what to apply by timestamp, not by count —
+     * would then try to run the last migration again against a schema that
+     * already has it. That failure surfaces in whichever suite happens to
+     * migrate next, which is nowhere near this test.
+     */
+    const [removed] = (
+      await db.client.execute<{ hash: string; created_at: string }>(
+        sql`delete from drizzle.__drizzle_migrations where id = (
+          select id from drizzle.__drizzle_migrations order by created_at desc limit 1
+        ) returning hash, created_at`,
+      )
+    ).rows;
 
     try {
       const behind = await readSchemaState(db);
@@ -93,8 +104,12 @@ describe('the version endpoint', () => {
       expect(response.body.appliedSchemaVersion).not.toBe(EXPECTED_SCHEMA_VERSION);
     } finally {
       await db.client.execute(
-        sql`insert into drizzle.__drizzle_migrations (hash, created_at) values ('restored-by-test', ${Date.now()})`,
+        sql`insert into drizzle.__drizzle_migrations (hash, created_at)
+          values (${removed.hash}, ${removed.created_at})`,
       );
     }
+
+    // Back to what it was, so the next suite to migrate finds nothing to do.
+    expect((await readSchemaState(db)).missing).toEqual([]);
   });
 });
