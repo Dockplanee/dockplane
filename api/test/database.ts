@@ -14,9 +14,22 @@ import { seedAuthorizationCatalog } from '../src/database/seed';
  * Security behaviour around sessions, enrollment and revocation depends on real
  * constraints and real transactions, so these tests run against PostgreSQL
  * rather than a mock. Set DATABASE_URL to point at a disposable database.
+ *
+ * Every test file in a run shares that one database, and they run in parallel.
+ * Each worker names its connections after itself so a test that reads
+ * `pg_stat_activity` sees its own application and not somebody else's.
  */
-export const TEST_DATABASE_URL =
-  process.env.DATABASE_URL ?? 'postgres://dockplane:dockplane@localhost:5433/dockplane';
+function testDatabaseUrl(): string {
+  const url = new URL(
+    process.env.DATABASE_URL ?? 'postgres://dockplane:dockplane@localhost:5433/dockplane',
+  );
+
+  url.searchParams.set('application_name', `dockplane-test-${process.env.JEST_WORKER_ID ?? '1'}`);
+
+  return url.toString();
+}
+
+export const TEST_DATABASE_URL = testDatabaseUrl();
 
 let migrated = false;
 

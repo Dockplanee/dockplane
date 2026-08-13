@@ -1157,9 +1157,11 @@ describe('changing what a container is', () => {
     });
 
     const openTransactions = async () => {
+      /* This test's own application: the database is shared with every other file in the run. */
       const result = await observer.client.execute<{ count: number }>(
         sql`select count(*)::int as count from pg_stat_activity
             where datname = current_database()
+              and application_name = current_setting('application_name')
               and state = 'idle in transaction'
               and pid <> pg_backend_pid()`,
       );

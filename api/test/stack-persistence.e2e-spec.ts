@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -706,25 +706,52 @@ describe('saving stacks', () => {
       await observer.onModuleDestroy();
     });
 
+    /*
+     * A compiler that takes its time, so the window under observation is the
+     * compile and nothing else. The transaction that writes the revision comes
+     * after it and is meant to be there.
+     */
+    const slowCompiler = () => {
+      const real = join(workspace, 'compose-compiler');
+      const path = join(workspace, 'slow-compose-compiler');
+
+      writeFileSync(path, `#!/bin/sh\nsleep 2\nexec "${real}" "$@"\n`, { mode: 0o755 });
+
+      return path;
+    };
+
     it('holds no transaction open while compiling', async () => {
+      process.env.DOCKPLANE_COMPOSE_COMPILER = slowCompiler();
+
       const saving = createStack();
 
       let peak = 0;
 
-      for (let attempt = 0; attempt < 40; attempt += 1) {
-        const result = await observer.client.execute<{ count: number }>(
-          sql`select count(*)::int as count from pg_stat_activity
-              where datname = current_database()
-                and state = 'idle in transaction'
-                and pid <> pg_backend_pid()`,
-        );
+      try {
+        for (let attempt = 0; attempt < 20; attempt += 1) {
+          /*
+           * This test's own application. Every test file in the run shares one
+           * database, so counting every connection would count the ones another
+           * file is legitimately using.
+           */
+          const result = await observer.client.execute<{ count: number }>(
+            sql`select count(*)::int as count from pg_stat_activity
+                where datname = current_database()
+                  and application_name = current_setting('application_name')
+                  and state = 'idle in transaction'
+                  and pid <> pg_backend_pid()`,
+          );
 
-        peak = Math.max(peak, Number(result.rows[0]?.count ?? 0));
+          peak = Math.max(peak, Number(result.rows[0]?.count ?? 0));
 
-        await new Promise((resolve) => setTimeout(resolve, 25));
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+
+        expect((await saving).status).toBe(201);
+      } finally {
+        process.env.DOCKPLANE_COMPOSE_COMPILER = join(workspace, 'compose-compiler');
       }
 
-      expect((await saving).status).toBe(201);
       expect(peak).toBe(0);
     }, 120_000);
   });
