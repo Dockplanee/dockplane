@@ -289,11 +289,44 @@ describe('saving stacks', () => {
       // rather than reading one back out of a database.
       expect(JSON.stringify(revision.summary)).not.toContain(ENV_CANARY);
       expect(Object.keys(revision)).not.toContain('plan');
+      /*
+       * Names and the order between them, and nothing else. The dependencies
+       * are here because starting and stopping a deployed stack has to follow
+       * them and deliberately does not compile the source to find them out.
+       */
       expect(revision.summary).toEqual({
         services: ['web'],
         networks: ['default'],
         volumes: ['app-data'],
+        dependsOn: {},
       });
+    }, 120_000);
+
+    /* A stack whose services wait for each other records which waits for which. */
+    it('stores the order services depend on, by name', async () => {
+      const response = await api('post', '/api/v1/stacks', {
+        name: `shop-${Date.now().toString(36)}`,
+        hostId,
+        compose: [
+          'services:',
+          '  db:',
+          '    image: postgres:17',
+          '  web:',
+          '    image: nginx:1.27',
+          '    depends_on:',
+          '      - db',
+        ].join('\n'),
+        environment: [],
+      });
+
+      expect(response.status).toBe(201);
+
+      const [revision] = await db.client
+        .select()
+        .from(stackRevisions)
+        .where(eq(stackRevisions.id, response.body.revisionId));
+
+      expect(revision.summary?.dependsOn).toEqual({ web: ['db'] });
     }, 120_000);
 
     it('records which contract the revision was checked against', async () => {
