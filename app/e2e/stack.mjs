@@ -131,11 +131,19 @@ export async function startStack({ log = console.log } = {}) {
 
     log(`  postgres on ${databasePort}`);
     run('docker', [
-      'run', '--detach', '--rm', '--name', container,
-      '--publish', `127.0.0.1:${databasePort}:5432`,
-      '--env', `POSTGRES_PASSWORD=${databasePassword}`,
-      '--env', 'POSTGRES_USER=dockplane',
-      '--env', 'POSTGRES_DB=dockplane',
+      'run',
+      '--detach',
+      '--rm',
+      '--name',
+      container,
+      '--publish',
+      `127.0.0.1:${databasePort}:5432`,
+      '--env',
+      `POSTGRES_PASSWORD=${databasePassword}`,
+      '--env',
+      'POSTGRES_USER=dockplane',
+      '--env',
+      'POSTGRES_DB=dockplane',
       'postgres:17.6-bookworm',
     ]);
 
@@ -147,7 +155,13 @@ export async function startStack({ log = console.log } = {}) {
 
     await waitFor('postgres', () => {
       const ready = spawnSync('docker', [
-        'exec', container, 'pg_isready', '--username', 'dockplane', '--dbname', 'dockplane',
+        'exec',
+        container,
+        'pg_isready',
+        '--username',
+        'dockplane',
+        '--dbname',
+        'dockplane',
       ]);
       return ready.status === 0;
     });
@@ -282,7 +296,20 @@ export async function startStack({ log = console.log } = {}) {
       return answer?.ok === true;
     });
 
-    return { url: origin, email, password, teardown };
+    return {
+      url: origin,
+      email,
+      password,
+      /*
+       * What an agent needs to reach this instance: the gateway it connects to
+       * and the certificate authority that issued its own. Returned rather than
+       * discovered, because the browser suites that manage containers need a
+       * host and this instance has never had one.
+       */
+      gatewayPort,
+      caCertPath: pki.caCert,
+      teardown,
+    };
   } catch (error) {
     await teardown();
     throw error;

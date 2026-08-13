@@ -16,7 +16,16 @@ import { startStack } from './stack.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
+/*
+ * The agent harness runs first.
+ *
+ * Every container the later suites manage goes through it, so a fault there
+ * would fail those suites for reasons that have nothing to do with the
+ * interface. Proving the path once, without a browser, keeps the browser
+ * failures about the browser.
+ */
 const SUITES = [
+  ['agent harness', 'agent-harness.e2e.mjs'],
   ['search palette', 'search-palette.e2e.mjs'],
   ['add host wizard', 'add-host-wizard.e2e.mjs'],
 ];
@@ -43,6 +52,9 @@ try {
     DOCKPLANE_URL: stack.url,
     DOCKPLANE_EMAIL: stack.email,
     DOCKPLANE_PASSWORD: stack.password,
+    // What a suite needs to bring a host of its own.
+    DOCKPLANE_GATEWAY_PORT: String(stack.gatewayPort),
+    DOCKPLANE_AGENT_CA_PEM_PATH: stack.caCertPath,
   };
 
   for (const [name, file] of SUITES) {
