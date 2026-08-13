@@ -36,6 +36,20 @@ capability would arrive already reachable.
 The host, the agent and the Docker identifier are derived by the server from
 the container. A browser never chooses which machine an operation lands on.
 
+## Creating a container
+
+**Containers → Create container**, on any host whose agent is connected.
+
+A container is described in Dockplane's own fields: image, name, hostname,
+published ports, volumes and bind mounts, environment variables, networks,
+restart policy, command, entrypoint and labels. That list is the whole of it —
+there is no field for privileged mode, host namespaces, devices, added
+capabilities or a raw Docker configuration, and no free-form box that could
+carry one.
+
+Labels beginning `io.dockplane.` are refused. Dockplane sets those itself, and
+they are how it recognises its own containers afterwards.
+
 ## Changing a container
 
 Docker cannot change a running container's ports, mounts or environment, so
@@ -50,9 +64,36 @@ the Dockplane container, its history and its address stay the same.
 Volumes are never removed, with a replacement or with a removal, named or
 anonymous. There is no field to set and no default to get wrong.
 
-Secrets are stored encrypted under a key the database does not contain, and are
-never sent back to a browser. A form that has not been shown a value says the
-value is unchanged, and the server carries the stored one across.
+### Environment variables and secrets
+
+A variable can be marked secret when it is set. Dockplane then stores it
+encrypted under a key that is not in the database, and never sends the value
+back — not to a browser, not to the API, not into an audit entry or a log.
+
+Because the value never comes back, the interface offers three things and not a
+fourth: leave it alone, replace it, or remove it. There is no way to reveal or
+copy a stored secret in Dockplane.
+
+Editing a container that has secrets is safe: a secret nobody touches is sent
+as unchanged and its stored value is carried across untouched.
+
+**What this does not protect against.** A secret deployed as a container
+environment variable is readable from the Docker host — `docker inspect` shows
+it, as does the process environment. Encryption at rest protects Dockplane's own
+database and backups. Anyone with Docker access on the host can still read the
+values of the containers running there.
+
+## Containers Dockplane did not create
+
+A container discovered on a host is shown, and its configuration is read-only:
+Dockplane was never told what it should be, and reconstructing that from what
+can be observed is not possible — the environment deliberately is not part of
+what is read from a host. Starting, stopping and restarting still work, subject
+to permissions.
+
+A container belonging to a Compose project is read-only here for a different
+reason: its configuration comes from the project, and changing it in one place
+only would put the two out of step.
 
 ## Permissions
 
