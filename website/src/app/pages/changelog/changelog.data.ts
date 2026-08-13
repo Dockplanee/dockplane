@@ -3,6 +3,56 @@ import { ChangelogRelease } from './changelog-entries';
 
 export const CHANGELOG: readonly ChangelogRelease[] = [
   {
+    version: '0.2.0-rc.1',
+    date: '2026-08-14',
+    changes: [
+      {
+        type: 'Added',
+        items: [
+          'Stacks. Write a Compose file in Dockplane, save it, and deploy it to a host. Every save is an immutable revision, so what is saved and what is running are separate facts and the interface says which is which.',
+          'Any saved revision can be applied, forwards or back. Rolling back is deploying an earlier revision and is named that way.',
+          'Stack environment variables, with secrets encrypted at rest under the deployment\'s own key. A secret reaches the host in the deployment plan and appears in no log, no audit entry and no API response.',
+          'Start, stop and restart a deployed stack, in dependency order, each recorded and answered with what the host was observed to be afterwards.',
+          'Delete a stack. Its service containers are removed and its saved configuration and revision history are deleted. **Named volumes are kept and no data in them is deleted**; a deployed stack has to be named back before the action is offered.',
+          'Standalone containers can be created, reconfigured and removed. A container keeps its Dockplane identity when Docker replaces it, so a reconfiguration is the same container rather than a new one.',
+          'A Compose file is checked before it can be saved, and what Dockplane can deploy is stated rather than discovered on the host. See [Compose Support](docs/reference/compose-support.md).',
+          'An operation whose outcome never came back leaves the stack blocked and is settled from the host itself. Nothing is ever dispatched twice.',
+          '`GET /api/v1/agents/{id}` reports the capabilities each agent advertised, which is how to tell which hosts are still running an older agent during a fleet upgrade.',
+        ],
+      },
+      {
+        type: 'Changed',
+        items: [
+          '`roles.manage`, `stacks.adopt` and `stacks.secrets.reveal` are no longer in the permission catalog. Nothing enforced them, so they could be granted and conferred nothing. A custom role that had `roles.manage` loses a grant that never did anything; no other permission changes.',
+          'The release bundle\'s example settings name the release they were packed with.',
+        ],
+      },
+      {
+        type: 'Fixed',
+        items: [
+          'Two builds of one commit produced different bytes. The build date is taken from the commit rather than from the clock, so a release can be rebuilt and compared.',
+        ],
+      },
+      {
+        type: 'Security',
+        items: [
+          'Stack operations are typed capabilities like every other: `stack.deploy`, `stack.start`, `stack.stop`, `stack.restart` and `stack.remove`. No Compose file, command or shell reaches a host.',
+          'The agent refuses to act on a container it cannot prove belongs to the stack it was asked about, and a deployment stops rather than adopting a volume, network or container that carries somebody else\'s identity.',
+          'A stack whose containers do not match one complete revision needs attention, and Dockplane will not operate or delete it until somebody decides what it should be.',
+        ],
+      },
+      {
+        type: 'Known limitations',
+        items: [
+          'Applying a revision recreates every service, so a stack is briefly down while it is rebuilt.',
+          'Deleting a stack leaves its networks and its named volumes on the host.',
+          'A Compose project discovered on a host still cannot be taken over.',
+          'Read [Known Limitations](docs/reference/known-limitations.md) in full before deploying.',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.1.0',
     date: '2026-08-12',
     changes: [

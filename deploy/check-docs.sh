@@ -19,6 +19,15 @@
 
 set -uo pipefail
 
+# A gate that cannot run its checks has to say so rather than report the ones
+# it managed. `mapfile` arrived in bash 4, and on the bash 3.2 that macOS ships
+# every check built on it passed by finding nothing.
+if ! type mapfile > /dev/null 2>&1; then
+	echo "this needs bash 4 or newer; ${BASH_VERSION:-this shell} has no mapfile" >&2
+	echo "On macOS: brew install bash, then run it with that bash." >&2
+	exit 3
+fi
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT" || exit 1
 
