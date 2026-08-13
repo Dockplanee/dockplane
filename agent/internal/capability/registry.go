@@ -47,6 +47,16 @@ const (
 	ContainerRemove  = "container.remove"
 
 	/*
+	 * A whole stack, as a plan somebody else resolved.
+	 *
+	 * The agent has no Compose parser and never sees a Compose file: the control
+	 * server reads one and sends a typed plan, so what may be deployed is the
+	 * shape of that type. There is no compose command, no docker compose CLI and
+	 * nothing that takes a string to run.
+	 */
+	StackDeploy = "stack.deploy"
+
+	/*
 	 * The one capability that answers over time rather than once.
 	 *
 	 * It reads a container's output and nothing else. There is no attach, which

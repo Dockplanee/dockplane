@@ -364,6 +364,11 @@ var ReservedLabels = []string{
 	LabelStack,
 	LabelContainerID,
 	LabelDesiredConfigID,
+	LabelStackID,
+	LabelStackRevisionID,
+	LabelStackService,
+	LabelStackVolume,
+	LabelStackNetwork,
 }
 
 // SortedEnv renders the environment the way Docker wants it, in a stable order

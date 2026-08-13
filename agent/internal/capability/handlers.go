@@ -151,6 +151,7 @@ func Register(registry *Registry, sources Sources) {
 
 	registerLifecycle(registry, sources)
 	registerManagement(registry, sources)
+	registerStack(registry, sources)
 	registerLogs(registry, sources)
 
 	registry.Register(Definition{

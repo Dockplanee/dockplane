@@ -351,10 +351,28 @@ func (e *Engine) create(
 	desiredConfigID string,
 	name string,
 ) (string, error) {
+	return e.createWithLabels(ctx, client, spec, spec.LabelSet(stack, containerID, desiredConfigID), name)
+}
+
+/*
+Builds a container with a label set the caller has already decided.
+
+A stack's containers carry more identity than a standalone one — which stack,
+which revision, which service — and that is worked out where a stack is
+understood rather than here. Everything else about creating a container is the
+same, which is why it is the same code.
+*/
+func (e *Engine) createWithLabels(
+	ctx context.Context,
+	client ManagementClient,
+	spec *ContainerSpec,
+	labels map[string]string,
+	name string,
+) (string, error) {
 	config := &container.Config{
 		Image:    spec.Image,
 		Env:      spec.SortedEnv(),
-		Labels:   spec.LabelSet(stack, containerID, desiredConfigID),
+		Labels:   labels,
 		Hostname: spec.Hostname,
 	}
 

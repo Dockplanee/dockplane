@@ -65,9 +65,8 @@ func TestTheAdvertisedSetIsExactlyTheDefinedCapabilities(t *testing.T) {
 	registry := capability.New()
 	capability.Register(registry, capability.Sources{})
 
-	// Six reads, three named container operations and one log stream. The list
-	// is exhaustive: anything absent here cannot be invoked, whatever the
-	// server asks for.
+	// The list is exhaustive: anything absent here cannot be invoked, whatever
+	// the server asks for.
 	expected := []string{
 		"compose.inspect",
 		"compose.list",
@@ -82,6 +81,7 @@ func TestTheAdvertisedSetIsExactlyTheDefinedCapabilities(t *testing.T) {
 		"container.stop",
 		"host.inventory",
 		"host.metrics",
+		"stack.deploy",
 	}
 
 	names := registry.Names()

@@ -35,6 +35,10 @@ type fakeManager struct {
 	removed  []string
 	renames  [][2]string
 	startErr error
+
+	/** Set to make an image unavailable, the commonest deployment failure. */
+	inspectImageErr error
+	pullErr         error
 }
 
 func newManager(inspect container.InspectResponse) *fakeManager {
@@ -79,6 +83,10 @@ func (f *fakeManager) ImageInspect(
 	_ string,
 	_ ...dockerclient.ImageInspectOption,
 ) (image.InspectResponse, error) {
+	if f.inspectImageErr != nil {
+		return image.InspectResponse{}, f.inspectImageErr
+	}
+
 	return image.InspectResponse{ID: "sha256:present"}, nil
 }
 
@@ -87,6 +95,10 @@ func (f *fakeManager) ImagePull(
 	_ string,
 	_ image.PullOptions,
 ) (io.ReadCloser, error) {
+	if f.pullErr != nil {
+		return nil, f.pullErr
+	}
+
 	return io.NopCloser(strings.NewReader("")), nil
 }
 
