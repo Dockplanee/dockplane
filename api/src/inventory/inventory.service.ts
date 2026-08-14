@@ -267,7 +267,16 @@ export class InventoryService {
       .from(composeProjects)
       .where(where);
 
-    return { projects: rows.map((row) => this.presentProject(row.project, row.host)), total };
+    const connected = await this.connectionsByHost([
+      ...new Set(rows.map((row) => row.project.hostId)),
+    ]);
+
+    return {
+      projects: rows.map((row) =>
+        this.presentProject(row.project, row.host, connected.get(row.project.hostId)),
+      ),
+      total,
+    };
   }
 
   async findProject(id: string) {
@@ -287,15 +296,23 @@ export class InventoryService {
       .where(eq(containers.composeProjectId, row.project.id))
       .orderBy(desc(containers.name));
 
+    /*
+     * One lookup for the whole page: a project's containers are on the project's
+     * host by definition, so the connection that decides the project's freshness
+     * decides theirs. Judging them separately is how a project came to be shown
+     * as running while the host it is on said it was offline.
+     */
+    const connected = (await this.connectionsByHost([row.project.hostId])).get(row.project.hostId);
+
     return {
-      ...this.presentProject(row.project, row.host),
+      ...this.presentProject(row.project, row.host, connected),
       containers: members.map((container) => ({
         id: container.id,
         dockerId: container.dockerId,
         name: container.name,
         state: container.state,
         health: container.health,
-        ...this.freshness(container.observedAt),
+        ...this.freshness(container.observedAt, connected),
       })),
     };
   }
@@ -428,6 +445,7 @@ export class InventoryService {
   private presentProject(
     project: typeof composeProjects.$inferSelect,
     host: typeof hosts.$inferSelect,
+    agentConnected?: boolean,
   ) {
     return {
       id: project.id,
@@ -438,7 +456,9 @@ export class InventoryService {
       serviceCount: project.serviceCount,
       runningCount: project.runningCount,
       services: project.services ?? [],
-      ...this.freshness(project.observedAt),
+      // As with a host and a container: nothing is going to refresh a project
+      // whose host has stopped answering, so its age can only grow.
+      ...this.freshness(project.observedAt, agentConnected),
     };
   }
 

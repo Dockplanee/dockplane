@@ -334,6 +334,81 @@ describe('inventory API', () => {
       expect(detail.body.container.stale).toBe(true);
     });
 
+    /**
+     * A Compose project on a host that has stopped answering.
+     *
+     * Same observation, same reasoning, and the one place where getting it
+     * wrong is most visible: the host says offline, the container list says
+     * last known, and a project page beside them claimed to be running.
+     */
+    it('reports a Compose project and its containers as stale at once', async () => {
+      const { host, project, container } = await seedInventory();
+
+      await db.client.insert(agents).values({
+        hostId: host.id,
+        certificateFingerprint: 'sha256:compose-freshness',
+        certificateSerial: 'sha256:compose-freshness',
+        certificateNotAfter: new Date(Date.now() + 86_400_000),
+        status: 'disconnected',
+      });
+
+      const cookie = await signIn('Read Only');
+
+      const listed = await request(app.getHttpServer())
+        .get('/api/v1/compose-projects')
+        .set('cookie', cookie);
+
+      const mine = listed.body.projects.find((entry: { id: string }) => entry.id === project.id);
+
+      expect(mine.stale).toBe(true);
+      // Kept and labelled, not withdrawn.
+      expect(mine.observedAt).toBeTruthy();
+      expect(mine.runningCount).toBe(2);
+
+      const detail = await request(app.getHttpServer())
+        .get(`/api/v1/compose-projects/${project.id}`)
+        .set('cookie', cookie);
+
+      expect(detail.body.project.stale).toBe(true);
+
+      const member = detail.body.project.containers.find(
+        (entry: { id: string }) => entry.id === container.id,
+      );
+
+      expect(member.stale).toBe(true);
+    });
+
+    /*
+     * The listing is what this decides. A project's detail read also carries the
+     * freshness of the service projection behind it, which cannot be refreshed
+     * without a connected agent and says so on its own — correctly, and for a
+     * different reason than the one under test here.
+     */
+    it('leaves a Compose project current while nothing says its host is gone', async () => {
+      const { project } = await seedInventory();
+      const cookie = await signIn('Read Only');
+
+      const listed = await request(app.getHttpServer())
+        .get('/api/v1/compose-projects')
+        .set('cookie', cookie);
+
+      const mine = listed.body.projects.find((entry: { id: string }) => entry.id === project.id);
+
+      expect(mine.stale).toBe(false);
+    });
+
+    /* The window still decides on its own where no connection state is known. */
+    it('marks an old Compose observation as stale without any agent', async () => {
+      const { project } = await seedInventory(new Date(Date.now() - 10 * 60 * 1000));
+      const cookie = await signIn('Read Only');
+
+      const detail = await request(app.getHttpServer())
+        .get(`/api/v1/compose-projects/${project.id}`)
+        .set('cookie', cookie);
+
+      expect(detail.body.project.stale).toBe(true);
+    });
+
     /*
      * No agent at all is not the same claim as an agent that is not connected,
      * and only the second is knowable. Where nothing is known the age decides.
