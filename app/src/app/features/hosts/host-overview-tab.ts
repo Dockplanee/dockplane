@@ -27,10 +27,12 @@ import { HostStore } from './host-store';
                 <dd>
                   <dp-meter
                     [percent]="resource.percent"
-                    [label]="resource.label + ' ' + resource.detail"
+                    [label]="resource.label + ' ' + (resource.detail || resource.percent + '%')"
                     [muted]="!store.reporting()"
                   />
-                  <span class="resource-detail">{{ resource.detail }}</span>
+                  @if (resource.detail) {
+                    <span class="resource-detail">{{ resource.detail }}</span>
+                  }
                   @if (!store.reporting()) {
                     <dp-last-known [observedAt]="observedAt()" />
                   }
@@ -123,11 +125,7 @@ export class HostOverviewTab {
   protected readonly store = inject(HostStore);
 
   /** Whether there is anything to show, current or not. */
-  protected readonly hasReadings = computed(() => {
-    const host = this.store.host();
-
-    return Boolean(host?.cpu ?? host?.memory ?? host?.disk);
-  });
+  protected readonly hasReadings = computed(() => this.resources().length > 0);
 
   /** When the readings on screen were taken. */
   protected readonly observedAt = computed(
@@ -141,11 +139,23 @@ export class HostOverviewTab {
       return [];
     }
 
+    /*
+     * A reading is shown when there is one. The absolute figure beside it is
+     * not always there — CPU is reported as a percentage and nothing else —
+     * and requiring it meant the panel silently dropped CPU on every host and
+     * stood empty on hosts that report only that.
+     */
     return [
-      { label: 'CPU', percent: host.cpu?.percent ?? 0, detail: host.cpu?.detail ?? '' },
-      { label: 'Memory', percent: host.memory?.percent ?? 0, detail: host.memory?.detail ?? '' },
-      { label: 'Disk', percent: host.disk?.percent ?? 0, detail: host.disk?.detail ?? '' },
-    ].filter((resource) => resource.detail !== '');
+      { label: 'CPU', usage: host.cpu },
+      { label: 'Memory', usage: host.memory },
+      { label: 'Disk', usage: host.disk },
+    ]
+      .filter((resource) => resource.usage !== undefined)
+      .map((resource) => ({
+        label: resource.label,
+        percent: resource.usage!.percent,
+        detail: resource.usage!.detail ?? '',
+      }));
   });
 
   protected readonly counts = computed(() => {
