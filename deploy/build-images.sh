@@ -70,6 +70,29 @@ if [[ ${#missing[@]} -gt 0 ]]; then
 	exit 3
 fi
 
+# buildx's default driver builds one architecture into the local daemon and
+# nothing else: no second platform, no OCI archive, no attestation. Asked for
+# any of those it fails partway, after the agent artefacts already exist, with
+# an error about a driver nobody chose deliberately. Established here instead.
+driver="$(docker buildx inspect 2> /dev/null | awk '/^Driver:/ { print $2 }')"
+
+if [[ "$driver" == "docker" ]]; then
+	needs=()
+	[[ "$PLATFORMS" == *,* ]] && needs+=("more than one platform")
+	[[ "${SBOM:-$PUSH}" == "1" ]] && needs+=("a bill of materials and provenance")
+	[[ "${OCI_ARCHIVES:-}" == "1" ]] && needs+=("an OCI archive")
+
+	if [[ ${#needs[@]} -gt 0 ]]; then
+		echo "this build needs ${needs[*]}, and the selected buildx builder cannot produce it" >&2
+		echo "The default driver builds into the local daemon and does nothing else." >&2
+		echo >&2
+		echo "  docker buildx create --name dockplane-release --driver docker-container --use" >&2
+		echo >&2
+		echo "Or set BUILDX_BUILDER to a builder that already uses that driver." >&2
+		exit 3
+	fi
+fi
+
 # A release says which source it came from, the same way the agent release
 # does. Both may be supplied explicitly, which is what a build system does when
 # it exports a tree without its history.
