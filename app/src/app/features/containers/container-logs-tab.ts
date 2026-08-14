@@ -36,6 +36,27 @@ const MAX_LINES = 5000;
 /** How many lines may pile up while the view is paused before the oldest go. */
 const MAX_PAUSED = 2000;
 
+/**
+ * What the reader is missing, said in the terms of this view.
+ *
+ * The control server names the condition — no agent is connected — and the
+ * shared wording for it talks about an operation that was not carried out.
+ * Nothing was being carried out here. What is gone is the live stream, and a
+ * container whose host has stopped answering is still a container, so the page
+ * says which of the two it is rather than leaving somebody to wonder whether
+ * the workload disappeared.
+ */
+function streamUnavailable(code: string | undefined): string | undefined {
+  switch (code) {
+    case 'AGENT_OFFLINE':
+      return 'Live logs are unavailable while the host is offline. They resume when its agent reconnects.';
+    case 'AGENT_REVOKED':
+      return 'Live logs are unavailable: this host has no agent credential that may be reached.';
+    default:
+      return undefined;
+  }
+}
+
 /** One line as the view holds it, numbered so a filter can keep its place. */
 interface ViewLine extends LogLine {
   readonly seq: number;
@@ -165,7 +186,10 @@ export class ContainerLogsTab {
 
           this.connecting.set(false);
           this.connected.set(false);
-          this.failure.set({ message: problem.message, code: problem.code });
+          this.failure.set({
+            message: streamUnavailable(problem.code) ?? problem.message,
+            code: problem.code,
+          });
         },
         complete: () => {
           this.connecting.set(false);
@@ -248,7 +272,10 @@ export class ContainerLogsTab {
         this.ended.set(event.reason);
 
         if (event.code) {
-          this.failure.set({ message: messageForCode(event.code), code: event.code });
+          this.failure.set({
+            message: streamUnavailable(event.code) ?? messageForCode(event.code),
+            code: event.code,
+          });
         }
     }
   }

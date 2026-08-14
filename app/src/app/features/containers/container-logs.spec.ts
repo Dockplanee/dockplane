@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 
 import { DockplaneApi, LogLine } from '../../data/dockplane-api';
@@ -172,9 +173,59 @@ describe('container logs', () => {
 
     expect(textOf(fixture)).toContain('AGENT_OFFLINE');
     // The code alone is not an explanation; the operator gets words too.
-    expect(textOf(fixture)).toContain('agent is not connected');
+    expect(textOf(fixture)).toContain('Live logs are unavailable while the host is offline');
     expect(textOf(fixture)).toContain('Disconnected');
     expect(button(fixture, 'Reconnect')).toBeDefined();
+  });
+
+  /**
+   * A container whose host has stopped answering.
+   *
+   * The resource is still there and its page still opens, so the log view has
+   * to say that the stream is what is missing. Saying the container was not
+   * found — or repeating wording about an operation that was not carried out —
+   * would send somebody looking for a workload that never went anywhere.
+   */
+  describe('when the host is offline', () => {
+    it('says the live stream is what is unavailable', async () => {
+      const fixture = await render(['containers.read', 'containers.logs']);
+
+      await open(fixture);
+      api.logEvents.error(
+        new HttpErrorResponse({
+          status: 409,
+          error: { code: 'AGENT_OFFLINE', message: 'The agent is not connected.' },
+        }),
+      );
+      fixture.detectChanges();
+
+      const shown = textOf(fixture);
+
+      expect(shown).toContain('Live logs are unavailable while the host is offline');
+      expect(shown).not.toContain('not found');
+      expect(shown).not.toContain('does not exist');
+    });
+
+    it('does not claim an operation was attempted', async () => {
+      const fixture = await render(['containers.read', 'containers.logs']);
+
+      await open(fixture);
+      api.logEvents.next({ kind: 'end', reason: 'agent_disconnected', code: 'AGENT_OFFLINE' });
+      fixture.detectChanges();
+
+      expect(textOf(fixture)).not.toContain('was not carried out');
+    });
+
+    /* A revoked credential is a different thing from a host that went quiet. */
+    it('distinguishes a revoked agent from an offline one', async () => {
+      const fixture = await render(['containers.read', 'containers.logs']);
+
+      await open(fixture);
+      api.logEvents.next({ kind: 'end', reason: 'revoked', code: 'AGENT_REVOKED' });
+      fixture.detectChanges();
+
+      expect(textOf(fixture)).toContain('no agent credential that may be reached');
+    });
   });
 
   it('reconnects on request', async () => {
