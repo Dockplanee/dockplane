@@ -468,6 +468,7 @@ function toHost(host: HostResponse): Host {
   return {
     id: host.id,
     name: host.displayName ?? host.hostname,
+    hostname: host.hostname,
     status: toHostStatus(host),
     os: host.os ?? undefined,
     architecture: host.architecture ?? undefined,
@@ -496,6 +497,7 @@ function toContainer(container: ContainerResponse): Container {
     id: container.id,
     name: container.name,
     hostId: container.hostId,
+    hostName: container.hostDisplayName ?? container.hostname,
     hostname: container.hostname,
     dockerId: container.dockerId,
     image: container.image,

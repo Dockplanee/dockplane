@@ -10,6 +10,7 @@ export function host(overrides: Partial<Host> = {}): Host {
   return {
     id: 'host-1',
     name: 'docker-01',
+    hostname: 'docker-01',
     status: 'healthy',
     os: 'Debian GNU/Linux 13',
     architecture: 'x86_64',
@@ -36,6 +37,7 @@ export function container(overrides: Partial<Container> = {}): Container {
     id: 'container-1',
     name: 'shop-web-1',
     hostId: 'host-1',
+    hostName: 'docker-01',
     hostname: 'docker-01',
     dockerId: 'aaa111bbb222',
     image: 'nginx:1.27',

@@ -58,6 +58,7 @@ export interface ContainerResponse {
   readonly id: string;
   readonly hostId: string;
   readonly hostname: string;
+  readonly hostDisplayName?: string | null;
   readonly dockerId: string;
   readonly name: string;
   readonly image: string;

@@ -393,13 +393,15 @@ describe('RealDockplaneApi', () => {
     it('maps Docker states the interface does not model', async () => {
       const services = api.stackServices('stack-1').toPromise();
 
-      http.expectOne((request) => request.url === '/api/v1/stacks/stack-1/services').flush({
-        services: [
-          { serviceName: 'web', state: 'exited' },
-          { serviceName: 'db', state: 'running' },
-          { serviceName: 'cache', state: 'dead' },
-        ],
-      });
+      http
+        .expectOne((request) => request.url === '/api/v1/stacks/stack-1/services')
+        .flush({
+          services: [
+            { serviceName: 'web', state: 'exited' },
+            { serviceName: 'db', state: 'running' },
+            { serviceName: 'cache', state: 'dead' },
+          ],
+        });
 
       const mapped = (await services)!;
 

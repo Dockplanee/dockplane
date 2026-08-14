@@ -35,6 +35,13 @@ const PERMISSION: Record<Lifecycle, Permission> = {
   imports: [RouterLink, EmptyState, ManagementBadge, RowMenu, StatusBadge, TableShell],
   templateUrl: './container-table.html',
   styles: `
+    .secondary {
+      display: block;
+      color: var(--dp-fg-muted);
+      font-size: var(--dp-text-label);
+      line-height: 1.4;
+    }
+
     .last-known {
       display: block;
       margin-top: 0.125rem;
@@ -127,6 +134,13 @@ export class ContainerTable {
    * of the inspect projection, which the list does not read. Showing the age of
    * a stopped container would be misleading, so it shows nothing.
    */
+  /** When the host last said anything about this container. */
+  protected reportedAt(container: Container): string {
+    return container.observedAt
+      ? `Reported ${relativeTime(container.observedAt)}`
+      : 'Never reported';
+  }
+
   protected runningFor(container: Container): string {
     if (!container.createdAt || container.state !== 'running') {
       return '—';

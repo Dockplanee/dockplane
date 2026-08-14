@@ -24,7 +24,17 @@ export interface ResourceUsage {
 
 export interface Host {
   readonly id: string;
+  /** What to call this host: the operator's name for it, or its own. */
   readonly name: string;
+  /**
+   * The system hostname the agent last reported.
+   *
+   * Kept apart from `name` because it is not an identity. A machine enrolled
+   * more than once leaves a host resource behind for every enrolment, and all
+   * of them report the same hostname — so it is what tells an operator which
+   * machine they are looking at, and never which host resource.
+   */
+  readonly hostname: string;
   readonly status: HostStatus;
   readonly os?: string;
   readonly architecture?: string;
@@ -90,6 +100,9 @@ export interface Container {
   readonly id: string;
   readonly name: string;
   readonly hostId: string;
+  /** What the host is called: the operator's name for it, or its own. */
+  readonly hostName: string;
+  /** The system hostname, which several host resources may share. */
   readonly hostname: string;
   readonly dockerId: string;
   readonly image: string;

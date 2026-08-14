@@ -20,6 +20,7 @@ import { Button } from '../../ui/button';
 import { AddHostDialog } from './add-host-dialog';
 import { EmptyState } from '../../ui/empty-state/empty-state';
 import { Icon } from '../../ui/icon/icon';
+import { LastKnown } from '../../ui/last-known/last-known';
 import { Meter } from '../../ui/meter/meter';
 import { Panel } from '../../ui/panel/panel';
 import { SelectFilter } from '../../ui/select-filter/select-filter';
@@ -37,6 +38,7 @@ type Column = 'name' | 'status' | 'os' | 'containers' | 'cpu' | 'memory' | 'disk
     AddHostDialog,
     EmptyState,
     Icon,
+    LastKnown,
     Meter,
     Panel,
     SelectFilter,

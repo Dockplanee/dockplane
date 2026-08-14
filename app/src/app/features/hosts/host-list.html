@@ -99,9 +99,18 @@
             <tr>
               <th scope="row">
                 <a class="identifier" [routerLink]="['/hosts', host.id]">{{ host.name }}</a>
+                <!--
+                  The system hostname, when it is not already the name shown. A
+                  machine enrolled more than once leaves a host resource behind
+                  for each enrolment and they all report the same one, so it
+                  identifies the machine and never the resource.
+                -->
+                @if (host.hostname !== host.name) {
+                  <span class="secondary">System hostname: {{ host.hostname }}</span>
+                }
                 @if (host.stale) {
                   <span class="secondary"
-                    >Last observed {{ host.observedAt ? age(host.observedAt) : 'never' }}</span
+                    >Last reported {{ host.observedAt ? age(host.observedAt) : 'never' }}</span
                   >
                 }
               </th>
@@ -123,24 +132,42 @@
               </td>
               <td class="dp-mono">
                 {{ containerCount(host).running }} / {{ containerCount(host).total }}
+                @if (host.stale) {
+                  <dp-last-known />
+                }
               </td>
               <td>
                 @if (host.cpu; as cpu) {
-                  <dp-meter [percent]="cpu.percent" [label]="'CPU ' + cpu.detail" />
+                  <dp-meter
+                    [percent]="cpu.percent"
+                    [label]="'CPU ' + cpu.detail"
+                    [muted]="host.stale"
+                  />
+                  @if (host.stale) {
+                    <dp-last-known [observedAt]="host.observedAt" />
+                  }
                 } @else {
                   <span class="dp-unknown">—</span>
                 }
               </td>
               <td>
                 @if (host.memory; as memory) {
-                  <dp-meter [percent]="memory.percent" [label]="'Memory ' + memory.detail" />
+                  <dp-meter
+                    [percent]="memory.percent"
+                    [label]="'Memory ' + memory.detail"
+                    [muted]="host.stale"
+                  />
                 } @else {
                   <span class="dp-unknown">—</span>
                 }
               </td>
               <td>
                 @if (host.disk; as disk) {
-                  <dp-meter [percent]="disk.percent" [label]="'Disk ' + disk.detail" />
+                  <dp-meter
+                    [percent]="disk.percent"
+                    [label]="'Disk ' + disk.detail"
+                    [muted]="host.stale"
+                  />
                 } @else {
                   <span class="dp-unknown">—</span>
                 }

@@ -13,6 +13,7 @@ const RUNNING: Container = {
   id: 'a1b2c3d4e5f6',
   name: 'nextcloud',
   hostId: 'host-1',
+  hostName: 'docker-01',
   hostname: 'docker-01',
   dockerId: 'a1b2c3d4e5f6a1b2',
   image: 'nextcloud:28',
@@ -183,13 +184,37 @@ describe('ContainerTable', () => {
     const fixture = await render([...ALL_PERMISSIONS]);
     const element = () => (fixture.nativeElement as HTMLElement).querySelector('tbody tr')!;
 
-    expect(element().textContent).not.toContain('last known');
+    expect(element().textContent).not.toContain('Last known');
+
+    fixture.componentInstance.containers.set([
+      { ...RUNNING, stale: true, observedAt: '2026-08-09T12:00:00.000Z' },
+    ]);
+    fixture.detectChanges();
+
+    // Still named, because the state is not what is in doubt — but named as
+    // the last thing reported, and dated.
+    expect(element().textContent).toContain('Last known: Running');
+    expect(element().textContent).toContain('Reported');
+  });
+
+  /*
+   * And it does not wear the colour a live row wears. A page of stale rows
+   * looked like a page of running containers when the only difference was a
+   * word beside an unchanged badge.
+   */
+  it('does not show a stale row in the tone of a live one', async () => {
+    const fixture = await render([...ALL_PERMISSIONS]);
+    const badge = () =>
+      (fixture.nativeElement as HTMLElement).querySelector('tbody tr td.state dp-status-badge');
+
+    const live = badge()?.getAttribute('data-tone') ?? badge()?.className ?? '';
 
     fixture.componentInstance.containers.set([{ ...RUNNING, stale: true }]);
     fixture.detectChanges();
 
-    expect(element().textContent).toContain('Running');
-    expect(element().textContent).toContain('last known');
+    const stale = badge()?.getAttribute('data-tone') ?? badge()?.className ?? '';
+
+    expect(stale).not.toBe(live);
   });
 
   it('shows unavailable actions rather than removing them', async () => {

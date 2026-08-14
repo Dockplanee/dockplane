@@ -317,6 +317,12 @@ export class InventoryService {
       id: container.id,
       hostId: container.hostId,
       hostname: host.hostname,
+      /*
+       * What the host is called, when somebody named it. The system hostname
+       * alone cannot tell two host resources apart: a machine enrolled more
+       * than once reports the same one from every identity it has.
+       */
+      hostDisplayName: host.displayName,
       dockerId: container.dockerId,
       name: container.name,
       image: container.image,

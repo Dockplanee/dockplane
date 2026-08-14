@@ -34,23 +34,40 @@
               }}</a>
             </th>
             @if (showHost()) {
-              <td class="dp-unknown">{{ container.hostname }}</td>
+              <!--
+                Which host resource, not which machine. Several of them can
+                report the same system hostname, so the name somebody gave the
+                host leads and the hostname follows only when it adds something.
+              -->
+              <td>
+                {{ container.hostName }}
+                @if (container.hostname !== container.hostName) {
+                  <span class="secondary">{{ container.hostname }}</span>
+                }
+              </td>
             }
             <td class="dp-mono dp-unknown">{{ container.image }}</td>
             <td><dp-management-badge [management]="container.management" /></td>
-            <td>
-              <dp-status-badge
-                [tone]="state(container.state).tone"
-                [label]="state(container.state).label"
-              />
+            <td class="state">
               <!--
-                A stale row is the last thing a host said before it went quiet,
-                so the state is reported as history rather than as fact. Said
-                in words: the badge's colour is unchanged, because the state
-                itself is not what is in doubt.
+                A stale row is the last thing a host said before it went quiet.
+                Saying so in words beside a badge that still reads as live was
+                not enough: a page of them looked like a page of running
+                containers. The state is still named — it is the freshness that
+                is in doubt, not the state — but it is named as history and
+                carries the neutral tone rather than the live one.
               -->
               @if (container.stale) {
-                <span class="dp-unknown last-known">last known</span>
+                <dp-status-badge
+                  tone="neutral"
+                  [label]="'Last known: ' + state(container.state).label"
+                />
+                <span class="secondary">{{ reportedAt(container) }}</span>
+              } @else {
+                <dp-status-badge
+                  [tone]="state(container.state).tone"
+                  [label]="state(container.state).label"
+                />
               }
             </td>
             <td>

@@ -10,7 +10,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
   selector: 'dp-meter',
   template: `
     <span class="value">{{ display() }}</span>
-    <span class="track" [class]="tone()">
+    <span class="track" [class]="tone()" [class.muted]="muted()">
       <span class="fill" [style.width.%]="clamped()"></span>
     </span>
   `,
@@ -51,11 +51,22 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
     .track.critical .fill {
       background-color: var(--dp-status-critical);
     }
+
+    /*
+     * A reading nobody is refreshing. Still legible, and no longer wearing the
+     * colour that says a threshold is being watched right now.
+     */
+    .track.muted .fill {
+      background-color: var(--dp-fg-muted);
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Meter {
   readonly percent = input.required<number>();
+
+  /** True when the reading is the last one seen rather than a current one. */
+  readonly muted = input(false);
 
   /** Screen-reader description, for example `Memory 44 percent, 7.0 of 16 GiB`. */
   readonly label = input.required<string>();
