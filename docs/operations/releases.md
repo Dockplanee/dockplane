@@ -116,9 +116,16 @@ install it.
 
 The build is reproducible: timestamps come from the commit through
 `SOURCE_DATE_EPOCH` rather than from the clock, and building the same commit
-twice on the same machine has been verified to produce byte-identical
-artefacts. It **refuses** to build without a commit it can name, because a
-package reporting an unknown version is one nobody can trace back.
+twice — once from the repository and once from a clean export of that commit —
+has been verified to produce byte-identical packages, tarballs and image
+layers. It **refuses** to build without a commit it can name, because a package
+reporting an unknown version is one nobody can trace back.
+
+What is not reproducible is the provenance attestation, and it is not meant to
+be: it records a build, with the times it ran and where it ran, so two builds of
+one commit describe two events. That changes the digest of the manifest list
+that carries it. The images underneath it are identical, and the release
+manifest records the digest that was actually published.
 
 `deploy/check-agent-release.sh` verifies the artefacts before anyone installs
 them: both architectures present, checksums matching, the unit and settings
@@ -137,7 +144,7 @@ anywhere in the package.
 Everything is built for both architectures and inspected for both — ELF machine
 type, static linking, package metadata, image platform entries. **No arm64
 machine has run any of it.** Emulation is not a substitute and was not used as
-one. arm64 is shipped as experimental for v0.1.
+one. arm64 remains experimental.
 
 The agent cross-compiles for both and the binaries are checked to be what they
 claim. The images accept a platform list:
@@ -154,9 +161,10 @@ are produced and inspected. They are not runtime-tested.
 ## Supply chain
 
 Passing `SBOM=1`, or pushing, attaches a software bill of materials and full
-build provenance to each image as attestations. They are stored with the image
-in the registry; a local build has nowhere to keep them, which is why they are
-off by default there.
+build provenance to each image as attestations. A pushed image carries them in
+the registry; a local build carries them inside the OCI archive it writes. They
+are off by default for a local build because most local builds do not want the
+cost of producing them.
 
 Every release is scanned with Trivy and every critical and high finding is
 assessed in writing before the release goes out — see
