@@ -140,6 +140,27 @@ export class InventoryService {
     return byHost;
   }
 
+  /**
+   * Which of these hosts have something listening, as far as this process knows.
+   *
+   * Undefined for a host with no agent at all: not connected and never going to
+   * be are different claims, and only the second is knowable here.
+   */
+  private async connectionsByHost(
+    hostIds: readonly string[],
+  ): Promise<Map<string, boolean | undefined>> {
+    const agentByHost = await this.agentsOf(hostIds);
+    const connected = new Map<string, boolean | undefined>();
+
+    for (const hostId of hostIds) {
+      const agent = agentByHost.get(hostId);
+
+      connected.set(hostId, agent ? this.connections.isConnected(agent.id) : undefined);
+    }
+
+    return connected;
+  }
+
   async listContainers(
     page: Page,
     filters: { hostId?: string; state?: string; project?: string; search?: string },
@@ -187,6 +208,9 @@ export class InventoryService {
       .where(where);
 
     const management = await this.managementFor(rows);
+    const connected = await this.connectionsByHost([
+      ...new Set(rows.map((row) => row.container.hostId)),
+    ]);
 
     return {
       containers: rows.map((row) =>
@@ -195,6 +219,7 @@ export class InventoryService {
           row.host,
           row.project,
           management.get(row.container.id)!,
+          connected.get(row.container.hostId),
         ),
       ),
       total,
@@ -214,12 +239,14 @@ export class InventoryService {
     }
 
     const management = await this.managementFor([row]);
+    const connected = await this.connectionsByHost([row.container.hostId]);
 
     return this.presentContainer(
       row.container,
       row.host,
       row.project,
       management.get(row.container.id)!,
+      connected.get(row.container.hostId),
     );
   }
 
@@ -312,6 +339,7 @@ export class InventoryService {
     host: typeof hosts.$inferSelect,
     project: typeof composeProjects.$inferSelect | null,
     management: ManagementState,
+    agentConnected?: boolean,
   ) {
     return {
       id: container.id,
@@ -334,7 +362,14 @@ export class InventoryService {
       composeProject: project ? { id: project.id, name: project.projectName } : null,
       metadata: container.metadata,
       management,
-      ...this.freshness(container.observedAt),
+      /*
+       * Judged against the host's connection, not only the age of the reading.
+       * A container on a host that stopped answering a second ago is no more
+       * current than its host is, and showing it as live beside a host that
+       * already says it is offline is the contradiction an operator has to
+       * resolve at exactly the wrong moment.
+       */
+      ...this.freshness(container.observedAt, agentConnected),
     };
   }
 

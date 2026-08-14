@@ -293,6 +293,65 @@ describe('inventory API', () => {
       expect(response.body.containers).toHaveLength(1);
       expect(response.body.containers[0].stale).toBe(true);
     });
+
+    /**
+     * A host that has just stopped answering.
+     *
+     * The host itself was already judged on its connection rather than only on
+     * the age of its reading — nothing is going to refresh it, so the age can
+     * only grow. Its containers were not, which left them reading as live for
+     * the length of the staleness window while the host beside them already
+     * said it was offline. The two are the same observation.
+     */
+    it('reports containers of a disconnected host as stale at once', async () => {
+      const { host, container } = await seedInventory();
+
+      await db.client.insert(agents).values({
+        hostId: host.id,
+        certificateFingerprint: 'sha256:freshness',
+        certificateSerial: 'sha256:freshness',
+        certificateNotAfter: new Date(Date.now() + 86_400_000),
+        status: 'disconnected',
+      });
+
+      const cookie = await signIn('Read Only');
+
+      const listed = await request(app.getHttpServer())
+        .get('/api/v1/containers')
+        .set('cookie', cookie);
+
+      const mine = listed.body.containers.find((entry: { id: string }) => entry.id === container.id);
+
+      expect(mine.stale).toBe(true);
+      // The reading is kept. It is labelled, not withdrawn.
+      expect(mine.observedAt).toBeTruthy();
+      expect(mine.state).toBe('running');
+
+      const detail = await request(app.getHttpServer())
+        .get(`/api/v1/containers/${container.id}`)
+        .set('cookie', cookie);
+
+      expect(detail.body.container.stale).toBe(true);
+    });
+
+    /*
+     * No agent at all is not the same claim as an agent that is not connected,
+     * and only the second is knowable. Where nothing is known the age decides.
+     */
+    it('leaves a recent container current when no agent is enrolled', async () => {
+      const { container } = await seedInventory();
+      const cookie = await signIn('Read Only');
+
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/containers')
+        .set('cookie', cookie);
+
+      const mine = response.body.containers.find(
+        (entry: { id: string }) => entry.id === container.id,
+      );
+
+      expect(mine.stale).toBe(false);
+    });
   });
 
   describe('containers', () => {
