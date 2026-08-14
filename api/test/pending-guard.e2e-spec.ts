@@ -152,6 +152,23 @@ describe('an unfinished mutation', () => {
       },
     },
     { capability: 'compose.list', payload: { projects: [] } },
+    /*
+     * The tests where the guard is supposed to let an operation through send a
+     * real restart, and an agent that never answers one is not what those tests
+     * are about: the server waits out the capability's whole timeout, four
+     * times over, for a reply the assertions do not even read. The host answers
+     * as a host does, and what is under test — that the request was dispatched
+     * at all — is unchanged.
+     */
+    {
+      capability: 'container.restart',
+      payload: {
+        dockerId: 'aaa111',
+        state: 'running',
+        health: 'none',
+        observedAt: new Date().toISOString(),
+      },
+    },
   ];
 
   /** Enrolls, connects and discovers one container to operate on. */
