@@ -152,6 +152,41 @@ export interface ComposeProjectResponse {
   }[];
 }
 
+export interface StackRevisionRefResponse {
+  readonly id: string;
+  readonly number: number;
+  readonly summary: {
+    readonly services: readonly string[];
+    readonly networks: readonly string[];
+    readonly volumes: readonly string[];
+  } | null;
+}
+
+/**
+ * A stack as a listing and a detail read both describe it.
+ *
+ * The host is carried as both names the control server knows: several host
+ * resources can report the same system hostname, so the display name is what
+ * tells an operator which of them a stack is on.
+ */
+export interface StackResponse {
+  readonly id: string;
+  readonly name: string;
+  readonly hostId: string;
+  readonly hostname: string;
+  readonly hostDisplayName?: string | null;
+  readonly sourceType: string;
+  readonly status: string;
+  readonly latestRevision: StackRevisionRefResponse | null;
+  readonly deployedRevision: StackRevisionRefResponse | null;
+  readonly deployedRevisionId: string | null;
+  readonly reconciling: boolean;
+  readonly hostReachable: boolean;
+  readonly lastDeployedAt: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
 export interface AgentResponse {
   readonly id: string;
   readonly hostId: string;

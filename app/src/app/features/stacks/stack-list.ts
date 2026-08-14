@@ -101,7 +101,17 @@ import { TableShell } from '../../ui/table/table-shell';
                   <th scope="row">
                     <a class="identifier" [routerLink]="['/stacks', stack.id]">{{ stack.name }}</a>
                   </th>
-                  <td class="dp-unknown">{{ stack.hostname }}</td>
+                  <!--
+                    Which host resource, not which machine: several of them can
+                    report the same system hostname, so the name leads and the
+                    hostname follows only when it adds something.
+                  -->
+                  <td class="dp-unknown">
+                    {{ stack.hostName }}
+                    @if (stack.hostname !== stack.hostName) {
+                      <span class="secondary">{{ stack.hostname }}</span>
+                    }
+                  </td>
                   <td>
                     <dp-status-badge [tone]="tone(stack)" [label]="label(stack)" />
                   </td>
@@ -169,6 +179,8 @@ export class StackList {
       const matches =
         !term ||
         stack.name.toLowerCase().includes(term) ||
+        // Both names the host is known by: the column shows both.
+        stack.hostName.toLowerCase().includes(term) ||
         stack.hostname.toLowerCase().includes(term);
 
       return matches && (host === 'all' || stack.hostId === host);

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 
 import { relativeTime, timestamp } from '../../core/format';
 import { STACK_STATE_LABELS } from '../../domain/stacks';
+import { hostIdentity } from '../../domain/status';
 import { Panel } from '../../ui/panel/panel';
 import { DetailItem, DetailList } from '../shared/detail-list';
 import { StackStore } from './stack-store';
@@ -136,8 +137,10 @@ export class StackOverviewTab {
       return [];
     }
 
+    const host = hostIdentity(stack.hostName, stack.hostname);
+
     return [
-      { label: 'Host', value: stack.hostname },
+      { label: 'Host', value: host.primary, secondary: host.secondary },
       { label: 'Status', value: state ? STACK_STATE_LABELS[state] : '—' },
       {
         label: 'Saved revision',

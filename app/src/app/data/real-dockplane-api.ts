@@ -46,6 +46,7 @@ import {
   HostResponse,
   RoleResponse,
   SessionResponse,
+  StackResponse,
   UserResponse,
 } from './api-contract';
 import {
@@ -248,14 +249,14 @@ export class RealDockplaneApi extends DockplaneApi {
 
   stacks(): Observable<readonly Stack[]> {
     return this.api
-      .get<{ stacks: readonly Stack[] }>('/api/v1/stacks', { limit: STACK_PAGE_SIZE })
-      .pipe(map((response) => response.stacks));
+      .get<{ stacks: readonly StackResponse[] }>('/api/v1/stacks', { limit: STACK_PAGE_SIZE })
+      .pipe(map((response) => response.stacks.map(toStack)));
   }
 
   stack(id: string): Observable<Stack | undefined> {
     return this.api
-      .get<{ stack: Stack }>(`/api/v1/stacks/${id}`)
-      .pipe(map((response) => response.stack));
+      .get<{ stack: StackResponse }>(`/api/v1/stacks/${id}`)
+      .pipe(map((response) => toStack(response.stack)));
   }
 
   stackRevisions(id: string): Observable<readonly StackRevision[]> {
@@ -489,6 +490,24 @@ function toHost(host: HostResponse): Host {
     lastSeen: host.lastSeenAt ?? undefined,
     observedAt: host.observedAt ?? undefined,
     stale: host.stale,
+  };
+}
+
+function toStack(stack: StackResponse): Stack {
+  return {
+    id: stack.id,
+    name: stack.name,
+    hostId: stack.hostId,
+    hostName: stack.hostDisplayName ?? stack.hostname,
+    hostname: stack.hostname,
+    sourceType: stack.sourceType,
+    status: stack.status,
+    latestRevision: stack.latestRevision,
+    deployedRevision: stack.deployedRevision,
+    reconciling: stack.reconciling,
+    hostReachable: stack.hostReachable,
+    lastDeployedAt: stack.lastDeployedAt,
+    updatedAt: stack.updatedAt,
   };
 }
 

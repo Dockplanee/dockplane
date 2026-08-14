@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 
 import { timestamp, uptime } from '../../core/format';
+import { hostIdentity } from '../../domain/status';
 import { Panel } from '../../ui/panel/panel';
 import { DetailItem, DetailList } from '../shared/detail-list';
 import { ContainerStore } from './container-store';
@@ -78,6 +79,8 @@ export class ContainerOverviewTab {
       ? uptime(Math.round((Date.now() - new Date(detail.startedAt).getTime()) / 1000))
       : undefined;
 
+    const host = hostIdentity(container.hostName, container.hostname);
+
     return [
       { label: 'Name', value: container.name, mono: true },
       { label: 'Container ID', value: container.dockerId, mono: true },
@@ -89,11 +92,8 @@ export class ContainerOverviewTab {
        */
       {
         label: 'Host',
-        value: container.hostName,
-        secondary:
-          container.hostname === container.hostName
-            ? undefined
-            : `System hostname: ${container.hostname}`,
+        value: host.primary,
+        secondary: host.secondary,
         mono: true,
       },
       { label: 'Restart count', value: String(detail?.restarts ?? container.restarts), mono: true },

@@ -2,11 +2,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  computed,
   effect,
   inject,
   viewChild,
 } from '@angular/core';
 
+import { hostIdentity } from '../../domain/status';
 import { Button } from '../../ui/button';
 import { ENVIRONMENT_CHANGE_LABELS } from './revision-diff';
 import { StackApply } from './stack-apply';
@@ -39,7 +41,12 @@ import { StackStore } from './stack-store';
         </div>
         <div>
           <dt>Host</dt>
-          <dd>{{ store.stack()?.hostname }}</dd>
+          <dd>
+            {{ host().primary }}
+            @if (host().secondary) {
+              <span class="secondary">{{ host().secondary }}</span>
+            }
+          </dd>
         </div>
         <div>
           <dt>Running</dt>
@@ -140,6 +147,13 @@ export class StackApplyDialog {
   protected readonly store = inject(StackStore);
 
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
+
+  /** Which host resource this would deploy to, said the way every view says it. */
+  protected readonly host = computed(() => {
+    const stack = this.store.stack();
+
+    return stack ? hostIdentity(stack.hostName, stack.hostname) : { primary: '—' };
+  });
 
   protected readonly kindLabel = (kind: keyof typeof ENVIRONMENT_CHANGE_LABELS) =>
     ENVIRONMENT_CHANGE_LABELS[kind];

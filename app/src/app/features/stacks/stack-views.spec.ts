@@ -18,6 +18,7 @@ const stack = (overrides: Partial<Stack> = {}): Stack => ({
   id: 'stack-1',
   name: 'shop',
   hostId: 'host-1',
+  hostName: 'docker-01',
   hostname: 'docker-01',
   sourceType: 'dockplane',
   status: 'running',
@@ -370,5 +371,82 @@ describe('deleting one stack', () => {
     const { violations } = await checkAccessibility(fixture);
 
     expect(violations.join('\n\n')).toBe('');
+  });
+});
+
+/**
+ * Which host resource a stack is on.
+ *
+ * A machine enrolled more than once leaves a host resource behind for every
+ * enrolment, and they all report the same system hostname. A stack page that
+ * names only the hostname therefore cannot say which of them it means, which is
+ * exactly the question somebody looking at a stack has.
+ */
+describe('the host a stack is on', () => {
+  const named = stack({ hostName: 'rc4-smoke', hostname: 'docker-01' });
+
+  describe('in the list', () => {
+    const render = (stacks: Stack[]) =>
+      renderView(StackList, { data: { stacks }, permissions: ['stacks.read'] });
+
+    it('leads with the name the host was given', async () => {
+      const shown = textOf(await render([named]));
+
+      expect(shown).toContain('rc4-smoke');
+      expect(shown).toContain('docker-01');
+    });
+
+    it('says only the hostname for a host that has no name of its own', async () => {
+      const fixture = await render([stack({ hostName: 'docker-01', hostname: 'docker-01' })]);
+      const cell = (fixture.nativeElement as HTMLElement).querySelector('tbody td');
+
+      expect(cell?.textContent?.match(/docker-01/g)).toHaveLength(1);
+    });
+
+    /* The regression: two stacks, two host resources, one system hostname. */
+    it('tells two host identities that report one hostname apart', async () => {
+      const shown = textOf(
+        await render([
+          named,
+          stack({ id: 'stack-2', name: 'blog', hostId: 'host-2', hostName: 'stable-smoke' }),
+        ]),
+      );
+
+      expect(shown).toContain('rc4-smoke');
+      expect(shown).toContain('stable-smoke');
+    });
+
+    it('finds a stack by the name its host was given', async () => {
+      const fixture = await render([named]);
+      const search = (fixture.nativeElement as HTMLElement).querySelector('input');
+
+      search!.value = 'rc4';
+      search!.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      expect(textOf(fixture)).toContain('shop');
+    });
+  });
+
+  describe('on the page', () => {
+    const render = (overrides: Partial<Stack>) =>
+      renderView(StackDetail, {
+        params: { id: 'stack-1' },
+        data: { stacks: [stack(overrides)] },
+        permissions: ['stacks.read', 'stacks.deploy'] as never,
+      });
+
+    it('names the host resource, and the machine beneath it', async () => {
+      const shown = textOf(await render({ hostName: 'rc4-smoke', hostname: 'docker-01' }));
+
+      expect(shown).toContain('rc4-smoke');
+      expect(shown).toContain('System hostname: docker-01');
+    });
+
+    it('does not repeat a hostname that is already the name', async () => {
+      const shown = textOf(await render({ hostName: 'docker-01', hostname: 'docker-01' }));
+
+      expect(shown).not.toContain('System hostname');
+    });
   });
 });

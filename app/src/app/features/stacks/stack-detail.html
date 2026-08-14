@@ -61,7 +61,10 @@
   </header>
 
   <p class="meta">
-    <span>{{ stack.hostname }}</span>
+    <span>{{ stack.hostName }}</span>
+    @if (stack.hostname !== stack.hostName) {
+      <span>System hostname: {{ stack.hostname }}</span>
+    }
     <span>Saved {{ latest() ? '#' + latest()!.number : '—' }}</span>
     <span>Deployed {{ deployed() ? '#' + deployed()!.number : 'Not deployed' }}</span>
   </p>

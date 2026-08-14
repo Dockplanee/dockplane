@@ -107,6 +107,27 @@ export function containerStateBadge(
   return stale ? { tone: 'neutral', label: `Last known: ${current.label}` } : current;
 }
 
+/**
+ * How a host is named where a reader has to tell it from another.
+ *
+ * A machine enrolled more than once leaves a host resource behind for every
+ * enrolment, and they all report the same system hostname. So the name an
+ * operator gave the resource leads, and the hostname follows only when it says
+ * something the name does not — on a host with no name of its own, the hostname
+ * is the name and repeating it beneath itself would be noise.
+ *
+ * In one place, because this is needed wherever a host is named next to
+ * something else and separate copies of the rule drift apart.
+ */
+export function hostIdentity(
+  hostName: string,
+  hostname: string,
+): { primary: string; secondary?: string } {
+  return hostName === hostname
+    ? { primary: hostname }
+    : { primary: hostName, secondary: `System hostname: ${hostname}` };
+}
+
 /** Ordering used wherever problems are listed most-urgent first. */
 export const SEVERITY_ORDER: Record<Severity, number> = { critical: 0, warning: 1, info: 2 };
 

@@ -549,6 +549,48 @@ describe('saving stacks', () => {
       expect(serialised).not.toContain('services:');
     }, 120_000);
 
+    /*
+     * Both names the host is known by. A machine enrolled more than once leaves
+     * a host resource behind for every enrolment and they all report the same
+     * system hostname, so a reader given only the hostname cannot tell which
+     * host resource a stack is on. Resolving it in the interface would mean
+     * fetching every host to name one.
+     */
+    it('names the host a stack is on, and the machine underneath it', async () => {
+      const [named] = await db.client
+        .insert(hosts)
+        .values({
+          hostname: `docker-${Date.now()}`,
+          displayName: 'rc4-smoke',
+          observedAt: new Date(),
+        })
+        .returning({ id: hosts.id, hostname: hosts.hostname });
+
+      const created = await createStack({ hostId: named.id });
+
+      const listed = await api('get', '/api/v1/stacks');
+      const onHost = listed.body.stacks.find(
+        (stack: { id: string }) => stack.id === created.body.stackId,
+      );
+
+      expect(onHost.hostDisplayName).toBe('rc4-smoke');
+      expect(onHost.hostname).toBe(named.hostname);
+
+      const detail = await api('get', `/api/v1/stacks/${created.body.stackId}`);
+
+      expect(detail.body.stack.hostDisplayName).toBe('rc4-smoke');
+      expect(detail.body.stack.hostname).toBe(named.hostname);
+    }, 120_000);
+
+    /* A host nobody named has only the one name, and says so rather than null. */
+    it('carries no display name for a host that was never given one', async () => {
+      const created = await createStack();
+      const detail = await api('get', `/api/v1/stacks/${created.body.stackId}`);
+
+      expect(detail.body.stack.hostDisplayName).toBeNull();
+      expect(detail.body.stack.hostname).toEqual(expect.stringContaining('docker-'));
+    }, 120_000);
+
     it('lists revisions without their source or their values', async () => {
       const created = await createStack();
       const response = await api('get', `/api/v1/stacks/${created.body.stackId}/revisions`);

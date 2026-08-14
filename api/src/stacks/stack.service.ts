@@ -615,6 +615,12 @@ function present(
     name: row.stack.name,
     hostId: row.stack.hostId,
     hostname: row.host.hostname,
+    /*
+     * What the host is called. A machine enrolled more than once leaves a host
+     * resource behind for every enrolment and they all report the same system
+     * hostname, so the hostname alone cannot say which host a stack is on.
+     */
+    hostDisplayName: row.host.displayName,
     sourceType: row.stack.sourceType,
     status: row.stack.status,
     latestRevision: row.revision

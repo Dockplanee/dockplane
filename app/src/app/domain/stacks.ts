@@ -27,6 +27,9 @@ export interface Stack {
   readonly id: string;
   readonly name: string;
   readonly hostId: string;
+  /** What the host is called: the operator's name for it, or its own. */
+  readonly hostName: string;
+  /** The system hostname, which several host resources may share. */
   readonly hostname: string;
   /** `dockplane` for a stack this product wrote; `adopted` is not built yet. */
   readonly sourceType: string;
