@@ -107,8 +107,12 @@
    * copy, two of them had drifted onto a token that does not exist, and those
    * two rendered with no border at all on a background the same colour as the
    * panel behind them. A field has to look like a field before it is focused.
+   *
+   * Qualified by element, because `dp-field` is also the block name of the
+   * label wrapping each sign-in field. Unqualified, this drew a field around
+   * the label and left the real input inside it with no boundary of its own.
    */
-  .dp-field,
+  :is(input, select, textarea).dp-field,
   .field-input {
     width: 100%;
     min-height: 2.125rem;
@@ -121,27 +125,27 @@
     font-size: 0.8125rem;
   }
 
-  .dp-field::placeholder,
+  :is(input, select, textarea).dp-field::placeholder,
   .field-input::placeholder {
     /* Muted, so what somebody typed is never mistaken for a suggestion. */
     color: var(--dp-fg-muted);
     opacity: 1;
   }
 
-  .dp-field:hover:not(:disabled):not([readonly]),
+  :is(input, select, textarea).dp-field:hover:not(:disabled):not([readonly]),
   .field-input:hover:not(:disabled):not([readonly]) {
     border-color: var(--dp-fg-muted);
   }
 
   /* Stronger than the resting border, so focus is never ambiguous. */
-  .dp-field:focus-visible,
+  :is(input, select, textarea).dp-field:focus-visible,
   .field-input:focus-visible {
     outline: 2px solid var(--dp-focus);
     outline-offset: 1px;
     border-color: var(--dp-focus);
   }
 
-  .dp-field[aria-invalid='true'],
+  :is(input, select, textarea).dp-field[aria-invalid='true'],
   .field-input[aria-invalid='true'] {
     border-color: var(--dp-status-critical);
   }
@@ -150,7 +154,7 @@
    * Not merely an empty field: a disabled control is flat against the panel and
    * dimmed, which is the one place the field is meant to recede.
    */
-  .dp-field:disabled,
+  :is(input, select, textarea).dp-field:disabled,
   .field-input:disabled {
     background-color: var(--dp-surface-alt);
     border-color: var(--dp-line);
@@ -159,7 +163,7 @@
   }
 
   /* Readable and clearly not editable: the value matters, the field does not. */
-  .dp-field[readonly],
+  :is(input, select, textarea).dp-field[readonly],
   .field-input[readonly] {
     background-color: var(--dp-surface-alt);
     border-color: var(--dp-line);

@@ -136,4 +136,20 @@ describe('theme tokens', () => {
 
     expect(declarations).toEqual(['components.css']);
   });
+
+  /*
+   * And that rule reaches controls only. `dp-field` names two different things:
+   * the search and filter controls carry it themselves, while the sign-in form
+   * puts it on the label wrapping each field. An unqualified selector styled
+   * that label as though it were the input, which drew a field-shaped box
+   * around the label and left the input inside it without a boundary.
+   */
+  it('style only elements that are form controls', () => {
+    const source = readFileSync(join(STYLES_DIR, 'components.css'), 'utf8');
+    const unqualified = [...source.matchAll(/^\s*(\.dp-field[^,{]*)[,{]/gm)].map((match) =>
+      match[1].trim(),
+    );
+
+    expect(unqualified).toEqual([]);
+  });
 });
