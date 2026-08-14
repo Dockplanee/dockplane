@@ -21,6 +21,43 @@ const here = dirname(fileURLToPath(import.meta.url));
 const api = join(here, '..', '..', 'api');
 
 /**
+ * The host an agent belongs to, found by that agent's identity.
+ *
+ * The instance is shared by every suite in the run, and a suite that has
+ * finished leaves its host behind as a record whose agent has gone. So a suite
+ * cannot take whichever host it is offered first, and cannot go by name either:
+ * a host is called what it reports about itself once its first inventory
+ * arrives, and every test host reports the same thing. The agent's own
+ * identifier is the only thing that distinguishes them.
+ *
+ * `connected` waits for the agent to finish connecting as well, which is what
+ * an operation against the host needs — a host exists from the moment it
+ * enrols, and a request sent before its agent is there is refused.
+ */
+export async function ownHost(base, session, agentId, { connected = false } = {}) {
+  const deadline = Date.now() + 60_000;
+
+  for (;;) {
+    const response = await fetch(`${base}/api/v1/hosts`, { headers: { cookie: session.cookie } });
+    const host = response.ok
+      ? (await response.json()).hosts.find((entry) => entry.agent?.id === agentId)
+      : undefined;
+
+    if (host && (!connected || host.agent?.connected === true)) {
+      return host.id;
+    }
+
+    if (Date.now() > deadline) {
+      throw new Error(
+        `timed out waiting for the host of agent ${agentId}${connected ? ' to be connected' : ' to be registered'}`,
+      );
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+}
+
+/**
  * Starts an agent against an instance and waits until its host is connected.
  *
  * Enrolment and the connection are the real ones, so the host arrives in the

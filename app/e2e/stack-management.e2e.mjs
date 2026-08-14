@@ -13,7 +13,7 @@
  */
 import { chromium } from 'playwright';
 
-import { startAgent } from './agent.mjs';
+import { ownHost, startAgent } from './agent.mjs';
 import { signIn as apiSignIn } from './stack.mjs';
 
 const BASE = process.env.DOCKPLANE_URL;
@@ -186,29 +186,6 @@ const COMPOSE = (image) =>
     '',
   ].join('\n');
 
-/**
- * The host this suite's own agent is connected to.
- *
- * The instance is shared with the other suites in the run and their hosts are
- * still records after their agents have gone, so taking whichever host the form
- * offers first would deploy against one nothing is connected to. The name is no
- * good either: a host is called what it reports about itself once its first
- * inventory arrives, and every test host reports the same thing.
- */
-async function ownHost(session, agentId) {
-  return until('this suite’s host to be registered', async () => {
-    const response = await fetch(`${BASE}/api/v1/hosts`, { headers: { cookie: session.cookie } });
-
-    if (!response.ok) {
-      return '';
-    }
-
-    const { hosts } = await response.json();
-
-    return hosts.find((host) => host.agent?.id === agentId)?.id ?? '';
-  });
-}
-
 /** Fills the create form. The compose field is set as a whole, as an editor is. */
 async function fillCreateForm(page, { hostId, name, compose, secret = CANARY }) {
   /*
@@ -244,7 +221,7 @@ async function run() {
   const session = await apiSignIn(instance);
   const agent = await startAgent(instance, { hostname: HOSTNAME, session });
 
-  const hostId = await ownHost(session, agent.agentId);
+  const hostId = await ownHost(BASE, session, agent.agentId);
 
   const browser = await chromium.launch();
   const context = await browser.newContext({

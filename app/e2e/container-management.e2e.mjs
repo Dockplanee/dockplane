@@ -14,7 +14,7 @@
  */
 import { chromium } from 'playwright';
 
-import { startAgent } from './agent.mjs';
+import { ownHost, startAgent } from './agent.mjs';
 import { signIn as apiSignIn } from './stack.mjs';
 
 const BASE = process.env.DOCKPLANE_URL;
@@ -143,27 +143,41 @@ function watchConsole(page) {
   return problems;
 }
 
-async function fillCreateForm(page, { name, image, secret = CANARY }) {
-  /*
-   * By value, not by label. A host reports its own name once discovery has
-   * read it, so what the option says changes under the test.
-   */
-  /*
-   * The first host an operator could actually choose.
-   *
-   * A run can leave more than one host in the instance — an earlier suite's
-   * agent has disconnected by now — and the form offers those but does not let
-   * them be picked. Taking the first option with a value would take one of
-   * those.
-   */
-  const hostValue = await page.evaluate(
-    () =>
-      [...document.querySelectorAll('select[name="hostId"] option')].find(
-        (entry) => entry.value && !entry.disabled,
-      )?.value ?? '',
+/**
+ * Chooses one host, by identity.
+ *
+ * By value and never by position: the instance holds the hosts every suite in
+ * this run enrolled, and this one must reach the agent it started itself. By
+ * value rather than by label, too — a host is called what it reports about
+ * itself once discovery has read it, so what the option says changes under the
+ * test.
+ *
+ * The options arrive from the server, so the form opens with nothing to choose
+ * for a moment. Selecting during that moment picks the placeholder and the form
+ * is submitted without a host.
+ */
+async function selectOwnHost(page, hostId) {
+  // A caller that forgot it waits a minute for an option that cannot exist and
+  // then blames the interface.
+  if (!hostId) {
+    throw new Error('selectOwnHost needs the host this suite enrolled');
+  }
+
+  const value = await until('this suite’s host to be offered', async () =>
+    page.evaluate(
+      (wanted) =>
+        [...document.querySelectorAll('select[name="hostId"] option')].find(
+          (entry) => entry.value === wanted && !entry.disabled,
+        )?.value ?? '',
+      hostId,
+    ),
   );
 
-  await page.selectOption('select[name="hostId"]', hostValue);
+  await page.selectOption('select[name="hostId"]', value);
+}
+
+async function fillCreateForm(page, { hostId, name, image, secret = CANARY }) {
+  await selectOwnHost(page, hostId);
   await page.fill('input[name="name"]', name);
   await page.fill('input[name="image"]', image);
 
@@ -210,6 +224,57 @@ console.log('container management');
 
 const session = await apiSignIn({ url: BASE, email: EMAIL, password: PASSWORD });
 const agent = await startAgent(stack, { session });
+
+/*
+ * This suite's own host, connected — not merely some host that is.
+ *
+ * A host exists from the moment it enrols, and the option for it appears then
+ * too, but a create against a host whose agent has not finished connecting is
+ * refused. Waiting for the right host and waiting for it to be usable are the
+ * same wait.
+ */
+const hostId = await ownHost(BASE, session, agent.agentId, { connected: true });
+
+/*
+ * One host among several.
+ *
+ * What the interface offers depends on what the whole run has enrolled, and
+ * this suite has to reach the agent it started itself whatever else is there.
+ * A second host is enrolled and then abandoned, which is what a suite that has
+ * finished leaves behind, and everything after this happens with it present.
+ *
+ * Before the browser, because enrolling needs the CSRF token this session was
+ * given at sign-in, and the application replaces that token the moment it loads
+ * and asks who it is signed in as.
+ */
+const abandoned = await startAgent(stack, { hostname: 'e2e-abandoned-01', session });
+let abandonedHostId;
+
+try {
+  abandonedHostId = await ownHost(BASE, session, abandoned.agentId, { connected: true });
+} finally {
+  await abandoned.stop();
+}
+
+const hosts = await until('the abandoned host to be recorded as gone', async () => {
+  const answer = await fetch(`${BASE}/api/v1/hosts`, { headers: { cookie: session.cookie } });
+  const body = await answer.json();
+  const stale = body.hosts.find((entry) => entry.id === abandonedHostId);
+
+  return stale && stale.agent?.connected !== true ? body.hosts : undefined;
+});
+
+check('the instance holds more than one host', hosts.length > 1, `${hosts.length} hosts`);
+check(
+  'one of them is a host whose agent has gone',
+  hosts.some((entry) => entry.id === abandonedHostId && entry.agent?.connected !== true),
+);
+check(
+  'and this suite resolved its own host by its own agent',
+  hostId !== abandonedHostId &&
+    hosts.find((entry) => entry.id === hostId)?.agent?.id === agent.agentId,
+);
+
 const browser = await chromium.launch();
 
 try {
@@ -224,23 +289,6 @@ try {
   // anything it evaluates can reach a relative path.
   await page.goto(`${BASE}/containers`, { waitUntil: 'networkidle' });
 
-  /*
-   * Connected, not merely present.
-   *
-   * A host exists from the moment it enrols, and the option for it appears
-   * then too — but a create against a host whose agent has not finished
-   * connecting is refused, which would fail this suite for a reason that has
-   * nothing to do with the interface.
-   */
-  await until('the host to be connected', async () =>
-    page.evaluate(async () => {
-      const answer = await fetch('/api/v1/hosts', { credentials: 'include' });
-      const body = await answer.json();
-
-      return body.hosts?.some((entry) => entry.agent?.connected === true);
-    }),
-  );
-
   await page.goto(`${BASE}/containers/new`, { waitUntil: 'networkidle' });
   await page.waitForSelector(
     'select[name="hostId"] option[value]:not([value=""]):not([disabled])',
@@ -252,7 +300,7 @@ try {
   // --- creating ------------------------------------------------------------
   const name = `web-${Date.now().toString(36)}`;
 
-  await fillCreateForm(page, { name, image: 'nginx:1.27' });
+  await fillCreateForm(page, { hostId, name, image: 'nginx:1.27' });
   await page.locator('form button:has-text("Create container")').click();
   await page.waitForURL(/\/containers\/[0-9a-f-]{36}/, { timeout: 60_000 });
 
@@ -273,6 +321,25 @@ try {
       (entry) => entry.key === 'DB_PASSWORD' && entry.operation === 'set-secret',
     ),
   );
+
+  // The isolation the section above set up, proven at both ends: the server
+  // recorded the container against this suite's host, and this suite's own
+  // agent is the one that was asked to build it.
+  check('the create named this suite’s host', created?.body.hostId === hostId);
+
+  const detail = await (
+    await fetch(`${BASE}/api/v1/containers/${containerId}`, {
+      headers: { cookie: session.cookie },
+    })
+  ).json();
+
+  check('the container belongs to this suite’s host', detail.container?.hostId === hostId);
+
+  const onOwnHost = await until('the container to be on this suite’s own host', async () =>
+    (await agent.state()).containers.some((entry) => entry.name === name),
+  );
+
+  check('and this suite’s own agent built it', onOwnHost === true);
 
   await page.reload({ waitUntil: 'networkidle' });
 
@@ -298,15 +365,7 @@ try {
     `${await page.locator('.field-error').count()} errors`,
   );
 
-  await page.selectOption(
-    'select[name="hostId"]',
-    await page.evaluate(
-      () =>
-        [...document.querySelectorAll('select[name="hostId"] option')].find(
-          (entry) => entry.value && !entry.disabled,
-        )?.value ?? '',
-    ),
-  );
+  await selectOwnHost(page, hostId);
   await page.fill('input[name="name"]', 'validation-check');
   await page.fill('input[name="image"]', 'nginx:1.27');
   await page.click('button:has-text("Add port mapping")');
@@ -471,7 +530,7 @@ try {
 
   await agent.dropNext('container.create', { apply: true });
   await page.goto(`${BASE}/containers/new`, { waitUntil: 'networkidle' });
-  await fillCreateForm(page, { name: unknownName, image: 'nginx:1.27' });
+  await fillCreateForm(page, { hostId, name: unknownName, image: 'nginx:1.27' });
   await page.locator('form button:has-text("Create container")').click();
 
   await page.waitForSelector('text=could not confirm', { timeout: 90_000 }).catch(async () => {
@@ -513,13 +572,18 @@ try {
   await agent.seed('somebody-elses', {});
   await agent.seed('conflicted-a', { 'io.dockplane.managed': 'true' });
 
+  // On this suite's own host, like everything else it looks up: the name is one
+  // the harness chooses, so a run that has done this before has a container of
+  // that name on a host whose agent has gone.
   const external = await until('the external container to be discovered', async () => {
-    return page.evaluate(async () => {
+    return page.evaluate(async (wanted) => {
       const answer = await fetch('/api/v1/containers', { credentials: 'include' });
       const body = await answer.json();
 
-      return body.containers.find((entry) => entry.name === 'somebody-elses');
-    });
+      return body.containers.find(
+        (entry) => entry.name === 'somebody-elses' && entry.hostId === wanted,
+      );
+    }, hostId);
   });
 
   await page.goto(`${BASE}/containers/${external.id}`, { waitUntil: 'networkidle' });
