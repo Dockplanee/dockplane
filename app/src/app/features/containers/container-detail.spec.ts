@@ -218,3 +218,76 @@ describe('the container detail page', () => {
     expect(textOf(fixture)).toContain('Container not found');
   });
 });
+
+/**
+ * What the page says a container is, and whose host it is on.
+ *
+ * Both are about telling one record from another. Six host resources can
+ * report the same system hostname, and a container nobody has heard from in
+ * two days should not wear the badge of one running now.
+ */
+describe('a container’s state and host on its page', () => {
+  const render = (data: TestData) =>
+    renderView(ContainerDetailView, {
+      params: { id: 'container-1' },
+      data,
+      permissions: ['containers.read'] as never,
+    });
+
+  const badge = (fixture: { nativeElement: unknown }) =>
+    (fixture.nativeElement as HTMLElement).querySelector('.identity dp-status-badge');
+
+  it('names a stale state as the last one seen, without the live tone', async () => {
+    const fixture = await render({
+      containers: [container({ stale: true, state: 'running' })],
+      containerDetailError: new ApiError('CONTAINER_DETAIL_UNAVAILABLE', 'unreachable', 409),
+    });
+
+    expect(badge(fixture)?.textContent).toContain('Last known: Running');
+    expect(badge(fixture)?.className).not.toContain('tone-ok');
+  });
+
+  it('leaves a live state alone', async () => {
+    const fixture = await render({
+      containers: [container({ stale: false, state: 'running' })],
+      containerDetail: DETAIL,
+    });
+
+    expect(badge(fixture)?.textContent).toContain('Running');
+    expect(badge(fixture)?.textContent).not.toContain('Last known');
+    expect(badge(fixture)?.className).toContain('tone-ok');
+  });
+
+  /* The host is named in the overview panel rather than in the page shell. */
+  const overview = (data: TestData) =>
+    renderView(ContainerOverviewTab, {
+      params: { id: 'container-1' },
+      data,
+      permissions: ['containers.read'] as never,
+      providers: [ContainerStore],
+    });
+
+  it('names the host the way the operator named it', async () => {
+    const fixture = await overview({
+      containers: [container({ hostName: 'rc4-smoke', hostname: 'aQuo3M359XhY' })],
+      containerDetail: DETAIL,
+    });
+
+    const shown = textOf(fixture);
+
+    expect(shown).toContain('rc4-smoke');
+    expect(shown).toContain('System hostname: aQuo3M359XhY');
+  });
+
+  it('falls back to the system hostname when nobody named the host', async () => {
+    const fixture = await overview({
+      containers: [container({ hostName: 'aQuo3M359XhY', hostname: 'aQuo3M359XhY' })],
+      containerDetail: DETAIL,
+    });
+
+    const shown = textOf(fixture);
+
+    expect(shown).toContain('aQuo3M359XhY');
+    expect(shown).not.toContain('System hostname:');
+  });
+});

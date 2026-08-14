@@ -49,25 +49,12 @@
             <td class="dp-mono dp-unknown">{{ container.image }}</td>
             <td><dp-management-badge [management]="container.management" /></td>
             <td class="state">
-              <!--
-                A stale row is the last thing a host said before it went quiet.
-                Saying so in words beside a badge that still reads as live was
-                not enough: a page of them looked like a page of running
-                containers. The state is still named — it is the freshness that
-                is in doubt, not the state — but it is named as history and
-                carries the neutral tone rather than the live one.
-              -->
+              <dp-status-badge
+                [tone]="stateBadge(container).tone"
+                [label]="stateBadge(container).label"
+              />
               @if (container.stale) {
-                <dp-status-badge
-                  tone="neutral"
-                  [label]="'Last known: ' + state(container.state).label"
-                />
                 <span class="secondary">{{ reportedAt(container) }}</span>
-              } @else {
-                <dp-status-badge
-                  [tone]="state(container.state).tone"
-                  [label]="state(container.state).label"
-                />
               }
             </td>
             <td>

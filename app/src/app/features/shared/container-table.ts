@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 import { relativeTime, uptime } from '../../core/format';
 import { Permission, Permissions } from '../../core/permissions';
 import { Container } from '../../domain/inventory';
-import { containerHealth, containerState } from '../../domain/status';
+import { containerHealth, containerState, containerStateBadge } from '../../domain/status';
 import { EmptyState } from '../../ui/empty-state/empty-state';
 import { RowAction, RowMenu } from '../../ui/row-menu/row-menu';
 import { StatusBadge } from '../../ui/status-badge/status-badge';
@@ -65,6 +65,11 @@ export class ContainerTable {
   readonly actionRequested = output<ContainerActionRequest>();
 
   protected readonly state = containerState;
+
+  /** The state badge, told apart from a live one when the record is stale. */
+  protected stateBadge(container: Container) {
+    return containerStateBadge(container.state, container.stale);
+  }
   protected readonly health = containerHealth;
   protected readonly age = relativeTime;
 

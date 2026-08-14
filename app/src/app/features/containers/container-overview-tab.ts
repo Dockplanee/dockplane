@@ -82,7 +82,20 @@ export class ContainerOverviewTab {
       { label: 'Name', value: container.name, mono: true },
       { label: 'Container ID', value: container.dockerId, mono: true },
       { label: 'Image', value: container.image, mono: true },
-      { label: 'Host', value: container.hostname, mono: true },
+      /*
+       * The host resource, which is not the same as the machine: several of
+       * them can report one system hostname. The hostname follows only where
+       * it says something the name does not.
+       */
+      {
+        label: 'Host',
+        value: container.hostName,
+        secondary:
+          container.hostname === container.hostName
+            ? undefined
+            : `System hostname: ${container.hostname}`,
+        mono: true,
+      },
       { label: 'Restart count', value: String(detail?.restarts ?? container.restarts), mono: true },
       { label: 'Restart policy', value: detail?.restartPolicy ?? '—', mono: true },
       { label: 'Uptime', value: started ?? 'Not running', mono: true },

@@ -87,6 +87,26 @@ export const agentStatus = (value: AgentStatus) => AGENT_STATUS[value];
 export const actionStatus = (value: ActionStatus) => ACTION_STATUS[value];
 export const severity = (value: Severity) => SEVERITY[value];
 
+/**
+ * How a container's state is shown, given how fresh the observation is.
+ *
+ * A state nobody has confirmed for a while is still worth showing — it is what
+ * the host last said — but showing it the way a live one is shown makes a page
+ * of abandoned records read as a page of running workloads. The state keeps its
+ * name and loses the live tone, and says plainly that it is the last one seen.
+ *
+ * In one place, because it is needed wherever a container appears and two
+ * copies of a rule like this drift apart.
+ */
+export function containerStateBadge(
+  value: ContainerState,
+  stale: boolean,
+): { tone: StatusTone; label: string } {
+  const current = CONTAINER_STATE[value];
+
+  return stale ? { tone: 'neutral', label: `Last known: ${current.label}` } : current;
+}
+
 /** Ordering used wherever problems are listed most-urgent first. */
 export const SEVERITY_ORDER: Record<Severity, number> = { critical: 0, warning: 1, info: 2 };
 

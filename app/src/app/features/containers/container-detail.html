@@ -2,9 +2,10 @@
   <header class="head">
     <div class="identity">
       <h2>{{ container.name }}</h2>
+      <!-- Named as the last observation when that is what it is. -->
       <dp-status-badge
-        [tone]="state(container.state).tone"
-        [label]="state(container.state).label"
+        [tone]="stateBadge(container).tone"
+        [label]="stateBadge(container).label"
         plated
       />
       <dp-status-badge

@@ -17,7 +17,13 @@ import { InventoryRefresh } from '../../core/inventory-refresh';
 import { PageContext } from '../../core/page-context';
 import { Permission, Permissions } from '../../core/permissions';
 import { DockplaneApi } from '../../data/dockplane-api';
-import { containerHealth, containerState, isReporting } from '../../domain/status';
+import { Container } from '../../domain/inventory';
+import {
+  containerHealth,
+  containerState,
+  containerStateBadge,
+  isReporting,
+} from '../../domain/status';
 import { Button } from '../../ui/button';
 import { ConfirmDetail, ConfirmDialog } from '../../ui/confirm-dialog/confirm-dialog';
 import { EmptyState } from '../../ui/empty-state/empty-state';
@@ -108,6 +114,11 @@ export class ContainerDetail {
   protected readonly store = inject(ContainerStore);
   protected readonly tabs = TABS;
   protected readonly state = containerState;
+
+  /** The state badge, told apart from a live one when the record is stale. */
+  protected stateBadge(container: Container) {
+    return containerStateBadge(container.state, container.stale);
+  }
   protected readonly health = containerHealth;
 
   protected readonly running = signal(false);

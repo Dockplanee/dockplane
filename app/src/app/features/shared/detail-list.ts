@@ -5,6 +5,8 @@ export interface DetailItem {
   readonly value: string;
   /** Technical identifiers render in monospace. */
   readonly mono?: boolean;
+  /** A second line, for what qualifies the value rather than repeating it. */
+  readonly secondary?: string;
 }
 
 /** Key/value block used by the detail views. */
@@ -15,7 +17,12 @@ export interface DetailItem {
       @for (item of items(); track item.label) {
         <div>
           <dt>{{ item.label }}</dt>
-          <dd [class.dp-mono]="item.mono">{{ item.value }}</dd>
+          <dd [class.dp-mono]="item.mono">
+            {{ item.value }}
+            @if (item.secondary) {
+              <span class="secondary">{{ item.secondary }}</span>
+            }
+          </dd>
         </div>
       }
     </dl>
@@ -29,6 +36,14 @@ export interface DetailItem {
       display: grid;
       gap: 0.75rem 1.5rem;
       grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    }
+
+    .secondary {
+      display: block;
+      color: var(--dp-fg-muted);
+      font-family: var(--font-sans);
+      font-size: var(--dp-text-label);
+      line-height: 1.4;
     }
 
     dt {
