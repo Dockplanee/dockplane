@@ -57,15 +57,6 @@
   font-weight: 500;
 }
 
-.field-input {
-  padding: 0.5rem 0.625rem;
-  color: inherit;
-  font: inherit;
-  background: var(--dp-surface-raised);
-  border: 1px solid var(--dp-line);
-  border-radius: var(--dp-radius-md);
-}
-
 .field-hint {
   color: var(--dp-fg-muted);
   font-size: var(--dp-text-label);
@@ -78,7 +69,7 @@ pre {
   padding: 0.75rem;
   overflow-x: auto;
   font-size: var(--dp-text-label);
-  background: var(--dp-surface-sunken);
+  background: var(--dp-surface-inset);
   border: 1px solid var(--dp-line);
   border-radius: var(--dp-radius-md);
 }
@@ -102,11 +93,11 @@ pre code {
 
 .warning {
   color: var(--dp-fg);
-  background: var(--dp-warning-surface, var(--dp-surface-raised));
+  background: var(--dp-warning-surface, var(--dp-surface-alt));
 }
 
 .connected {
-  background: var(--dp-surface-raised);
+  background: var(--dp-surface-alt);
 }
 
 .steps {

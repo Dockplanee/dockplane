@@ -53,15 +53,6 @@
   color: var(--dp-fg-muted);
 }
 
-.field-input {
-  padding: 0.5rem 0.625rem;
-  color: var(--dp-fg);
-  background: var(--dp-surface-inset);
-  border: 1px solid var(--dp-line);
-  border-radius: var(--dp-radius-md);
-  font: inherit;
-}
-
 .field-hint {
   color: var(--dp-fg-muted);
   font-size: var(--dp-text-label);

@@ -4,7 +4,7 @@
 
 .section {
   padding: 1.25rem 0;
-  border-top: 1px solid var(--dp-border);
+  border-top: 1px solid var(--dp-line);
 }
 
 .section:first-child {
@@ -22,13 +22,13 @@
   margin: 1.25rem 0 0.5rem;
   font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
 }
 
 .section__hint {
   margin: 0 0 0.875rem;
   font-size: 0.8125rem;
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
   max-width: 68ch;
 }
 
@@ -47,40 +47,14 @@
 
 .optional {
   font-weight: 400;
-  color: var(--dp-text-muted);
-}
-
-.field-input {
-  display: block;
-  width: 100%;
-  padding: 0.4375rem 0.625rem;
-  border: 1px solid var(--dp-border);
-  border-radius: var(--dp-radius-sm);
-  background-color: var(--dp-surface);
-  color: inherit;
-  font: inherit;
-  font-size: 0.875rem;
-}
-
-.field-input:focus-visible {
-  outline: 2px solid var(--dp-accent);
-  outline-offset: 1px;
-}
-
-.field-input[aria-invalid='true'] {
-  border-color: var(--dp-status-critical);
-}
-
-.field-input:disabled {
-  background-color: var(--dp-surface-alt);
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
 }
 
 .field-hint {
   display: block;
   margin-top: 0.3125rem;
   font-size: 0.75rem;
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
 }
 
 /* Errors carry their own word, never colour alone. */
@@ -105,7 +79,7 @@
   align-items: flex-start;
   margin: 0 0 0.75rem;
   padding: 0.75rem;
-  border: 1px solid var(--dp-border);
+  border: 1px solid var(--dp-line);
   border-radius: var(--dp-radius-md);
   background-color: var(--dp-surface-alt);
 }
@@ -159,11 +133,11 @@
  */
 .secret__mask {
   letter-spacing: 0.1em;
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
 }
 
 .secret__label {
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
 }
 
 .readonly {
@@ -180,7 +154,7 @@
 }
 
 .readonly__value {
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
 }
 
 .choices {

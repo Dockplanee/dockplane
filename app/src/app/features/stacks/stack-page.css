@@ -37,7 +37,7 @@
 .side__list + .side__title {
   margin-top: 1.25rem;
   padding-top: 1.25rem;
-  border-top: 1px solid var(--dp-border);
+  border-top: 1px solid var(--dp-line);
 }
 
 .side__result {
@@ -53,7 +53,7 @@
 }
 
 .side__list dt {
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
 }
 
 .side__list dd {
@@ -69,9 +69,9 @@
 .side__note {
   margin: 1rem 0 0;
   padding-top: 1rem;
-  border-top: 1px solid var(--dp-border);
+  border-top: 1px solid var(--dp-line);
   font-size: 0.8125rem;
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
 }
 
 .failure {
@@ -86,7 +86,7 @@
 .notice {
   margin: 1rem 0 0;
   padding: 0.75rem 0.875rem;
-  border: 1px solid var(--dp-border);
+  border: 1px solid var(--dp-line);
   border-radius: var(--dp-radius-sm);
   background-color: var(--dp-surface-alt);
   font-size: 0.8125rem;
@@ -98,5 +98,5 @@
   gap: 0.5rem;
   margin-top: 1.25rem;
   padding-top: 1.25rem;
-  border-top: 1px solid var(--dp-border);
+  border-top: 1px solid var(--dp-line);
 }

@@ -4,7 +4,7 @@
 
 .section {
   padding: 1.25rem 0;
-  border-top: 1px solid var(--dp-border);
+  border-top: 1px solid var(--dp-line);
 }
 
 .section:first-child {
@@ -21,14 +21,14 @@
 .section__hint {
   margin: 0 0 0.875rem;
   font-size: 0.8125rem;
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
   max-width: 68ch;
 }
 
 .section__empty {
   margin: 0 0 0.875rem;
   font-size: 0.8125rem;
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
 }
 
 .section__actions {
@@ -55,37 +55,11 @@
   font-weight: 500;
 }
 
-.field-input {
-  display: block;
-  width: 100%;
-  padding: 0.4375rem 0.625rem;
-  border: 1px solid var(--dp-border);
-  border-radius: var(--dp-radius-sm);
-  background-color: var(--dp-surface);
-  color: inherit;
-  font: inherit;
-  font-size: 0.875rem;
-}
-
-.field-input:focus-visible {
-  outline: 2px solid var(--dp-accent);
-  outline-offset: 1px;
-}
-
-.field-input[aria-invalid='true'] {
-  border-color: var(--dp-status-critical);
-}
-
-.field-input:disabled {
-  background-color: var(--dp-surface-alt);
-  color: var(--dp-text-muted);
-}
-
 .field-hint {
   display: block;
   margin-top: 0.3125rem;
   font-size: 0.75rem;
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
 }
 
 /* Errors carry their own word, never colour alone. */
@@ -109,7 +83,7 @@
   width: 100%;
   min-height: 22rem;
   padding: 0.75rem;
-  border: 1px solid var(--dp-border);
+  border: 1px solid var(--dp-line);
   border-radius: var(--dp-radius-sm);
   background-color: var(--dp-surface);
   color: inherit;
@@ -127,14 +101,14 @@
 }
 
 .row {
-  border: 1px solid var(--dp-border);
+  border: 1px solid var(--dp-line);
   display: flex;
   flex-wrap: wrap;
   gap: 0.625rem;
   align-items: flex-start;
   margin: 0 0 0.75rem;
   padding: 0.75rem;
-  border: 1px solid var(--dp-border);
+  border: 1px solid var(--dp-line);
   border-radius: var(--dp-radius-md);
   background-color: var(--dp-surface-alt);
 }
@@ -155,7 +129,7 @@
   flex: 1 1 100%;
   margin: 0;
   font-size: 0.75rem;
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
 }
 
 .secret__state {
@@ -174,11 +148,11 @@
  */
 .secret__mask {
   letter-spacing: 0.1em;
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
 }
 
 .secret__label {
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
 }
 
 @media (max-width: 40rem) {

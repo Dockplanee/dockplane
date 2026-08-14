@@ -42,7 +42,7 @@
   gap: 0.5rem;
   margin-top: 1.25rem;
   padding-top: 1.25rem;
-  border-top: 1px solid var(--dp-border);
+  border-top: 1px solid var(--dp-line);
 }
 
 .summary__title {
@@ -60,7 +60,7 @@
 }
 
 .summary__list dt {
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
 }
 
 .summary__list dd {
@@ -76,7 +76,7 @@
 .summary__empty {
   margin: 0;
   font-size: 0.8125rem;
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
 }
 
 .changes {
@@ -107,7 +107,7 @@
 }
 
 .change__section {
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
 }
 
 .change__text {
@@ -125,7 +125,7 @@
 .recreate {
   margin: 0.875rem 0 0;
   padding-top: 0.875rem;
-  border-top: 1px solid var(--dp-border);
+  border-top: 1px solid var(--dp-line);
   font-size: 0.8125rem;
-  color: var(--dp-text-muted);
+  color: var(--dp-fg-muted);
 }

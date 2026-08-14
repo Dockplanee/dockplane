@@ -61,7 +61,7 @@ import { Icon } from '../../ui/icon/icon';
     .notice__detail {
       margin: 0.25rem 0 0;
       font-size: 0.8125rem;
-      color: var(--dp-text-muted);
+      color: var(--dp-fg-muted);
       max-width: 68ch;
     }
 

@@ -96,7 +96,7 @@ import { ComposeValidation } from '../../data/dockplane-api';
 
     .idle,
     .note {
-      color: var(--dp-text-muted);
+      color: var(--dp-fg-muted);
     }
 
     .summary {
@@ -108,7 +108,7 @@ import { ComposeValidation } from '../../data/dockplane-api';
     }
 
     .summary dt {
-      color: var(--dp-text-muted);
+      color: var(--dp-fg-muted);
     }
 
     .summary dd {
@@ -137,7 +137,7 @@ import { ComposeValidation } from '../../data/dockplane-api';
     }
 
     .problem__path {
-      color: var(--dp-text-muted);
+      color: var(--dp-fg-muted);
       overflow-wrap: anywhere;
     }
   `,
