@@ -119,6 +119,22 @@
     </div>
   }
 
+  <!--
+    Orthogonal to the states above: a stack can be any of them and still be on a
+    host that has stopped answering. Saving is unaffected — a revision is
+    written here, not on the host — so this says what is still possible rather
+    than reading as a fault, and the deployment controls carry their own reason.
+  -->
+  @if (!stack.hostReachable) {
+    <div class="notice" role="status">
+      <h3 class="notice__title">Host offline</h3>
+      <p>
+        The host agent is offline. Configuration changes can be saved, but they cannot be deployed
+        until the host reconnects.
+      </p>
+    </div>
+  }
+
   @if (apply.unresolved() || operate.unresolved() || remove.unresolved(); as message) {
     <div class="notice" role="status">
       <h3 class="notice__title">The result has not been confirmed</h3>

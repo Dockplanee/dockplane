@@ -450,3 +450,63 @@ describe('the host a stack is on', () => {
     });
   });
 });
+
+/**
+ * A stack whose host has stopped answering.
+ *
+ * Saving a revision writes it here, not on the host, so an offline host does
+ * not stop somebody preparing a change — it stops the change reaching the
+ * machine. The page has to say which of the two it is, in the ordinary voice
+ * used for a state rather than the one used for a fault.
+ */
+describe('an existing stack on an offline host', () => {
+  const render = (overrides: Partial<Stack> = {}) =>
+    renderView(StackDetail, {
+      params: { id: 'stack-1' },
+      data: { stacks: [stack({ hostReachable: false, ...overrides })] },
+      permissions: ['stacks.read', 'stacks.update', 'stacks.deploy'] as never,
+    });
+
+  it('says a change can still be saved, and what it cannot do yet', async () => {
+    const shown = textOf(await render());
+
+    expect(shown).toContain('The host agent is offline');
+    expect(shown).toContain('can be saved');
+    expect(shown).toContain('cannot be deployed');
+  });
+
+  /* A state, not a failure: nothing has gone wrong with the stack itself. */
+  it('reports it as a status rather than an alert', async () => {
+    const fixture = await render();
+    const offline = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll('.notice'),
+    ].find((notice) => /Host offline/.test(notice.textContent ?? ''));
+
+    expect(offline?.getAttribute('role')).toBe('status');
+    expect(offline?.className).not.toContain('critical');
+  });
+
+  it('still offers editing the configuration', async () => {
+    expect(textOf(await render())).toContain('Edit configuration');
+  });
+
+  /* The interface is not the boundary, but it must not invite a refusal. */
+  it('does not offer to deploy or to operate the stack', async () => {
+    const fixture = await render({
+      latestRevision: { id: 'revision-3', number: 3 },
+      deployedRevision: { id: 'revision-2', number: 2 },
+    });
+
+    const enabled = [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')]
+      .filter((b) => !b.disabled)
+      .map((b) => b.textContent?.trim() ?? '');
+
+    expect(enabled.join(' | ')).not.toMatch(/Deploy|Roll back|Start stack|Stop stack|Restart stack/);
+  });
+
+  it('says nothing of the sort when the host is reachable', async () => {
+    const shown = textOf(await render({ hostReachable: true }));
+
+    expect(shown).not.toContain('Host offline');
+  });
+});
