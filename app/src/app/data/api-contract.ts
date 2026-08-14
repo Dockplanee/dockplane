@@ -156,6 +156,7 @@ export interface AgentResponse {
   readonly id: string;
   readonly hostId: string;
   readonly hostname: string;
+  readonly hostDisplayName?: string | null;
   readonly certificateSerial: string;
   readonly certificateNotAfter: string;
   readonly version: string | null;

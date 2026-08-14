@@ -32,6 +32,9 @@ export interface OperationAction {
 export interface Agent {
   readonly id: string;
   readonly hostId: string;
+  /** What the host is called: the operator's name for it, or its own. */
+  readonly hostName: string;
+  /** The system hostname, which several host resources may share. */
   readonly hostname: string;
   readonly version?: string;
   readonly status: AgentStatus;

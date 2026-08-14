@@ -2,6 +2,10 @@
   <header class="head">
     <div class="identity">
       <h2>{{ host.name }}</h2>
+      <!-- Which machine, when that is not already what the host is called. -->
+      @if (host.hostname !== host.name) {
+        <span class="kind">System hostname: {{ host.hostname }}</span>
+      }
       <dp-status-badge
         [tone]="status(host.status).tone"
         [label]="status(host.status).label"

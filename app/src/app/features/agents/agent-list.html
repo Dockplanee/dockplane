@@ -71,8 +71,19 @@
         <tbody>
           @for (agent of filtered(); track agent.id) {
             <tr>
-              <th scope="row">{{ agent.hostname }}</th>
-              <td class="dp-mono dp-unknown">{{ agent.id }}</td>
+              <!--
+                Which host resource this agent belongs to. Six of them can
+                report the same system hostname — one machine, enrolled six
+                times — so the name leads and the hostname follows only where
+                it says something the name does not.
+              -->
+              <th scope="row">
+                {{ agent.hostName }}
+                @if (agent.hostname !== agent.hostName) {
+                  <span class="secondary">{{ agent.hostname }}</span>
+                }
+              </th>
+              <td class="dp-mono dp-unknown" [title]="agent.id">{{ shortId(agent.id) }}</td>
               <td class="dp-mono dp-unknown">{{ agent.version }}</td>
               <td class="dp-mono dp-unknown">v{{ agent.protocolVersion }}</td>
               <td>

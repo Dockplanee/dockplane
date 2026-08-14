@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 
 import { timestamp, uptime } from '../../core/format';
+import { LastKnown } from '../../ui/last-known/last-known';
 import { Meter } from '../../ui/meter/meter';
 import { Panel } from '../../ui/panel/panel';
 import { DetailItem, DetailList } from '../shared/detail-list';
@@ -8,11 +9,17 @@ import { HostStore } from './host-store';
 
 @Component({
   selector: 'dp-host-overview-tab',
-  imports: [DetailList, Meter, Panel],
+  imports: [DetailList, LastKnown, Meter, Panel],
   template: `
     <div class="split">
       <dp-panel heading="Resources" icon="metrics">
-        @if (store.reporting()) {
+        <!--
+          A host that has stopped reporting keeps its last readings. Withholding
+          them was the wrong instinct: the moment somebody most wants to know
+          what a machine was doing is after it went quiet. They are shown as
+          what they are — the last observation, dated, without the live colour.
+        -->
+        @if (hasReadings()) {
           <dl class="resources">
             @for (resource of resources(); track resource.label) {
               <div>
@@ -21,14 +28,18 @@ import { HostStore } from './host-store';
                   <dp-meter
                     [percent]="resource.percent"
                     [label]="resource.label + ' ' + resource.detail"
+                    [muted]="!store.reporting()"
                   />
                   <span class="resource-detail">{{ resource.detail }}</span>
+                  @if (!store.reporting()) {
+                    <dp-last-known [observedAt]="observedAt()" />
+                  }
                 </dd>
               </div>
             }
           </dl>
         } @else {
-          <p class="offline">No current resource data. The agent on this host is not reporting.</p>
+          <p class="offline">This host has never reported its resources.</p>
         }
       </dp-panel>
 
@@ -37,7 +48,12 @@ import { HostStore } from './host-store';
           @for (count of counts(); track count.label) {
             <div>
               <dt class="dp-label">{{ count.label }}</dt>
-              <dd>{{ count.value }}</dd>
+              <dd>
+                {{ count.value }}
+                @if (!store.reporting()) {
+                  <dp-last-known [observedAt]="observedAt()" />
+                }
+              </dd>
             </div>
           }
         </dl>
@@ -105,6 +121,18 @@ import { HostStore } from './host-store';
 })
 export class HostOverviewTab {
   protected readonly store = inject(HostStore);
+
+  /** Whether there is anything to show, current or not. */
+  protected readonly hasReadings = computed(() => {
+    const host = this.store.host();
+
+    return Boolean(host?.cpu ?? host?.memory ?? host?.disk);
+  });
+
+  /** When the readings on screen were taken. */
+  protected readonly observedAt = computed(
+    () => this.store.host()?.observedAt ?? this.store.host()?.lastSeen,
+  );
 
   protected readonly resources = computed(() => {
     const host = this.store.host();

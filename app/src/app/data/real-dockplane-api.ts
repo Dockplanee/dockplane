@@ -619,6 +619,7 @@ function toAgent(agent: AgentResponse): Agent {
   return {
     id: agent.id,
     hostId: agent.hostId,
+    hostName: agent.hostDisplayName ?? agent.hostname,
     hostname: agent.hostname,
     version: agent.version ?? undefined,
     status: agent.status as AgentStatus,

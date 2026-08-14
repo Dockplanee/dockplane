@@ -88,6 +88,11 @@ export class AgentList {
     this.enrollmentDialog().open(this.enrollTrigger()?.nativeElement);
   }
 
+  /** Enough of the identifier to tell two agents apart; the rest is a title. */
+  protected shortId(id: string): string {
+    return id.slice(0, 8);
+  }
+
   protected readonly statusOptions = [
     { value: 'all', label: 'All statuses' },
     { value: 'connected', label: 'Connected' },

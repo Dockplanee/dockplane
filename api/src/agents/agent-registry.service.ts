@@ -57,6 +57,13 @@ export class AgentRegistryService {
         id: agents.id,
         hostId: agents.hostId,
         hostname: hosts.hostname,
+        /*
+         * What the host is called. Several host resources can report the same
+         * system hostname — a machine enrolled more than once leaves one
+         * behind each time — so the hostname alone cannot tell an operator
+         * which of their hosts an agent belongs to.
+         */
+        hostDisplayName: hosts.displayName,
         certificateSerial: agents.certificateSerial,
         certificateFingerprint: agents.certificateFingerprint,
         certificateNotAfter: agents.certificateNotAfter,
