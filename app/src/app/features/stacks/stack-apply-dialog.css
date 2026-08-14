@@ -54,6 +54,14 @@ dd {
   text-align: right;
 }
 
+/* The host's own name, under the one it was given rather than run on after it. */
+dd .secondary {
+  display: block;
+  margin-top: 0.125rem;
+  color: var(--dp-fg-muted);
+  font-size: 0.6875rem;
+}
+
 .review {
   margin-top: 1.25rem;
 }
