@@ -106,11 +106,17 @@ fi
 if [[ -z "${DOCKPLANE_COMMIT:-}" && -n "$(git status --porcelain 2>/dev/null)" ]]; then
 	COMMIT="${COMMIT}-dirty"
 fi
-# Reproducible: the bundle's timestamps come from the commit rather than from
-# the clock, so packing the same commit twice produces the same archive. This
-# refuses rather than falling back to the clock, because an archive that is
+# Reproducible: timestamps come from the commit rather than from the clock, so
+# building the same commit twice produces the same archive and the same image.
+# This refuses rather than falling back to the clock, because an archive that is
 # quietly not reproducible is worse than one that was never built.
+#
+# Exported, because buildkit reads it from the environment and rewrites every
+# layer's timestamps to it. Set and not exported, the bundle was reproducible
+# and the images were not: a `WORKDIR` layer holding one empty directory carried
+# the minute the build ran, and that was enough to change the image digest.
 SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git log -1 --pretty=%ct 2> /dev/null || true)}"
+export SOURCE_DATE_EPOCH
 
 if [[ -z "$SOURCE_DATE_EPOCH" ]]; then
 	echo "no commit date: build from a git checkout, or set SOURCE_DATE_EPOCH" >&2
