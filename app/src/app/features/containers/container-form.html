@@ -22,7 +22,25 @@
       @if (problem('hostId'); as message) {
         <span class="field-error" id="error-hostId">{{ message }}</span>
       }
-      <span class="field-hint">A container is created on the host you choose.</span>
+      <!--
+        Creating a container changes a host straight away, so it needs one that
+        is answering. A host that is not stays in the list, disabled: an
+        operator looking for the machine they have in mind should find out why
+        it cannot be chosen rather than not find it at all.
+      -->
+      @if (connectedHosts() === 0) {
+        <span class="field-hint">
+          No connected hosts are currently available for container creation.
+          <a routerLink="/hosts">Add a host</a> or wait for an agent to reconnect.
+        </span>
+      } @else if (offlineHosts() > 0) {
+        <span class="field-hint">
+          A container is created on the host you choose. A host whose agent is offline cannot be
+          chosen until it reconnects.
+        </span>
+      } @else {
+        <span class="field-hint">A container is created on the host you choose.</span>
+      }
     </label>
   } @else {
     <p class="readonly">

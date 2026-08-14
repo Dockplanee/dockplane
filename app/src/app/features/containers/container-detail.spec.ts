@@ -8,8 +8,9 @@ import { ApiError } from '../../core/api-error';
 import { DockplaneApi } from '../../data/dockplane-api';
 import { ContainerDetail } from '../../domain/inventory';
 import { container } from '../../../testing/data';
-import { signIn } from '../../../testing/harness';
+import { renderView, signIn, textOf } from '../../../testing/harness';
 import { TestApi, TestData } from '../../../testing/test-api';
+import { ContainerDetail as ContainerDetailView } from './container-detail';
 import { ContainerOverviewTab } from './container-overview-tab';
 import { ContainerStore } from './container-store';
 
@@ -160,5 +161,60 @@ describe('container detail', () => {
     expect(failure?.code).toBe('CONTAINER_NOT_FOUND');
     expect(failure?.message).toContain('no longer exists');
     expect(failure?.message).not.toContain('no such container');
+  });
+});
+
+/**
+ * The page itself, rather than one of its panels.
+ *
+ * The empty state lives here, and it used to be what an operator saw for a
+ * container whose host had stopped reporting: the summary and the inspect came
+ * from one request, the inspect refused, and the page concluded the container
+ * was gone. Inventory is kept when a host goes away on purpose, so the page has
+ * to show what is kept.
+ */
+describe('the container detail page', () => {
+  const render = (data: TestData) =>
+    renderView(ContainerDetailView, {
+      params: { id: 'container-1' },
+      data,
+      permissions: ['containers.read'] as never,
+    });
+
+  it('shows a container whose host is no longer reporting', async () => {
+    const fixture = await render({
+      containers: [container({ stale: true, state: 'running' })],
+      containerDetailError: new ApiError(
+        'CONTAINER_DETAIL_UNAVAILABLE',
+        'The host has not been reachable since this container was discovered.',
+        409,
+      ),
+    });
+
+    const shown = textOf(fixture);
+
+    expect(shown).not.toContain('Container not found');
+    expect(shown).toContain('shop-web-1');
+    expect(shown).toContain('nginx:1.27');
+  });
+
+  /* What is on screen is the last observation, and says so. */
+  it('marks what it shows as the last thing that was reported', async () => {
+    const fixture = await render({
+      containers: [container({ stale: true })],
+      containerDetailError: new ApiError('CONTAINER_DETAIL_UNAVAILABLE', 'unreachable', 409),
+    });
+
+    expect(textOf(fixture)).toMatch(/last (report|observation)/i);
+  });
+
+  /*
+   * And the other case is unchanged: a container the control server does not
+   * have is a container that is not there, whatever the reason.
+   */
+  it('still says so when there is no such container', async () => {
+    const fixture = await render({ containers: [] });
+
+    expect(textOf(fixture)).toContain('Container not found');
   });
 });

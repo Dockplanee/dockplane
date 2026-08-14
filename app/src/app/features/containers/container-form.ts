@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, model } from '@angular/core';
 
+import { RouterLink } from '@angular/router';
+
 import { Host } from '../../domain/inventory';
 import { Button } from '../../ui/button';
 import {
@@ -31,7 +33,7 @@ import {
  */
 @Component({
   selector: 'dp-container-form',
-  imports: [Button],
+  imports: [Button, RouterLink],
   templateUrl: './container-form.html',
   styleUrl: './container-form.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -68,6 +70,16 @@ export class ContainerForm {
    * discovery pass finishing — during which the control server would happily
    * carry out a create and this form was refusing to offer one.
    */
+  /** How many hosts a container could actually be created on right now. */
+  protected readonly connectedHosts = computed(
+    () => this.hosts().filter((host) => this.reachable(host)).length,
+  );
+
+  /** And how many are offered but cannot be, which is what needs explaining. */
+  protected readonly offlineHosts = computed(
+    () => this.hosts().filter((host) => !this.reachable(host)).length,
+  );
+
   protected reachable(host: Host): boolean {
     return host.agentStatus === 'connected';
   }
