@@ -154,7 +154,7 @@ export const DOC_SECTIONS: readonly DocSection[] = [
       },
       {
         "title": "Interface Versions",
-        "summary": "Three numbers decide whether two pieces of Dockplane can work together. They are frozen for the 0.1 series: a change to any of them is a deliberate act with a migration story, not something that happens because a struct was edited.",
+        "summary": "Four numbers decide whether two pieces of Dockplane can work together. A change to any of them is a deliberate act with a migration story, not something that happens because a struct was edited.",
         "url": "https://github.com/Dockplanee/dockplane/blob/main/docs/reference/interface-versions.md"
       },
       {
