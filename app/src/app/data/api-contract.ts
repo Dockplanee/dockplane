@@ -75,6 +75,14 @@ export interface ContainerResponse {
   } | null;
   readonly observedAt: string | null;
   readonly stale: boolean;
+  /**
+   * Why the host could not be asked about this container, when it could not.
+   *
+   * The resource and the inspect are read separately: a host that is not
+   * answering costs the detail and nothing else, so the container still
+   * arrives and this says what is missing from it.
+   */
+  readonly detailUnavailable?: { readonly code: string; readonly message: string } | null;
 }
 
 /** The sanitised inspect projection. Never carries environment values. */

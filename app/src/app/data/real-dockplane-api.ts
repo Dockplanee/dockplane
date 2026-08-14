@@ -3,6 +3,7 @@ import { Observable, Subscriber, map } from 'rxjs';
 
 import { API_BASE_URL } from '../core/api-config';
 import { ApiClient } from '../core/api-client';
+import { ApiError, ApiErrorCode } from '../core/api-error';
 import {
   ComposeMember,
   ComposeProject,
@@ -121,6 +122,14 @@ export class RealDockplaneApi extends DockplaneApi {
       .pipe(map((response) => toContainer(response.container)));
   }
 
+  /**
+   * The inspected detail, or a failure describing why there is none.
+   *
+   * The server answers for the container whether or not its host does, so an
+   * unreadable detail arrives as a field rather than as a failed request. It is
+   * raised here so that the one caller that wants the detail sees a failure and
+   * the one that wants the container does not.
+   */
   containerDetail(id: string): Observable<ContainerDetail> {
     return this.api
       .get<{
@@ -129,7 +138,17 @@ export class RealDockplaneApi extends DockplaneApi {
           detailObservedAt: string | null;
         };
       }>(`/api/v1/containers/${id}`)
-      .pipe(map((response) => toContainerDetail(response.container)));
+      .pipe(
+        map((response) => {
+          const unavailable = response.container.detailUnavailable;
+
+          if (unavailable) {
+            throw new ApiError(unavailable.code as ApiErrorCode, unavailable.message, 409);
+          }
+
+          return toContainerDetail(response.container);
+        }),
+      );
   }
 
   runContainerOperation(

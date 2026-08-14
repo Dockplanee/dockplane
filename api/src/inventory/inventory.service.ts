@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { SQL, and, count, desc, eq, ilike, inArray, or } from 'drizzle-orm';
+import { SQL, and, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 
 import { AgentConnectionManager } from '../agents/connection-manager.service';
 import { Database } from '../database/database';
@@ -76,26 +76,68 @@ export class InventoryService {
 
   async listHosts(page: Page) {
     const rows = await this.db.client
-      .select({ host: hosts, agent: agents })
+      .select()
       .from(hosts)
-      .leftJoin(agents, eq(agents.hostId, hosts.id))
       .orderBy(hosts.hostname)
       .limit(page.limit)
       .offset(page.offset);
 
     const [{ value: total }] = await this.db.client.select({ value: count() }).from(hosts);
+    const byHost = await this.agentsOf(rows.map((host) => host.id));
 
-    return { hosts: rows.map((row) => this.presentHost(row.host, row.agent)), total };
+    return {
+      hosts: rows.map((host) => this.presentHost(host, byHost.get(host.id) ?? null)),
+      total,
+    };
   }
 
   async findHost(id: string) {
-    const [row] = await this.db.client
-      .select({ host: hosts, agent: agents })
-      .from(hosts)
-      .leftJoin(agents, eq(agents.hostId, hosts.id))
-      .where(eq(hosts.id, id));
+    const [host] = await this.db.client.select().from(hosts).where(eq(hosts.id, id));
 
-    return row ? this.presentHost(row.host, row.agent) : undefined;
+    if (!host) {
+      return undefined;
+    }
+
+    const byHost = await this.agentsOf([host.id]);
+
+    return this.presentHost(host, byHost.get(host.id) ?? null);
+  }
+
+  /**
+   * The agent that speaks for each host, one per host.
+   *
+   * Deliberately not a join. Nothing in the schema stops a host from having
+   * more than one agent row, and a join would then return that host once per
+   * agent — a list that repeats a host, and a total, taken from the hosts
+   * table, that disagrees with the rows beside it. Whether that can happen
+   * today is not the point: a read model should not depend on it.
+   *
+   * Which one speaks, when there is more than one: the agent that has not been
+   * revoked, most recently enrolled. Revocation is what ends an agent's claim
+   * to a host, so a revoked one is only shown when it is all there is.
+   */
+  private async agentsOf(hostIds: readonly string[]) {
+    const byHost = new Map<string, typeof agents.$inferSelect>();
+
+    if (hostIds.length === 0) {
+      return byHost;
+    }
+
+    const rows = await this.db.client
+      .select()
+      .from(agents)
+      .where(inArray(agents.hostId, [...hostIds]))
+      // Postgres sorts nulls last by default, and a null here is the agent that
+      // has not been revoked — the one that should come first.
+      .orderBy(sql`${agents.revokedAt} asc nulls first`, desc(agents.enrolledAt));
+
+    for (const agent of rows) {
+      if (!byHost.has(agent.hostId)) {
+        byHost.set(agent.hostId, agent);
+      }
+    }
+
+    return byHost;
   }
 
   async listContainers(

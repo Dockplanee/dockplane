@@ -427,9 +427,52 @@ describe('inspect detail', () => {
 
       const response = await getContainer(container.id);
 
-      expect(response.status).toBe(409);
-      expect(response.body.code).toBe('CONTAINER_DETAIL_UNAVAILABLE');
-      expect(response.body).not.toHaveProperty('container');
+      /*
+       * The container is still Dockplane's, so it still answers for it. Only
+       * the inspect is missing, and the reason for that is part of the answer
+       * rather than instead of it.
+       */
+      expect(response.status).toBe(200);
+      expect(response.body.container.id).toBe(container.id);
+      expect(response.body.container.detail).toBeNull();
+      expect(response.body.container.stale).toBe(true);
+      expect(response.body.container.detailUnavailable.code).toBe('CONTAINER_DETAIL_UNAVAILABLE');
+    });
+
+    /*
+     * The whole reason the previous test's answer is a 200.
+     *
+     * Inventory is kept when a host stops reporting, deliberately, so that an
+     * operator can still see what was there. A container whose detail cannot be
+     * read is still a container Dockplane holds, and asking for it has to
+     * return it — with everything the last complete observation recorded. It
+     * did not: the read went through the inspect, the inspect refused, and the
+     * interface told the operator the container did not exist.
+     */
+    it('answers for a container of a host that has gone, with what it last saw', async () => {
+      const { connection, container } = await discovered(listReplies());
+
+      connection.close();
+      await connection.waitForClose();
+
+      const response = await getContainer(container.id);
+
+      expect(response.status).toBe(200);
+
+      const body = response.body.container;
+
+      expect(body.name).toBe(container.name);
+      expect(body.image).toBe('nginx:1.27');
+      expect(body.state).toBe('running');
+      expect(body.hostId).toBe(container.hostId);
+      expect(body.hostname).toBeTruthy();
+      expect(body.observedAt).toBeTruthy();
+      expect(body.management.kind).toBeTruthy();
+
+      // And says plainly that the rest is not something it can know now.
+      expect(body.stale).toBe(true);
+      expect(body.detail).toBeNull();
+      expect(body.detailUnavailable.message).toMatch(/host/i);
     });
 
     it('reports the container as gone when the host says it no longer exists', async () => {
@@ -502,8 +545,9 @@ describe('inspect detail', () => {
 
       const response = await getContainer(container.id);
 
-      expect(response.status).toBe(409);
-      expect(response.body.code).toBe('CONTAINER_DETAIL_UNAVAILABLE');
+      expect(response.status).toBe(200);
+      expect(response.body.container.detail).toBeNull();
+      expect(response.body.container.detailUnavailable.code).toBe('CONTAINER_DETAIL_UNAVAILABLE');
 
       connection.close();
     }, 60_000);
@@ -520,10 +564,12 @@ describe('inspect detail', () => {
 
       const response = await getContainer(container.id);
 
-      // The reply is refused, the connection is closed, and the request fails
-      // rather than being satisfied by an answer nobody asked for.
-      expect(response.status).toBe(409);
-      expect(response.body.code).toBe('CONTAINER_DETAIL_UNAVAILABLE');
+      // The reply is refused and the connection closed, so no detail is
+      // produced — rather than the request being satisfied by an answer nobody
+      // asked for.
+      expect(response.status).toBe(200);
+      expect(response.body.container.detail).toBeNull();
+      expect(response.body.container.detailUnavailable.code).toBe('CONTAINER_DETAIL_UNAVAILABLE');
 
       const [stored] = await db.client
         .select()
@@ -543,8 +589,9 @@ describe('inspect detail', () => {
 
       const response = await getContainer(container.id);
 
-      expect(response.status).toBe(409);
-      expect(response.body.code).toBe('CONTAINER_DETAIL_UNAVAILABLE');
+      expect(response.status).toBe(200);
+      expect(response.body.container.detail).toBeNull();
+      expect(response.body.container.detailUnavailable.code).toBe('CONTAINER_DETAIL_UNAVAILABLE');
 
       connection.close();
     });

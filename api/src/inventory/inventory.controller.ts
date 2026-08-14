@@ -94,13 +94,50 @@ export class ContainersController {
       throw AppError.notFound('CONTAINER_NOT_FOUND', 'The container does not exist.');
     }
 
-    const inspected = await this.detail.containerDetail(id);
+    /*
+     * The detail is read from the host; the container is not. A host that
+     * cannot be reached costs the detail and nothing else, so the request
+     * answers with what Dockplane holds and says why the rest is missing.
+     *
+     * It used to throw, and the whole resource went with it: a container kept
+     * on purpose after its host went away could not be opened at all, and the
+     * interface — having asked for the container and been refused — reported it
+     * as no longer existing.
+     */
+    const inspected = await this.detail
+      .containerDetail(id)
+      .then((read) => ({ ...read, unavailable: null }))
+      .catch(async (error: unknown) => {
+        if (!(error instanceof AppError)) {
+          throw error;
+        }
+
+        /*
+         * A host that answers "no such container" is not a host that could not
+         * be asked: the record is finalised while the detail is read, and the
+         * resource really has gone. Anything else — an unreachable host, a
+         * create Docker has not carried out yet — leaves the resource in place,
+         * and then the request is about the resource rather than the inspect.
+         */
+        if (!(await this.inventory.findContainer(id))) {
+          throw error;
+        }
+
+        return {
+          detail: null,
+          observedAt: null,
+          stale: true,
+          unavailable: { code: error.code, message: error.message },
+        };
+      });
 
     return {
       container: {
         ...container,
         detail: inspected.detail,
         detailObservedAt: inspected.observedAt,
+        /** Why the host could not be asked, when it could not. */
+        detailUnavailable: inspected.unavailable,
         // The summary and the detail age separately, so a container listed a
         // moment ago can still carry detail nobody has refreshed.
         stale: container.stale || inspected.stale,

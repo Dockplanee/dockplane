@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 
 import { Database } from '../src/database/database';
-import { composeProjects, containers, hosts } from '../src/database/schema';
+import { agents, composeProjects, containers, hosts } from '../src/database/schema';
 import { DEFAULT_PASSWORD, createTestApp, resetData, resetThrottling, seedUser } from './app';
 
 const ORIGIN = 'http://localhost:4200';
@@ -191,6 +191,66 @@ describe('inventory API', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.code).toBe('VALIDATION_FAILED');
+    });
+  });
+
+  /**
+   * One host, one row, however many agents it has had.
+   *
+   * A host resource is not the machine and not the agent: enrolling the same
+   * machine again produces another host, and nothing in the schema stops a host
+   * from carrying more than one agent row. A list that joined the two would
+   * repeat the host once per agent while the total, counted from the hosts
+   * table, went on saying one — a page that disagrees with itself.
+   */
+  describe('a host with more than one agent row', () => {
+    const enrol = async (hostId: string, fingerprint: string, revokedAt: Date | null) =>
+      db.client
+        .insert(agents)
+        .values({
+          hostId,
+          certificateFingerprint: fingerprint,
+          certificateSerial: fingerprint,
+          certificateNotAfter: new Date(Date.now() + 86_400_000),
+          status: revokedAt ? 'revoked' : 'disconnected',
+          revokedAt,
+        })
+        .returning();
+
+    it('appears once in the list, and the total agrees', async () => {
+      const { host } = await seedInventory();
+
+      await enrol(host.id, 'sha256:first', new Date());
+      await enrol(host.id, 'sha256:second', null);
+
+      const cookie = await signIn('Administrator');
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/hosts')
+        .set('cookie', cookie);
+
+      expect(response.status).toBe(200);
+
+      const mine = response.body.hosts.filter((entry: { id: string }) => entry.id === host.id);
+
+      expect(mine).toHaveLength(1);
+      expect(response.body.hosts).toHaveLength(response.body.page.total);
+    });
+
+    /* Revocation ends an agent's claim, so it is not the one that speaks. */
+    it('is represented by the agent that has not been revoked', async () => {
+      const { host } = await seedInventory();
+
+      await enrol(host.id, 'sha256:revoked', new Date());
+      const [current] = await enrol(host.id, 'sha256:current', null);
+
+      const cookie = await signIn('Administrator');
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/hosts/${host.id}`)
+        .set('cookie', cookie);
+
+      expect(response.status).toBe(200);
+      expect(response.body.host.agent.id).toBe(current.id);
+      expect(response.body.host.agent.status).toBe('disconnected');
     });
   });
 
