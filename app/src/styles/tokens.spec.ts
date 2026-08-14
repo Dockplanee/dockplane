@@ -43,8 +43,20 @@ const TEXT_PAIRS: readonly [foreground: string, background: string][] = [
   ['--dp-accent-fg', '--dp-accent'],
 ];
 
-const NON_TEXT_PAIRS: readonly [foreground: string, background: string][] = SURFACES.map(
-  (background) => ['--dp-focus', background] as [string, string],
+/*
+ * The focus ring, and the resting edge of a control.
+ *
+ * A field whose boundary is too faint to find is one somebody has to click at
+ * to discover, which was the original report against the dark theme. The edge
+ * carries that boundary on its own — the fill sits close to the surface behind
+ * it — so it is held to the non-text threshold against every surface a form can
+ * sit on, in both themes.
+ */
+const NON_TEXT_PAIRS: readonly [foreground: string, background: string][] = [
+  '--dp-focus',
+  '--dp-control-border',
+].flatMap((foreground) =>
+  SURFACES.map((background) => [foreground, background] as [string, string]),
 );
 
 function extractBlock(selector: string): string {

@@ -117,7 +117,7 @@
     width: 100%;
     min-height: 2.125rem;
     padding: 0.25rem 0.625rem;
-    border: 1px solid var(--dp-line-strong);
+    border: 1px solid var(--dp-control-border);
     border-radius: var(--dp-radius-sm);
     background-color: var(--dp-surface-inset);
     color: var(--dp-fg);

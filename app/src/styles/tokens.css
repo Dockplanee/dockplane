@@ -23,6 +23,15 @@
   --dp-line: #dde4e9;
   --dp-line-strong: #bcc8d0;
 
+  /*
+   * The edge of a control somebody types into.
+   *
+   * Separate from the hairlines above, and darker than them: a divider only has
+   * to be found once, while a field has to be recognisable as a field before
+   * anybody looks for it. Held at 3:1 against every surface it can sit on.
+   */
+  --dp-control-border: #7d8a94;
+
   --dp-fg: #10171c;
   --dp-fg-muted: #5f6e78;
 
@@ -73,6 +82,7 @@
 
   --dp-line: #222a33;
   --dp-line-strong: #303945;
+  --dp-control-border: #69737d;
 
   --dp-fg: #f4f7f8;
   --dp-fg-muted: #93a1ab;
@@ -114,6 +124,7 @@
 
     --dp-line: #222a33;
     --dp-line-strong: #303945;
+    --dp-control-border: #69737d;
 
     --dp-fg: #f4f7f8;
     --dp-fg-muted: #93a1ab;

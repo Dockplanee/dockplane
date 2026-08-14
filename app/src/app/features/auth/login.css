@@ -48,7 +48,8 @@
   padding: 0.5rem 0.625rem;
   color: var(--dp-fg);
   background: var(--dp-surface-inset);
-  border: 1px solid var(--dp-line);
+  /* The same edge every other control has: this is the first form anybody meets. */
+  border: 1px solid var(--dp-control-border);
   border-radius: var(--dp-radius-md);
   font: inherit;
 }
