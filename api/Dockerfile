@@ -70,7 +70,8 @@ COPY api/src ./src
 # are of no use to a running server, so the runtime image does not carry them.
 RUN npm run build \
 	&& find dist -name '*.js.map' -delete \
-	&& find dist -name '*.d.ts' -delete
+	&& find dist -name '*.d.ts' -delete \
+	&& install -D -m 0644 package.json /runtime/package.json
 
 # --- Runtime ----------------------------------------------------------------
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
@@ -112,7 +113,14 @@ WORKDIR /app
 
 COPY --from=production-deps /build/node_modules ./node_modules
 COPY --from=build /build/dist ./dist
-COPY api/package.json ./
+
+# Taken from the stage that built it rather than from the build context. A file
+# copied out of the context carries the modification time it has on the machine
+# doing the building, which is when that checkout was made and not a property of
+# the commit — and timestamps are only rewritten downwards, so an older one
+# survives into the layer. Everything a stage produces is written during the
+# build and is stamped with the commit's date.
+COPY --from=build /runtime/package.json ./
 
 # Owned by root and executable by everyone, like the rest of the image: the
 # server runs as `node` and only ever executes it.

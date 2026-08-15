@@ -221,16 +221,33 @@ for name in \
 	fi
 done
 
+# The binary itself, read out of the artefact that ships it: the build removes
+# its staging directories, and a comparison of two files that are both absent
+# passes without comparing anything.
+binary_checksum() {
+	local tarball="$1" unpacked binary
+	unpacked="$(mktemp -d)"
+
+	tar -xzf "$tarball" -C "$unpacked" 2> /dev/null
+	binary="$(find "$unpacked" -type f -name dockplane-agent | head -1)"
+
+	[[ -n "$binary" ]] && sha256sum "$binary" | cut -d' ' -f1
+
+	rm -rf "$unpacked"
+}
+
 for arch in amd64 arm64; do
-	a="$(sha256sum "$WORK/a/agent/build/$arch/dockplane-agent" 2> /dev/null | cut -d' ' -f1)"
-	b="$(sha256sum "$WORK/b/agent/build/$arch/dockplane-agent" 2> /dev/null | cut -d' ' -f1)"
+	tarball="agent/dockplane-agent_${VERSION}_linux_${arch}.tar.gz"
+
+	a="$(binary_checksum "$WORK/a/$tarball")"
+	b="$(binary_checksum "$WORK/b/$tarball")"
 
 	echo "agent binary $arch $a" >> "$REPORT"
 
 	if [[ -n "$a" && "$a" == "$b" ]]; then
 		check ok "agent binary $arch identical"
 	else
-		check fail "agent binary $arch differs"
+		check fail "agent binary $arch differs or was not found"
 	fi
 done
 

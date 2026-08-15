@@ -95,6 +95,15 @@ runtime_commands() {
 	' "$dockerfile"
 }
 
+runtime_copies() {
+	local dockerfile="$1"
+
+	awk '
+		/^FROM/ { runtime = ($0 ~ /AS runtime/) }
+		runtime && /^COPY/ { print }
+	' "$dockerfile"
+}
+
 for dockerfile in api/Dockerfile app/Dockerfile; do
 	commands="$(runtime_commands "$dockerfile")"
 
@@ -109,6 +118,20 @@ for dockerfile in api/Dockerfile app/Dockerfile; do
 
 	check "$([[ $unguarded -eq 0 ]] && echo ok || echo fail)" \
 		"$dockerfile keeps emulator scratch state out of the image"
+
+	# A file copied out of the build context carries the modification time it
+	# has on the machine doing the building — which is when that checkout was
+	# made. Timestamps are only rewritten downwards, so an older one survives.
+	# Anything a stage produces is written during the build and is stamped
+	# with the commit's date instead.
+	from_context=0
+	while read -r copy; do
+		[[ -n "$copy" ]] || continue
+		[[ "$copy" == *"--from="* ]] || from_context=1
+	done <<< "$(runtime_copies "$dockerfile")"
+
+	check "$([[ $from_context -eq 0 ]] && echo ok || echo fail)" \
+		"$dockerfile copies into the image only from a build stage"
 done
 
 # --- package metadata is a property of the package --------------------------
