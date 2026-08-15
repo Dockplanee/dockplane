@@ -23,7 +23,14 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+
+# The assets under public/ are copied into the output untouched, modification
+# time included, and that time is when this checkout was made rather than
+# anything about the commit. Stamping the output with the time the build ran
+# puts them in the same position as everything the compiler wrote: later than
+# the commit, and so rewritten to it when the image is exported.
+RUN npm run build \
+	&& find dist -exec touch {} +
 
 # --- Runtime ----------------------------------------------------------------
 FROM caddy:${CADDY_VERSION}-alpine AS runtime
@@ -47,8 +54,13 @@ FROM caddy:${CADDY_VERSION}-alpine AS runtime
 # a command in this stage runs under emulation whenever the image's
 # architecture is not the machine's own, and an emulator writes its translation
 # cache into the filesystem it is running in.
+#
+# The package manager's log records when it ran, so it is removed in the same
+# command: a later one would only add a whiteout over bytes the image already
+# carries.
 RUN --mount=type=tmpfs,target=/root/.cache \
-	apk upgrade --no-cache
+	apk upgrade --no-cache \
+	&& rm -f /var/log/apk.log
 
 ARG DOCKPLANE_VERSION=0.0.0-dev
 ARG DOCKPLANE_COMMIT=unknown
