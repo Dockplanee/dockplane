@@ -478,6 +478,66 @@ check "the expected list is not written out in the workflow" \
 check "only the release job may write contents" \
 	"$([[ "$(grep -c 'contents: write' "$release")" == "1" ]] && echo ok || echo fail)"
 
+# --- a gate cannot pass on a shell it cannot run on -------------------------
+#
+# Some gates are written against bash 4. Run by the bash 3.2 that macOS ships,
+# the constructs they are built on fail, every check goes missing, and the run
+# ends with nothing reported and a status of zero. That is the same defect as a
+# gate skipping a check because a tool is absent, one level further down.
+echo
+echo "shells a gate refuses to run on"
+
+# The scripts whose checks are built on a bash 4 construct. This file names
+# those constructs and would otherwise find itself.
+needs_bash4() {
+	grep -lE 'declare -A |mapfile |readarray ' deploy/*.sh 2> /dev/null |
+		grep -v "$(basename "${BASH_SOURCE[0]}")"
+}
+
+guarded="$(needs_bash4)"
+
+check "some gate declares a dependency on bash 4" \
+	"$([[ -n "$guarded" ]] && echo ok || echo fail)"
+
+# An interpreter old enough to lack those constructs. macOS keeps one at
+# /bin/bash; a machine that ships only bash 5 has nothing to run this on, and
+# says so rather than counting a check it did not make.
+old_bash=""
+for candidate in /bin/bash /usr/bin/bash; do
+	[[ -x "$candidate" ]] || continue
+	version="$("$candidate" -c 'echo ${BASH_VERSINFO[0]}' 2> /dev/null)"
+	if [[ -n "$version" && "$version" -lt 4 ]]; then
+		old_bash="$candidate"
+		break
+	fi
+done
+
+while read -r script; do
+	[[ -n "$script" ]] || continue
+
+	# The refusal has to come before anything is reported, so grep for it in
+	# the part of the file that precedes the first check.
+	preamble="$(sed -n '1,/^check()/p' "$script")"
+	check "$(basename "$script") refuses an unsupported shell before checking" \
+		"$(grep -q 'needs bash 4 or newer' <<< "$preamble" && echo ok || echo fail)"
+	check "$(basename "$script") leaves with a non-zero status when it refuses" \
+		"$(grep -qE 'exit [1-9]' <<< "$preamble" && echo ok || echo fail)"
+
+	if [[ -n "$old_bash" ]]; then
+		output="$("$old_bash" "$script" 2> /dev/null)"
+		status=$?
+
+		check "$(basename "$script") fails under $("$old_bash" -c 'echo $BASH_VERSION')" \
+			"$([[ "$status" -ne 0 ]] && echo ok || echo fail)"
+		check "$(basename "$script") reports no result it did not produce" \
+			"$(grep -q '✓' <<< "$output" && echo fail || echo ok)"
+	fi
+done <<< "$guarded"
+
+if [[ -z "$old_bash" ]]; then
+	echo "  no bash older than 4 on this machine; the refusal was read, not run"
+fi
+
 echo
 if [[ "$failed" -eq 0 ]]; then
 	printf '%s%d passed, 0 failed%s\n' "$GREEN" "$passed" "$RESET"

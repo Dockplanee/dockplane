@@ -16,6 +16,16 @@
 
 set -uo pipefail
 
+# The rule above applies to this script as much as to what it checks.
+# Associative arrays arrived in bash 4, and on the bash 3.2 that macOS ships
+# the table below is never built: every check went missing and the run reported
+# success, which is the failure this file exists to prevent.
+if [[ "${BASH_VERSINFO[0]:-0}" -lt 4 ]]; then
+	echo "this needs bash 4 or newer; ${BASH_VERSION:-this shell} has no associative arrays" >&2
+	echo "On macOS: brew install bash, then run it with that bash." >&2
+	exit 3
+fi
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT" || exit 1
 
