@@ -3,6 +3,27 @@ import { ChangelogRelease } from './changelog-entries';
 
 export const CHANGELOG: readonly ChangelogRelease[] = [
   {
+    version: '0.2.0-rc.4',
+    date: '2026-08-15',
+    changes: [
+      {
+        type: 'Fixed',
+        items: [
+          'Building a release twice from the same commit produces the same images. Layer timestamps were left at the minute each build ran, and a checkout\'s own file times and permissions reached the image through files the compilers copy rather than generate.',
+          'An image built for an architecture other than the building machine\'s no longer carries the emulator\'s translation cache. An amd64 image built on Apple silicon contained it.',
+          'The agent packages record an installed size derived from what they contain. It was read from the block allocation of whichever filesystem staged the package, so two builds of identical payloads declared different sizes and were different files.',
+          'A release gate written against a newer shell than the one running it now stops instead of reporting success. On the shell macOS ships, the gate that checks whether other gates can be skipped reported nothing and passed.',
+        ],
+      },
+      {
+        type: 'Changed',
+        items: [
+          'The release hardening step compares two builds that cannot share a build cache. The previous comparison used one builder for both, so the second build read the first one\'s layers and agreed with itself.',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.2.0-rc.3',
     date: '2026-08-15',
     changes: [

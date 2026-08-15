@@ -6,6 +6,26 @@ Use release-oriented language.
 
 Do not include internal prompt history, development conversation notes or artificial task numbering.
 
+## 0.2.0-rc.4 — 2026-08-15
+
+A release-correctness candidate. Nothing about managing Docker changed since
+`0.2.0-rc.3`: the control server, the application, the agent and the Compose
+compiler are the same code.
+
+Verifying `0.2.0-rc.3` showed that a release could not be rebuilt from its own
+commit. Two builds of one commit produced different images, so the published
+artefacts could not be checked against a build of the source they claim to come
+from. This candidate makes that possible.
+
+### Fixed
+- Building a release twice from the same commit produces the same images. Layer timestamps were left at the minute each build ran, and a checkout's own file times and permissions reached the image through files the compilers copy rather than generate.
+- An image built for an architecture other than the building machine's no longer carries the emulator's translation cache. An amd64 image built on Apple silicon contained it.
+- The agent packages record an installed size derived from what they contain. It was read from the block allocation of whichever filesystem staged the package, so two builds of identical payloads declared different sizes and were different files.
+- A release gate written against a newer shell than the one running it now stops instead of reporting success. On the shell macOS ships, the gate that checks whether other gates can be skipped reported nothing and passed.
+
+### Changed
+- The release hardening step compares two builds that cannot share a build cache. The previous comparison used one builder for both, so the second build read the first one's layers and agreed with itself.
+
 ## 0.2.0-rc.3 — 2026-08-15
 
 A bugfix candidate. Everything here is about the same thing: saying which host
