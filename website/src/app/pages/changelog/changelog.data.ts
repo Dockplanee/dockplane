@@ -3,6 +3,38 @@ import { ChangelogRelease } from './changelog-entries';
 
 export const CHANGELOG: readonly ChangelogRelease[] = [
   {
+    version: '0.2.0-rc.2',
+    date: '2026-08-15',
+    changes: [
+      {
+        type: 'Fixed',
+        items: [
+          'A host that stops answering marks its readings as the last known ones straight away. Its containers, its Compose projects and the containers listed on a project\'s page do the same, so one page no longer shows workloads as running beside a host that already says it is offline.',
+          'A host\'s CPU, memory and disk readings stay on its page while it is offline, labelled with when they were reported. They were being dropped entirely.',
+          'A container whose host cannot be reached still opens. It was reported as though the container no longer existed, which sent people looking for a workload that had not gone anywhere.',
+          'The state of such a container is shown as the last one seen rather than in the colour of a running workload, and the page says when it was observed.',
+          'Where a host is named, the name it was given comes first and the system hostname follows it. A machine enrolled more than once leaves a host resource behind for every enrolment and they all report the same hostname, so hosts, agents, containers and stacks would all show the same word for different machines. They are now told apart everywhere, including in the deployment dialog and the stack list.',
+          'Opening the logs of a container whose host is offline says that the live stream is unavailable, rather than reporting it as an operation that was not carried out.',
+          'A stack on a host that is offline says what that does and does not prevent: configuration and new revisions can still be saved, and deploying waits for the host to come back. The deployment and lifecycle controls were the only thing mentioning it, each in a tooltip.',
+          'Form fields are easier to make out before they are focused, in both themes. Several of them were drawn without a border at all in the dark theme, and the sign-in fields were drawn as a box around their label rather than around the input.',
+          'The compiled Compose compiler is no longer kept in the repository. Building it locally rewrote a tracked file, which left the working tree modified and stamped release builds as coming from a modified source.',
+        ],
+      },
+      {
+        type: 'Changed',
+        items: [
+          'Creating a container lists every host and says which of them can be chosen. A host whose agent is offline is shown and cannot be selected, with the reason given before the form is filled in rather than after it is submitted.',
+        ],
+      },
+      {
+        type: 'Known limitations',
+        items: [
+          'Unchanged from 0.2.0-rc.1. Read [Known Limitations](docs/reference/known-limitations.md) in full before deploying.',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.2.0-rc.1',
     date: '2026-08-14',
     changes: [
