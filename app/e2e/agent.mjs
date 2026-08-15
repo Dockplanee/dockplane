@@ -63,7 +63,71 @@ export async function ownHost(base, session, agentId, { connected = false } = {}
  * Enrolment and the connection are the real ones, so the host arrives in the
  * interface the same way a real machine's does.
  */
-export async function startAgent(stack, { hostname = 'e2e-docker-01', session } = {}) {
+/**
+ * Names a host the way an operator does, and returns the token that carries it.
+ *
+ * The display name belongs to the setup, not to the enrolment: the control
+ * server applies it to the host once the enrolment that setup produced has
+ * completed. So the suite walks the same three steps the wizard walks — create
+ * the setup, spend its ticket for an installation command, and read the setup
+ * back afterwards, which is where the server settles it onto the host.
+ */
+export async function nameHost(stack, session, displayName) {
+  const created = await fetch(`${stack.url}/api/v1/host-setups`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      origin: stack.url,
+      cookie: session.cookie,
+      'x-csrf-token': session.csrfToken,
+    },
+    body: JSON.stringify({ displayName }),
+  });
+
+  if (!created.ok) {
+    throw new Error(`could not create a host setup: ${created.status} ${await created.text()}`);
+  }
+
+  const setup = await created.json();
+
+  const script = await fetch(`${stack.url}/api/v1/host-setups/bootstrap`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: stack.url },
+    body: JSON.stringify({ ticket: setup.ticket }),
+  });
+
+  if (!script.ok) {
+    throw new Error(`could not spend the setup ticket: ${script.status} ${await script.text()}`);
+  }
+
+  // The command the operator would paste. The token is the one thing in it this
+  // needs, and it is quoted, so the quotes are what delimit it.
+  const token = /printf '%s' '([^']+)'/.exec(await script.text())?.[1];
+
+  if (!token) {
+    throw new Error('the installation command carried no enrollment token');
+  }
+
+  return { setupId: setup.id, token };
+}
+
+/** Settles a setup onto its host, which is what applies the chosen name. */
+export async function settleHost(stack, session, setupId) {
+  const answer = await fetch(`${stack.url}/api/v1/host-setups/${setupId}`, {
+    headers: { cookie: session.cookie },
+  });
+
+  if (!answer.ok) {
+    throw new Error(`could not read the host setup: ${answer.status}`);
+  }
+
+  return answer.json();
+}
+
+export async function startAgent(
+  stack,
+  { hostname = 'e2e-docker-01', session, enrollmentToken } = {},
+) {
   const child = spawn('node', ['--import', 'tsx', join(api, 'test', 'browser-agent.ts')], {
     cwd: api,
     env: {
@@ -74,6 +138,7 @@ export async function startAgent(stack, { hostname = 'e2e-docker-01', session } 
       DOCKPLANE_GATEWAY_PORT: String(stack.gatewayPort),
       DOCKPLANE_AGENT_CA_PEM: await readFile(stack.caCertPath, 'utf8'),
       DOCKPLANE_AGENT_HOSTNAME: hostname,
+      ...(enrollmentToken ? { DOCKPLANE_AGENT_ENROLLMENT_TOKEN: enrollmentToken } : {}),
       // Handed the caller's session where there is one, so enrolling does not
       // spend another attempt against the sign-in rate limit.
       ...(session
@@ -88,6 +153,7 @@ export async function startAgent(stack, { hostname = 'e2e-docker-01', session } 
 
   const pending = new Map();
   const events = [];
+  let stopped = false;
   let ready;
   const readied = new Promise((resolve) => (ready = resolve));
   let next = 0;
@@ -150,6 +216,18 @@ export async function startAgent(stack, { hostname = 'e2e-docker-01', session } 
     /** A container that was already on the host, with the labels it carries. */
     seed: (name, labels) => send('seed', { name, labels }),
 
+    /** A Compose project the host already runs, which discovery will find. */
+    seedProject: (name, services) => send('seedProject', { name, services }),
+
+    /**
+     * Takes a container off the host, as though somebody removed it there.
+     *
+     * By Docker id rather than name: a suite can have the same name on several
+     * hosts, and the point of the scenarios that use this is telling those
+     * hosts apart. The next complete inventory is what carries the news.
+     */
+    removeContainer: (dockerId) => send('removeContainer', { dockerId }),
+
     /**
      * Arranges one lost answer.
      *
@@ -179,8 +257,25 @@ export async function startAgent(stack, { hostname = 'e2e-docker-01', session } 
 
     events,
 
+    /**
+     * Closes the connection and ends the process.
+     *
+     * Idempotent, because a suite that took a host away as part of a scenario
+     * still stops every agent it started when it finishes. Asking a process
+     * that has already gone would wait for an answer that cannot come.
+     */
     async stop() {
-      await send('stop').catch(() => undefined);
+      if (stopped) {
+        return;
+      }
+
+      stopped = true;
+
+      await Promise.race([
+        send('stop').catch(() => undefined),
+        new Promise((resolve) => setTimeout(resolve, 5_000)),
+      ]);
+
       child.kill('SIGTERM');
     },
   };

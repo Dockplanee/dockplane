@@ -28,8 +28,36 @@ export interface FakeContainer {
   startedAt?: string;
 }
 
+/** A Compose project as `compose.list` describes one. */
+export interface ComposeProjectReport {
+  projectName: string;
+  status: string;
+  serviceCount: number;
+  runningCount: number;
+  services: {
+    name: string;
+    containerIds: string[];
+    running: number;
+    total: number;
+    state: string;
+  }[];
+}
+
 export class FakeDockerHost {
+  /**
+   * What this host calls itself.
+   *
+   * Configurable because several hosts in one run have to be able to report the
+   * same name — a machine enrolled more than once does exactly that — and a
+   * suite that wants them distinct from every other suite's host needs to
+   * choose the name rather than share one constant with all of them.
+   */
+  constructor(private readonly hostname = 'docker-01') {}
+
   readonly containers = new Map<string, FakeContainer>();
+
+  /** Compose projects this host reports, keyed by project name. */
+  readonly projects = new Map<string, ComposeProjectReport>();
 
   /** Capabilities the host was asked for, in order. */
   readonly received: string[] = [];
@@ -102,6 +130,41 @@ export class FakeDockerHost {
     return container;
   }
 
+  /**
+   * A Compose project already on the host, as `compose.list` reports one.
+   *
+   * Kept separate from the containers above: discovery reads the two with
+   * different capabilities, and a test about a project's freshness needs the
+   * project to exist without inventing containers to imply it.
+   */
+  seedProject(projectName: string, services: string[] = ['web']): void {
+    this.projects.set(projectName, {
+      projectName,
+      status: 'running',
+      serviceCount: services.length,
+      runningCount: services.length,
+      services: services.map((name) => ({
+        name,
+        containerIds: [],
+        running: 1,
+        total: 1,
+        state: 'running',
+      })),
+    });
+  }
+
+  /**
+   * Takes a container off the host without Dockplane having asked.
+   *
+   * The counterpart to `seed`: somebody removed it at the machine. No request
+   * is involved, so nothing is recorded and no capability runs — the only trace
+   * is that the next inventory does not mention it, which is exactly how the
+   * server learns that a container it knows about is gone rather than quiet.
+   */
+  forget(dockerId: string): boolean {
+    return this.containers.delete(dockerId);
+  }
+
   list() {
     return [...this.containers.values()].map((container) => ({
       dockerId: container.dockerId,
@@ -135,11 +198,23 @@ export class FakeDockerHost {
 
     switch (capability) {
       case 'host.inventory':
-        return { hostname: 'docker-01', dockerVersion: '29.0.0', observedAt: iso() };
+        /*
+         * What a real agent reports. The operating system is not decoration:
+         * the control server treats it as the sign that a host has described
+         * itself at least once, which is what completes an installation.
+         */
+        return {
+          hostname: this.hostname,
+          os: 'Debian GNU/Linux 13',
+          kernel: '6.12.0-test',
+          architecture: 'x86_64',
+          dockerVersion: '29.0.0',
+          observedAt: iso(),
+        };
       case 'host.metrics':
         return { cpuPercent: 3 };
       case 'compose.list':
-        return { projects: [] };
+        return { projects: [...this.projects.values()] };
       case 'container.list':
         return { containers: this.list() };
       case 'container.inspect':

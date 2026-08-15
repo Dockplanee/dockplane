@@ -45,7 +45,10 @@ const gatewayPort = Number(required('DOCKPLANE_GATEWAY_PORT'));
 const caPem = required('DOCKPLANE_AGENT_CA_PEM');
 const hostname = process.env.DOCKPLANE_AGENT_HOSTNAME ?? 'e2e-docker-01';
 
-const host = new FakeDockerHost();
+/** An enrollment token the caller already obtained, for a host it has named. */
+const suppliedToken = process.env.DOCKPLANE_AGENT_ENROLLMENT_TOKEN || undefined;
+
+const host = new FakeDockerHost(hostname);
 
 /** Capabilities to answer by losing the connection instead of replying. */
 const dropOn = new Map<string, { apply: boolean }>();
@@ -107,6 +110,21 @@ async function session(): Promise<{ cookie: string; csrf: string }> {
   return { cookie: issued, csrf: ((await answer.json()) as { csrfToken: string }).csrfToken };
 }
 
+/** A one-time enrollment token, for a host the caller has not named. */
+async function mintToken(cookie: string, csrf: string): Promise<string> {
+  const token = await fetch(`${origin}/api/v1/agents/enrollment-tokens`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin, cookie, 'x-csrf-token': csrf },
+    body: JSON.stringify({ intendedHostname: hostname }),
+  });
+
+  if (!token.ok) {
+    throw new Error(`could not create an enrollment token: ${token.status}`);
+  }
+
+  return ((await token.json()) as { token: string }).token;
+}
+
 /**
  * Enrols through the real endpoints.
  *
@@ -118,15 +136,14 @@ async function session(): Promise<{ cookie: string; csrf: string }> {
 async function enrol(): Promise<void> {
   const { cookie, csrf } = await session();
 
-  const token = await fetch(`${origin}/api/v1/agents/enrollment-tokens`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin, cookie, 'x-csrf-token': csrf },
-    body: JSON.stringify({ intendedHostname: hostname }),
-  });
-
-  if (!token.ok) {
-    throw new Error(`could not create an enrollment token: ${token.status}`);
-  }
+  /*
+   * A caller that wants the host to carry a name uses the path an operator
+   * uses: the name belongs to the setup, and the control server applies it to
+   * the host once the enrolment it produced has completed. Minting a plain
+   * enrollment token here would produce a host with no name at all, which is a
+   * different fixture from the one those scenarios need.
+   */
+  const enrollmentToken = suppliedToken ?? (await mintToken(cookie, csrf));
 
   const { csrPem, privateKeyPem } = await createAgentCsr();
 
@@ -134,7 +151,7 @@ async function enrol(): Promise<void> {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin },
     body: JSON.stringify({
-      token: ((await token.json()) as { token: string }).token,
+      token: enrollmentToken,
       csr: csrPem,
       protocolVersion: PROTOCOL_VERSION,
       hostname,
@@ -341,6 +358,36 @@ const commands: Record<string, (command: Command) => Promise<unknown> | unknown>
     );
 
     return { dockerId: container.dockerId };
+  },
+
+  /** A Compose project already on the host, as discovery finds one. */
+  seedProject(command: Command) {
+    host.seedProject(String(command.name), (command.services as string[]) ?? ['web']);
+
+    return { projectName: String(command.name) };
+  },
+
+  /**
+   * Removes a container from the host, as though somebody did it at the machine.
+   *
+   * Addressed by Docker id, because a name is not an identity: the same name
+   * exists on every host a suite brings, and two of them can report the same
+   * system hostname. Nothing is dispatched and nothing is recorded — the next
+   * complete inventory simply no longer lists it, which is the only way to tell
+   * a container that is gone from one whose host has merely stopped answering.
+   */
+  removeContainer(command: Command) {
+    const dockerId = String(command.dockerId ?? '');
+
+    if (!dockerId) {
+      throw new Error('removeContainer needs the dockerId of the container to remove');
+    }
+
+    if (!host.forget(dockerId)) {
+      throw new Error(`the host has no container ${dockerId}`);
+    }
+
+    return { removed: dockerId };
   },
 
   /** The next request for this capability loses its answer. */

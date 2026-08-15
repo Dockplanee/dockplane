@@ -252,6 +252,47 @@ try {
     dispatches.length === 2,
     `${dispatches.length}`,
   );
+
+  /*
+   * Taking a container off the host without asking Dockplane.
+   *
+   * The scenarios that tell a gone container from a stale one need a host that
+   * simply stops mentioning one, so the operation is proven here: it removes
+   * the container it names and nothing else, and it leaves the inventory whole
+   * so the next snapshot still counts as a complete observation.
+   */
+  const keep = await agent.seed(`harness-keep-${Date.now().toString(36)}`, {});
+  const drop = await agent.seed(`harness-drop-${Date.now().toString(36)}`, {});
+
+  const before = (await agent.state()).containers.map((entry) => entry.dockerId);
+
+  check(
+    'both seeded containers are on the host',
+    before.includes(keep.dockerId) && before.includes(drop.dockerId),
+  );
+
+  await agent.removeContainer(drop.dockerId);
+
+  const after = (await agent.state()).containers.map((entry) => entry.dockerId);
+
+  check('the named container is gone from the host', !after.includes(drop.dockerId));
+  check('and the other one is untouched', after.includes(keep.dockerId));
+
+  let refused;
+  try {
+    await agent.removeContainer(drop.dockerId);
+  } catch (error) {
+    refused = error;
+  }
+
+  check('removing it twice is refused rather than silently accepted', Boolean(refused));
+
+  const listed = await agent.state();
+
+  check(
+    'the host still answers a full inventory',
+    Array.isArray(listed.containers) && listed.containers.length === after.length,
+  );
 } finally {
   await agent.stop();
 }

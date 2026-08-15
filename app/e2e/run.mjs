@@ -51,6 +51,7 @@ const SUITES = [
   ['add host wizard', 'add-host-wizard.e2e.mjs'],
   ['container management', 'container-management.e2e.mjs'],
   ['stack management', 'stack-management.e2e.mjs'],
+  ['host inventory', 'host-inventory.e2e.mjs'],
 ];
 
 function runSuite(file, environment) {
