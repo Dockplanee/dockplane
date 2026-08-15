@@ -3,6 +3,43 @@ import { ChangelogRelease } from './changelog-entries';
 
 export const CHANGELOG: readonly ChangelogRelease[] = [
   {
+    version: '0.2.0',
+    date: '2026-08-16',
+    changes: [
+      {
+        type: 'Added',
+        items: [
+          'Stacks: a Compose file written and saved in Dockplane, then deployed to one of your hosts. Every save is an immutable revision, and what is saved and what is running are kept as two separate facts.',
+          'Any revision can be applied, forwards or back. Applying an earlier one is named as a rollback, and Dockplane converges the host on the revision you chose.',
+          'Stack environments can hold secrets. They are encrypted at rest under the deployment\'s own key, travel to the host inside the deployment plan, and appear in no log, audit entry or API response.',
+          'Deployed stacks can be started, stopped and restarted in dependency order without being redeployed, with the result read back off the host.',
+          'A stack can be deleted: its service containers are removed and its configuration and revision history are deleted. Named volumes are kept and no data in them is deleted.',
+          'Single containers can be created, reconfigured and removed. Reconfiguring recreates the container on Docker\'s side while it stays the same container in Dockplane, with the same identity, history and audit trail.',
+          'Compose files are compiled and checked before they can be saved. Anything Dockplane will not deploy is refused with the path in the file and a reason.',
+        ],
+      },
+      {
+        type: 'Changed',
+        items: [
+          'Where a host is named, the name it was given comes first and the system hostname follows. A machine enrolled more than once leaves a host resource behind for every enrolment and they all report the same hostname; they are now told apart everywhere, and nothing is merged or deduplicated.',
+          'A host that stops answering marks its readings as the last known ones straight away, and its containers and Compose projects do the same. Its CPU, memory and disk readings stay on its page, labelled with when they were reported.',
+          'A container whose host cannot be reached still opens, shows the last state seen rather than the colour of a running workload, and says when it was observed. Its logs say that the live stream is unavailable rather than reporting an operation that was not carried out.',
+          'A stack on an offline host says what that does and does not prevent: configuration and new revisions can be saved, and deploying waits for the host to come back.',
+          'Creating a container lists every host and says which of them can be chosen, with the reason given before the form is filled in rather than after it is submitted.',
+          'Form fields are easier to make out before they are focused, in both themes.',
+          'Three permissions that guarded nothing — `roles.manage`, `stacks.adopt` and `stacks.secrets.reveal` — were removed from the catalog.',
+        ],
+      },
+      {
+        type: 'Fixed',
+        items: [
+          'Building a release twice from the same commit produces the same images and the same agent packages, on a different machine and at a different time. Layer timestamps, a checkout\'s own file times and permissions, an emulator\'s translation cache and a package\'s declared installed size all reached the artifacts and made two builds of one commit differ.',
+          'A release gate written against a newer shell than the one running it, or measuring a fixture its container runtime never received, now stops instead of reporting success.',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.2.0-rc.4',
     date: '2026-08-15',
     changes: [
