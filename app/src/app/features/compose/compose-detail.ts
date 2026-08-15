@@ -2,9 +2,10 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@a
 import { RouterOutlet } from '@angular/router';
 
 import { PageContext } from '../../core/page-context';
-import { composeState } from '../../domain/status';
+import { ComposeState, composeStateBadge } from '../../domain/status';
 import { EmptyState } from '../../ui/empty-state/empty-state';
 import { Panel } from '../../ui/panel/panel';
+import { StaleNotice } from '../../ui/stale-notice/stale-notice';
 import { StatusBadge } from '../../ui/status-badge/status-badge';
 import { TabBar } from '../../ui/tabs/tab-bar';
 import { ComposeStore } from './compose-store';
@@ -16,15 +17,15 @@ const TABS = [
 
 @Component({
   selector: 'dp-compose-detail',
-  imports: [RouterOutlet, EmptyState, Panel, StatusBadge, TabBar],
+  imports: [RouterOutlet, EmptyState, Panel, StaleNotice, StatusBadge, TabBar],
   template: `
     @if (store.project(); as project) {
       <header class="head">
         <div class="identity">
           <h2>{{ project.name }}</h2>
           <dp-status-badge
-            [tone]="state(project.state).tone"
-            [label]="state(project.state).label"
+            [tone]="stateBadge(project).tone"
+            [label]="stateBadge(project).label"
             plated
           />
         </div>
@@ -35,6 +36,14 @@ const TABS = [
           }
         </p>
       </header>
+
+      @if (project.stale) {
+        <dp-stale-notice
+          class="stale"
+          [lastSeen]="project.observedAt ?? ''"
+          reason="Nothing is refreshing this project, so what is shown is the last observation."
+        />
+      }
 
       <dp-tab-bar class="tabs" [tabs]="tabs" label="Compose project sections" />
 
@@ -93,7 +102,10 @@ export class ComposeDetail {
   protected readonly store = inject(ComposeStore);
 
   protected readonly tabs = TABS;
-  protected readonly state = composeState;
+  /** The state badge, told apart from a live one when the record is stale. */
+  protected stateBadge(project: { state: ComposeState; stale: boolean }) {
+    return composeStateBadge(project.state, project.stale);
+  }
 
   /** Header facts. Compose file paths are deliberately not among them. */
   protected readonly meta = computed<readonly string[]>(() => {

@@ -3,7 +3,7 @@ import { RouterLink } from '@angular/router';
 
 import { relativeTime } from '../../core/format';
 import { ComposeProject } from '../../domain/inventory';
-import { composeState } from '../../domain/status';
+import { composeStateBadge } from '../../domain/status';
 import { EmptyState } from '../../ui/empty-state/empty-state';
 import { StatusBadge } from '../../ui/status-badge/status-badge';
 import { TableShell } from '../../ui/table/table-shell';
@@ -50,8 +50,8 @@ import { TableShell } from '../../ui/table/table-shell';
                 }
                 <td>
                   <dp-status-badge
-                    [tone]="state(project.state).tone"
-                    [label]="state(project.state).label"
+                    [tone]="stateBadge(project).tone"
+                    [label]="stateBadge(project).label"
                   />
                 </td>
                 <td class="dp-mono">{{ project.servicesRunning }} / {{ project.servicesTotal }}</td>
@@ -80,6 +80,9 @@ export class ComposeTable {
     'Compose projects appear here once an agent discovers them on a connected host.',
   );
 
-  protected readonly state = composeState;
+  /** The state badge, told apart from a live one when the record is stale. */
+  protected stateBadge(project: ComposeProject) {
+    return composeStateBadge(project.state, project.stale);
+  }
   protected readonly age = relativeTime;
 }

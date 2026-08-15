@@ -108,6 +108,23 @@ export function containerStateBadge(
 }
 
 /**
+ * The same rule for a Compose project.
+ *
+ * A project is an observation of a host like any other, and it goes out of date
+ * for the same reason: once the host stops answering, nothing will refresh it.
+ * Shown with a live tone beside a host that says offline, it invites somebody to
+ * act on services that may have stopped minutes ago.
+ */
+export function composeStateBadge(
+  value: ComposeState,
+  stale: boolean,
+): { tone: StatusTone; label: string } {
+  const current = COMPOSE_STATE[value];
+
+  return stale ? { tone: 'neutral', label: `Last known: ${current.label}` } : current;
+}
+
+/**
  * How a host is named where a reader has to tell it from another.
  *
  * A machine enrolled more than once leaves a host resource behind for every
