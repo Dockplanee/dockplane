@@ -6,11 +6,14 @@ Use release-oriented language.
 
 Do not include internal prompt history, development conversation notes or artificial task numbering.
 
-## 0.2.0-rc.2 — 2026-08-15
+## 0.2.0-rc.3 — 2026-08-15
 
 A bugfix candidate. Everything here is about the same thing: saying which host
 you are looking at, and whether what is on the screen is happening now or is the
 last thing anybody saw.
+
+`0.2.0-rc.2` was not published as a release: publication stopped before any
+artifact was built. This candidate carries the same fixes.
 
 ### Fixed
 - A host that stops answering marks its readings as the last known ones straight away. Its containers, its Compose projects and the containers listed on a project's page do the same, so one page no longer shows workloads as running beside a host that already says it is offline.
