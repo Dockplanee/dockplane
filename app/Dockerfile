@@ -41,7 +41,14 @@ FROM caddy:${CADDY_VERSION}-alpine AS runtime
 # different bytes once Alpine publishes an update. That is what applying
 # security updates means; the release manifest records the digest that was
 # actually published.
-RUN apk upgrade --no-cache
+#
+# The cache directory is a scratch mount for the length of the command and is
+# not part of the layer, for the same reason as in the control server's image:
+# a command in this stage runs under emulation whenever the image's
+# architecture is not the machine's own, and an emulator writes its translation
+# cache into the filesystem it is running in.
+RUN --mount=type=tmpfs,target=/root/.cache \
+	apk upgrade --no-cache
 
 ARG DOCKPLANE_VERSION=0.0.0-dev
 ARG DOCKPLANE_COMMIT=unknown

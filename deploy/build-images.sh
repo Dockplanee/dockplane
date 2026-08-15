@@ -111,10 +111,12 @@ fi
 # This refuses rather than falling back to the clock, because an archive that is
 # quietly not reproducible is worse than one that was never built.
 #
-# Exported, because buildkit reads it from the environment and rewrites every
-# layer's timestamps to it. Set and not exported, the bundle was reproducible
-# and the images were not: a `WORKDIR` layer holding one empty directory carried
-# the minute the build ran, and that was enough to change the image digest.
+# Exported, because buildkit reads it from the environment. On its own that
+# only stamps the image configuration: every exporter below must additionally
+# be told to rewrite the timestamps inside the layers, and 0.2.0-rc.3 shipped
+# without that. Its layers carried the minute each build ran, so the same
+# commit built on two machines produced different layer digests while holding
+# identical files.
 SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git log -1 --pretty=%ct 2> /dev/null || true)}"
 export SOURCE_DATE_EPOCH
 
@@ -152,13 +154,17 @@ if [[ "${SBOM:-$PUSH}" == "1" ]]; then
 	build_args+=(--sbom=true --provenance=mode=max)
 fi
 
+# Every exporter rewrites layer timestamps to SOURCE_DATE_EPOCH. Each one has
+# to be asked separately, and an exporter that is not asked produces layers
+# stamped with the clock — which is a different digest for every build.
 if [[ "$PUSH" == "1" ]]; then
 	# Written out rather than as --push, so it composes with the archive output
 	# below: a release both pushes to a registry and ships an offline bundle.
-	build_args+=(--output "type=image,push=true")
+	build_args+=(--output "type=image,push=true,rewrite-timestamp=true")
 elif [[ "$PLATFORMS" != *,* ]]; then
 	# A single platform can be loaded into the local daemon; several cannot.
-	build_args+=(--load)
+	# Written out rather than as --load, which takes no options.
+	build_args+=(--output "type=docker,rewrite-timestamp=true")
 fi
 
 # A multi-platform image has nowhere to live in the local daemon, so it is
@@ -179,7 +185,7 @@ oci_export() {
 
 	[[ "$OCI_ARCHIVES" == "1" ]] || return 0
 
-	echo "--output" "type=oci,dest=$OUT/$name-$VERSION.oci.tar"
+	echo "--output" "type=oci,dest=$OUT/$name-$VERSION.oci.tar,rewrite-timestamp=true"
 }
 
 # buildx records what it produced here, which is where the digest comes from.

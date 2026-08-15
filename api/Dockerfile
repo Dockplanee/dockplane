@@ -97,7 +97,16 @@ ENV NODE_ENV=production \
 # The runtime runs `node`, and nothing else. npm ships its own vendored
 # dependency tree inside the base image, which is a supply of vulnerabilities
 # for code this image never executes.
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+#
+# The cache directory is a scratch mount for the length of the command and is
+# not part of the layer. A command in this stage runs on the architecture being
+# built, under emulation whenever that is not the machine's own, and an emulator
+# writes its translation cache into the filesystem it is running in: an amd64
+# image built on Apple silicon carried /root/.cache/rosetta in this layer. A
+# later stage deleting it would not help, because the bytes are already in this
+# one.
+RUN --mount=type=tmpfs,target=/root/.cache \
+	rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 WORKDIR /app
 
