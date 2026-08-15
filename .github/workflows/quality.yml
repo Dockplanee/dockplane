@@ -219,6 +219,12 @@ jobs:
       - name: Release scripts
         run: deploy/test-release.sh
 
+      - name: Reproducibility conditions
+        # The double build itself is a release gate, not a per-commit one. These
+        # are the conditions it depends on, and each was a real defect in
+        # 0.2.0-rc.3.
+        run: deploy/test-reproducibility.sh
+
       - name: Documentation
         run: deploy/check-docs.sh
 
