@@ -25,11 +25,15 @@ RUN npm ci
 COPY . .
 
 # The assets under public/ are copied into the output untouched, modification
-# time included, and that time is when this checkout was made rather than
-# anything about the commit. Stamping the output with the time the build ran
-# puts them in the same position as everything the compiler wrote: later than
-# the commit, and so rewritten to it when the image is exported.
+# time and permissions included, and both are properties of the checkout rather
+# than of the commit: git records only whether a file is executable, and the
+# time is when that checkout was made. Stamping the output with the time the
+# build ran puts those files in the same position as everything the compiler
+# wrote — later than the commit, and so rewritten to it when the image is
+# exported — and fixed permissions leave nothing of the umask behind.
 RUN npm run build \
+	&& find dist -type d -exec chmod 0755 {} + \
+	&& find dist -type f -exec chmod 0644 {} + \
 	&& find dist -exec touch {} +
 
 # --- Runtime ----------------------------------------------------------------

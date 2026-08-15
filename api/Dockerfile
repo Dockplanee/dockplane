@@ -68,9 +68,18 @@ COPY api/src ./src
 
 # Source maps and declaration files describe the layout of the source tree and
 # are of no use to a running server, so the runtime image does not carry them.
+
+# The output is given fixed permissions as well as fixed content. Files the
+# compiler only copies — the migrations are read at runtime, not compiled —
+# keep the permissions they had in the build context, and those depend on the
+# umask of whoever made that checkout: a clone and an export of one commit
+# differ, because git records only whether a file is executable and leaves the
+# rest to the extracting machine.
 RUN npm run build \
 	&& find dist -name '*.js.map' -delete \
 	&& find dist -name '*.d.ts' -delete \
+	&& find dist -type d -exec chmod 0755 {} + \
+	&& find dist -type f -exec chmod 0644 {} + \
 	&& install -D -m 0644 package.json /runtime/package.json
 
 # --- Runtime ----------------------------------------------------------------
