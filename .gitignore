@@ -40,3 +40,7 @@ dist/release/
 
 # Agent build output
 agent/dockplane-agent
+
+# Compose compiler build output. The control server image builds it from
+# source in its own stage; a binary here is a local convenience, not an input.
+compose-compiler/compose-compiler
