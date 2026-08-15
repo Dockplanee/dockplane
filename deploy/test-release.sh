@@ -538,6 +538,53 @@ if [[ -z "$old_bash" ]]; then
 	echo "  no bash older than 4 on this machine; the refusal was read, not run"
 fi
 
+# --- a gate cannot measure a fixture the daemon never received --------------
+#
+# The same defect one layer along. A bind mount names a path and the daemon
+# resolves it in its own filesystem, so a suite running inside a container that
+# uses the host's socket has its fixture replaced by an empty directory the
+# daemon creates. The measurement then succeeds on nothing: the reproducibility
+# gate reported a payload of 1 kilobyte and three failures of a rule that was
+# never exercised.
+echo
+echo "fixtures a gate refuses to measure"
+
+visible=deploy/fixture-visible.sh
+
+check "the fixture precondition exists and is executable" \
+	"$([[ -x "$visible" ]] && echo ok || echo fail)"
+
+check "the reproducibility gate asks it before measuring" \
+	"$(grep -q 'fixture-visible.sh' deploy/test-reproducibility.sh && echo ok || echo fail)"
+
+if ! command -v docker > /dev/null; then
+	check fail "docker is available to prove what the daemon sees"
+else
+	prepared="$work/fixture"
+	mkdir -p "$prepared/usr/bin"
+	head -c 16 /dev/zero > "$prepared/usr/bin/payload"
+
+	"$visible" "$prepared" > /dev/null 2>&1
+	check "a fixture the daemon can read is accepted" \
+		"$([[ $? -eq 0 ]] && echo ok || echo fail)"
+
+	"$visible" "$work/never-created" > /dev/null 2>&1
+	check "a fixture that does not exist is refused" \
+		"$([[ $? -ne 0 ]] && echo ok || echo fail)"
+
+	# What the daemon leaves behind when it cannot find the path: an empty
+	# directory, which measures as a valid number and means nothing.
+	mkdir -p "$work/substituted"
+	"$visible" "$work/substituted" > /dev/null 2>&1
+	check "an empty stand-in for a fixture is refused" \
+		"$([[ $? -ne 0 ]] && echo ok || echo fail)"
+
+	# And it has to look at the contents rather than at the path, or the
+	# substitution it exists to catch would pass.
+	check "it compares what is there, not where it is" \
+		"$(grep -qE "find \.|find /tree" "$visible" && echo ok || echo fail)"
+fi
+
 echo
 if [[ "$failed" -eq 0 ]]; then
 	printf '%s%d passed, 0 failed%s\n' "$GREEN" "$passed" "$RESET"

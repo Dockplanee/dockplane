@@ -153,35 +153,57 @@ else
 	head -c 1024 /dev/zero > "$dense/etc/exactly-one-kilobyte"
 	head -c 1025 /dev/zero > "$dense/etc/just-over"
 
-	# Four directories at a kilobyte each — the tree, usr, usr/bin, etc — and
-	# 1 + 1 + 2 for the files, the last of which is a byte into its second
-	# kilobyte.
-	expected=8
+	# Everything below is measured through a bind mount, so the daemon has to
+	# be shown to see what was just written before any of it means anything.
+	# It resolves a path in its own filesystem: run from inside a container
+	# using the host's socket, it finds nothing there, creates an empty
+	# directory, and hands that over. Measuring that answered 1 kilobyte and
+	# read as three failures of the size rule rather than as a harness that
+	# cannot run here.
+	if ! deploy/fixture-visible.sh "$dense" 2> "$work/visibility"; then
+		check fail "the docker daemon sees the fixture it is asked to measure"
+		sed 's/^/      /' "$work/visibility"
+	else
+		check ok "the docker daemon sees the fixture it is asked to measure"
 
-	measured="$(deploy/installed-size.sh "$dense")"
-	check "$([[ "$measured" == "$expected" ]] && echo ok || echo fail)" \
-		"a known payload measures $expected kilobytes (got ${measured:-nothing})"
+		# Four directories at a kilobyte each — the tree, usr, usr/bin, etc —
+		# and 1 + 1 + 2 for the files, the last of which is a byte into its
+		# second kilobyte.
+		expected=8
 
-	# The same logical content, stored so that the filesystem allocates a
-	# different number of blocks for it. This is the difference `du` reports
-	# and the package must not.
-	sparse="$work/sparse"
-	mkdir -p "$sparse/usr/bin" "$sparse/etc"
-	head -c 1 /dev/zero > "$sparse/usr/bin/one-byte"
-	head -c 1024 /dev/zero > "$sparse/etc/exactly-one-kilobyte"
-	docker run --rm -v "$sparse/etc:/etc/target" debian:12-slim \
-		truncate -s 1025 /etc/target/just-over
+		measured="$(deploy/installed-size.sh "$dense")"
+		check "$([[ "$measured" == "$expected" ]] && echo ok || echo fail)" \
+			"a known payload measures $expected kilobytes (got ${measured:-nothing})"
 
-	sparse_measured="$(deploy/installed-size.sh "$sparse")"
-	check "$([[ "$sparse_measured" == "$measured" ]] && echo ok || echo fail)" \
-		"the same payload measures the same on a different allocation"
+		# The same logical content, stored so that the filesystem allocates a
+		# different number of blocks for it. This is the difference `du`
+		# reports and the package must not. The hole is punched through the
+		# same kind of mount, so this fixture is confirmed as well.
+		sparse="$work/sparse"
+		mkdir -p "$sparse/usr/bin" "$sparse/etc"
+		head -c 1 /dev/zero > "$sparse/usr/bin/one-byte"
+		head -c 1024 /dev/zero > "$sparse/etc/exactly-one-kilobyte"
+		docker run --rm -v "$sparse/etc:/etc/target" debian:12-slim \
+			truncate -s 1025 /etc/target/just-over
 
-	# And the check that this test is worth having: the measurement it
-	# replaced does not survive the same comparison.
-	dense_du="$(docker run --rm -v "$dense:/tree:ro" debian:12-slim du -ks /tree | cut -f1)"
-	sparse_du="$(docker run --rm -v "$sparse:/tree:ro" debian:12-slim du -ks /tree | cut -f1)"
-	check "$([[ "$dense_du" != "$sparse_du" ]] && echo ok || echo fail)" \
-		"du disagrees on that pair, which is why it is not used ($dense_du vs $sparse_du)"
+		if ! deploy/fixture-visible.sh "$sparse" 2> "$work/visibility"; then
+			check fail "the sparse fixture reached the daemon as well"
+			sed 's/^/      /' "$work/visibility"
+		else
+			check ok "the sparse fixture reached the daemon as well"
+
+			sparse_measured="$(deploy/installed-size.sh "$sparse")"
+			check "$([[ "$sparse_measured" == "$measured" ]] && echo ok || echo fail)" \
+				"the same payload measures the same on a different allocation"
+
+			# And the check that this test is worth having: the measurement it
+			# replaced does not survive the same comparison.
+			dense_du="$(docker run --rm -v "$dense:/tree:ro" debian:12-slim du -ks /tree | cut -f1)"
+			sparse_du="$(docker run --rm -v "$sparse:/tree:ro" debian:12-slim du -ks /tree | cut -f1)"
+			check "$([[ "$dense_du" != "$sparse_du" ]] && echo ok || echo fail)" \
+				"du disagrees on that pair, which is why it is not used ($dense_du vs $sparse_du)"
+		fi
+	fi
 fi
 
 # --- the double build cannot be satisfied by a cache ------------------------
