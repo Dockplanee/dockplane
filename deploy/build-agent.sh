@@ -134,7 +134,9 @@ for arch in $ARCHITECTURES; do
 		install -m 0755 "agent/packaging/debian/$script" "$root/DEBIAN/$script"
 	done
 
-	size="$(du -ks "$root" | cut -f1)"
+	# Derived from what the package contains, not from the disk it was staged
+	# on. See deploy/installed-size.sh.
+	size="$(deploy/installed-size.sh "$root")"
 	sed -e "s/@VERSION@/$DEBIAN_VERSION/" -e "s/@ARCH@/$arch/" -e "s/@SIZE@/$size/" \
 		agent/packaging/debian/control.in > "$root/DEBIAN/control"
 	sed -i.bak "s|^Maintainer:.*|Maintainer: $MAINTAINER|" "$root/DEBIAN/control"
