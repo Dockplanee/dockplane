@@ -1,19 +1,22 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Req } from '@nestjs/common';
 import { z } from 'zod';
 
+import { AuthenticatedRequest, AuthenticatedUser } from '../auth/authenticated-request';
+import { CurrentUser } from '../auth/current-user.decorator';
 import { AppError } from '../common/errors';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequirePermissions } from '../rbac/permissions.decorator';
 import { DetailService } from '../discovery/detail.service';
+import { HostArchiveService } from './host-archive.service';
 import { InventoryService } from './inventory.service';
 
 /**
- * Read-only views over discovered infrastructure.
+ * Views over discovered infrastructure, and the one thing an operator decides
+ * about a host itself.
  *
- * There is no mutating endpoint here, and not because one was left out: this
- * release observes Docker hosts and changes nothing on them. Adding an
- * operation means adding a capability, a permission and an audit path, not a
- * route.
+ * Nothing here reaches a Docker host. Archiving is a decision about Dockplane's
+ * own record — which identities are part of the working set — and it changes
+ * nothing on any machine, removes nothing, and is reversible.
  */
 
 const idSchema = z.uuid();
@@ -35,16 +38,31 @@ const projectQuerySchema = pageSchema.extend({
   hostId: z.uuid().optional(),
 });
 
+/*
+ * Which hosts a list is about. Active by default: an archived host is not part
+ * of the working set, and asking for it is a deliberate act.
+ */
+const hostQuerySchema = pageSchema.extend({
+  scope: z.enum(['active', 'archived', 'all']).default('active'),
+});
+
 @Controller('api/v1/hosts')
 export class HostsController {
-  constructor(private readonly inventory: InventoryService) {}
+  constructor(
+    private readonly inventory: InventoryService,
+    private readonly archive: HostArchiveService,
+  ) {}
 
   @Get()
   @RequirePermissions('hosts.read')
-  async list(@Query(new ZodValidationPipe(pageSchema)) query: z.infer<typeof pageSchema>) {
-    const { hosts, total } = await this.inventory.listHosts(query);
+  async list(@Query(new ZodValidationPipe(hostQuerySchema)) query: z.infer<typeof hostQuerySchema>) {
+    const { hosts, total } = await this.inventory.listHosts(query, query.scope);
 
-    return { hosts, page: { limit: query.limit, offset: query.offset, total } };
+    return {
+      hosts,
+      scope: query.scope,
+      page: { limit: query.limit, offset: query.offset, total },
+    };
   }
 
   @Get(':id')
@@ -58,6 +76,44 @@ export class HostsController {
 
     return { host };
   }
+
+  /**
+   * Takes a host out of the working set.
+   *
+   * Refused while its agent is connected, and refused at this moment rather
+   * than according to what the browser last saw: an agent can reconnect
+   * between a page rendering and this request arriving.
+   */
+  @Post(':id/archive')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('hosts.archive')
+  async archiveHost(
+    @Param('id', new ZodValidationPipe(idSchema)) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    await this.archive.archive(id, user, context(request));
+
+    return { host: await this.inventory.findHost(id) };
+  }
+
+  /** Returns an archived host to the working set. Visibility only. */
+  @Post(':id/unarchive')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('hosts.archive')
+  async unarchiveHost(
+    @Param('id', new ZodValidationPipe(idSchema)) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    await this.archive.unarchive(id, user, context(request));
+
+    return { host: await this.inventory.findHost(id) };
+  }
+}
+
+function context(request: AuthenticatedRequest) {
+  return { sourceIp: request.ip, userAgent: request.header('user-agent') };
 }
 
 @Controller('api/v1/containers')

@@ -50,6 +50,10 @@ export const ERROR_CODES = [
   'AGENT_NOT_CONNECTED',
   'DOCKER_UNAVAILABLE',
   'HOST_NOT_FOUND',
+  /* The host is archived, so it is not a target for new operational work. */
+  'HOST_ARCHIVED',
+  /* Its agent is connected, so it is in use and cannot be archived. */
+  'HOST_CONNECTED',
   'HOST_SETUP_NOT_FOUND',
   'HOST_SETUP_NOT_PENDING',
   'HOST_SETUP_TICKET_INVALID',

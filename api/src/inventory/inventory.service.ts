@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { SQL, and, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { SQL, and, count, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 
 import { AgentConnectionManager } from '../agents/connection-manager.service';
 import { Database } from '../database/database';
@@ -67,6 +67,15 @@ interface Freshness {
  * lose the last known state exactly when an operator needs it — but nothing it
  * reported is presented as live.
  */
+/**
+ * Which hosts a list is about.
+ *
+ * `active` is the working set and the default everywhere. The other two exist
+ * so an operator can find what was archived and put it back; nothing is hidden
+ * permanently.
+ */
+export type HostScope = 'active' | 'archived' | 'all';
+
 @Injectable()
 export class InventoryService {
   constructor(
@@ -74,15 +83,34 @@ export class InventoryService {
     private readonly connections: AgentConnectionManager,
   ) {}
 
-  async listHosts(page: Page) {
+  /*
+   * The working list, which is the active hosts unless somebody asks otherwise.
+   *
+   * Only this list and the selectors built on it filter. Every historical
+   * relation — a container, a project, a stack, an action — resolves its host
+   * without consulting the archive state, because the record of what a machine
+   * ran does not stop being true when the machine leaves the working set.
+   */
+  async listHosts(page: Page, scope: HostScope = 'active') {
+    const filter =
+      scope === 'active'
+        ? isNull(hosts.archivedAt)
+        : scope === 'archived'
+          ? isNotNull(hosts.archivedAt)
+          : undefined;
+
     const rows = await this.db.client
       .select()
       .from(hosts)
+      .where(filter)
       .orderBy(hosts.hostname)
       .limit(page.limit)
       .offset(page.offset);
 
-    const [{ value: total }] = await this.db.client.select({ value: count() }).from(hosts);
+    const [{ value: total }] = await this.db.client
+      .select({ value: count() })
+      .from(hosts)
+      .where(filter);
     const byHost = await this.agentsOf(rows.map((host) => host.id));
 
     return {
@@ -338,6 +366,12 @@ export class InventoryService {
        */
       metrics: host.metrics,
       lastSeenAt: host.lastSeenAt,
+      /*
+       * Persisted state, not a conclusion drawn from the agent or the clock. A
+       * host that is offline, or whose agent was revoked, is not archived.
+       */
+      archivedAt: host.archivedAt,
+      archived: host.archivedAt !== null,
       agent: agent
         ? {
             id: agent.id,

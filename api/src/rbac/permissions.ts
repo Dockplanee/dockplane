@@ -17,6 +17,13 @@
  */
 export const PERMISSIONS = {
   'hosts.read': 'View Docker hosts and their reported state',
+  /*
+   * One permission for both directions. Archiving and restoring are the same
+   * decision taken back, neither destroys anything, and splitting them would
+   * make it possible to grant somebody the ability to remove a host from the
+   * working lists but not to put it back.
+   */
+  'hosts.archive': 'Archive a host, and restore an archived one',
   'containers.read': 'View discovered containers',
   'containers.start': 'Start a container',
   'containers.stop': 'Stop a container',

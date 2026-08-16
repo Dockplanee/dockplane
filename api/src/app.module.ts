@@ -30,6 +30,7 @@ import { DetailService } from './discovery/detail.service';
 import { DiscoveryService } from './discovery/discovery.service';
 import { EventsService } from './events/events.service';
 import { InventoryService } from './inventory/inventory.service';
+import { HostArchiveService } from './inventory/host-archive.service';
 import { ContainerLogsController } from './logs/logs.controller';
 import { LogStreamService } from './logs/log-stream.service';
 import { LifecycleService } from './operations/lifecycle.service';
@@ -147,6 +148,7 @@ import { SecretBox } from './common/crypto';
     DetailService,
     EventsService,
     InventoryService,
+    HostArchiveService,
     MutationRegistry,
     PendingMutationGuard,
     RecoveryFinalizer,

@@ -30,6 +30,14 @@ export type AuditAction =
   | 'host.setup.cancelled'
   | 'host.setup.bootstrapped'
   | 'host.setup.completed'
+  /*
+   * The direction is the record. Both are written only when the state actually
+   * changes, so the action says what the value was and `occurredAt` says what
+   * it became — which is what a trail with no free-form field can carry
+   * without inventing one.
+   */
+  | 'host.archived'
+  | 'host.unarchived'
   | 'agent.enrollment_token.created'
   | 'agent.enrollment_token.revoked'
   | 'agent.enrollment_token.consumed'
