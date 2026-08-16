@@ -10,6 +10,7 @@ import { AuditAction, AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/authenticated-request';
 import { SecretBox } from '../common/crypto';
 import { AppError } from '../common/errors';
+import { assertNotArchived } from '../inventory/host-archive';
 import { LOGGER, SECRET_BOX } from '../config/tokens';
 import { Database } from '../database/database';
 import {
@@ -896,13 +897,15 @@ export class StackDeploymentService {
     }
 
     const [host] = await this.db.client
-      .select({ id: hosts.id })
+      .select({ id: hosts.id, archivedAt: hosts.archivedAt })
       .from(hosts)
       .where(eq(hosts.id, stack.hostId));
 
     if (!host) {
       throw AppError.notFound('HOST_NOT_FOUND', 'The host does not exist.');
     }
+
+    assertNotArchived(host, 'its stacks cannot be deployed');
 
     return stack;
   }

@@ -254,6 +254,13 @@ export class DiscoveryService {
         observedAt,
         lastSeenAt: new Date(),
         updatedAt: new Date(),
+        /*
+         * `archivedAt` is deliberately absent, here and in every other write
+         * an agent can cause. Archiving is a decision somebody took, and a
+         * host that starts reporting again has not withdrawn it — it is shown
+         * as archived and connected, which is unusual and true. Only an
+         * operator restores it.
+         */
       })
       .where(eq(hosts.id, hostId));
 

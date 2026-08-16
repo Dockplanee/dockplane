@@ -17,6 +17,7 @@ import { actions, agents, containers, hosts } from '../database/schema';
 import { DetailService } from '../discovery/detail.service';
 import { EventsService } from '../events/events.service';
 import { MutationRegistry } from './mutation-registry';
+import { assertNotArchived } from '../inventory/host-archive';
 
 /** What an operator asked for, and what came of it. */
 export interface ActionOutcome {
@@ -336,6 +337,7 @@ export class LifecycleService {
         state: containers.state,
         hostId: containers.hostId,
         hostname: hosts.hostname,
+        archivedAt: hosts.archivedAt,
       })
       .from(containers)
       .innerJoin(hosts, eq(hosts.id, containers.hostId))
@@ -344,6 +346,12 @@ export class LifecycleService {
     if (!row) {
       throw AppError.notFound('CONTAINER_NOT_FOUND', 'The container does not exist.');
     }
+
+    /*
+     * The container stays readable — its history, its logs and its detail are
+     * unaffected. What an archived host withdraws is being operated on.
+     */
+    assertNotArchived({ id: row.hostId, archivedAt: row.archivedAt }, 'its containers cannot be operated');
 
     /*
      * A resource whose create never produced a container. The pending guard

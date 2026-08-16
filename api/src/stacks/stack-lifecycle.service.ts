@@ -33,6 +33,7 @@ import {
   classifyStackLifecycle,
 } from './stack-lifecycle';
 import { UNRESOLVED_DEPLOYMENT, stackKey } from './stack-deployment.service';
+import { assertNotArchived } from '../inventory/host-archive';
 
 /** What the caller is told about an operation that reached its state. */
 export interface StackOperationOutcome {
@@ -565,13 +566,15 @@ export class StackLifecycleService {
     }
 
     const [host] = await this.db.client
-      .select({ id: hosts.id })
+      .select({ id: hosts.id, archivedAt: hosts.archivedAt })
       .from(hosts)
       .where(eq(hosts.id, stack.hostId));
 
     if (!host) {
       throw AppError.notFound('HOST_NOT_FOUND', 'The host does not exist.');
     }
+
+    assertNotArchived(host, 'its stacks cannot be started, stopped or restarted');
 
     /*
      * A stack that has never been deployed has no containers to move. Starting

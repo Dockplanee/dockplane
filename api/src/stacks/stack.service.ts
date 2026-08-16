@@ -7,6 +7,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/authenticated-request';
 import { SecretBox } from '../common/crypto';
 import { AppError } from '../common/errors';
+import { assertNotArchived } from '../inventory/host-archive';
 import { SECRET_BOX } from '../config/tokens';
 import { Database } from '../database/database';
 import {
@@ -541,7 +542,13 @@ export class StackService {
      * Whether its agent is connected is deliberately not checked. Preparing a
      * stack for a machine that is currently offline is a reasonable thing to
      * do; deploying to one is not, and that is where it will be refused.
+     *
+     * Archived is a different question from offline. An offline host is still
+     * part of the working set and may be prepared for; an archived one has been
+     * taken out of it, and a revision written for it could never be deployed.
      */
+    assertNotArchived(host, 'stacks cannot be created or changed for it');
+
     return host;
   }
 

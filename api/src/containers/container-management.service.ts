@@ -10,6 +10,7 @@ import { AuditAction, AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/authenticated-request';
 import { SecretBox } from '../common/crypto';
 import { AppError } from '../common/errors';
+import { assertNotArchived } from '../inventory/host-archive';
 import { LOGGER, SECRET_BOX } from '../config/tokens';
 import { Database } from '../database/database';
 import {
@@ -714,13 +715,15 @@ export class ContainerManagementService {
 
   private async host(hostId: string) {
     const [row] = await this.db.client
-      .select({ id: hosts.id, hostname: hosts.hostname })
+      .select({ id: hosts.id, hostname: hosts.hostname, archivedAt: hosts.archivedAt })
       .from(hosts)
       .where(eq(hosts.id, hostId));
 
     if (!row) {
       throw AppError.notFound('HOST_NOT_FOUND', 'The host does not exist.');
     }
+
+    assertNotArchived(row, 'containers cannot be created or changed on it');
 
     return row;
   }
