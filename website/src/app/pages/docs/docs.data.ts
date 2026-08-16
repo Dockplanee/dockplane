@@ -76,6 +76,11 @@ export const DOC_SECTIONS: readonly DocSection[] = [
         "url": "https://github.com/Dockplanee/dockplane/blob/main/docs/operations/troubleshooting.md"
       },
       {
+        "title": "Archiving Hosts",
+        "summary": "A machine that has been replaced, or an enrolment that has been superseded, stops being somewhere you work and stays somewhere you look things up. Archiving is how Dockplane records that.",
+        "url": "https://github.com/Dockplanee/dockplane/blob/main/docs/operations/host-archive.md"
+      },
+      {
         "title": "Recovery",
         "summary": "Three things must survive a control-server loss, and they are deliberately kept apart. A backup of only one of them is not a backup.",
         "url": "https://github.com/Dockplanee/dockplane/blob/main/docs/operations/recovery.md"
@@ -89,6 +94,11 @@ export const DOC_SECTIONS: readonly DocSection[] = [
         "title": "Stacks",
         "summary": "A stack is a Compose file, the environment it needs, and the host it belongs to. Dockplane keeps the whole history of what a stack has been configured to be.",
         "url": "https://github.com/Dockplanee/dockplane/blob/main/docs/operations/stacks.md"
+      },
+      {
+        "title": "Versions",
+        "summary": "What an installation is running, where to see it, and the one thing Dockplane will ask the outside world if you let it.",
+        "url": "https://github.com/Dockplanee/dockplane/blob/main/docs/operations/versions.md"
       }
     ]
   },

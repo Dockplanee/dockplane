@@ -6,6 +6,27 @@ Use release-oriented language.
 
 Do not include internal prompt history, development conversation notes or artificial task numbering.
 
+## 0.3.0-rc.1 — 2026-08-17
+
+First candidate for 0.3.0. Managing Docker is unchanged: the agent, its
+capability catalog and the Compose compiler are the same code as `0.2.0`.
+
+### Added
+- Settings shows what this installation is running: the control server's release and commit, the browser application's own release and commit, the migration the database has reached, the agent protocol range, and what the enrolled agents report. The server and the application are two images and are reported as two.
+- Agents running different versions are shown as a mixed fleet rather than as a fault. An agent on an older release is supported for as long as its protocol version is one the control server accepts; only a protocol outside that range is reported as an incompatibility.
+- An optional check for a newer published release, off by default and off across every upgrade until an administrator sets `UPDATE_CHECK_ENABLED`. When it is on the control server makes one request a few times a day to a fixed public address, with no query string, no body and nothing about the installation in it. Nothing is downloaded, installed or upgraded by it.
+- A host that has been replaced can be archived. It leaves the active host lists and stops being offered as somewhere to run new work, and everything it carried stays: its containers, Compose projects, stacks, actions and audit entries all still resolve the host they belong to. Restoring it is one action, and its agent is never touched.
+- The hosts list can be filtered to the active hosts, the archived ones, or all of them.
+
+### Changed
+- Management tables adapt to the width they are given. Every column carries the priority of what it tells an operator, and the width that decides which are shown is the table's own rather than the window's — so a 1440-pixel window with the sidebar open is treated as the narrow content area it is. What an operator cannot act without is in the window at every width, without scrolling sideways.
+- A host whose agent is connected cannot be archived, and the control server decides that when the request arrives rather than from what the page was showing. An archived host that starts answering again stays archived and is shown as archived and connected.
+- New operational work against an archived host is refused with a stated reason. Reading is never refused, and archived is not the same as offline: a stack configuration can still be written for a host that is merely offline.
+
+### Fixed
+- The settings page no longer scrolls the window sideways. Its sessions list was the one table not using the shared pattern, and a user agent string with nowhere to break moved the page under its own content — 292 pixels on a phone.
+- The sort control in a table heading is large enough to hit. It measured seventeen pixels against the twenty-four WCAG 2.2 AA asks for.
+
 ## 0.2.0 — 2026-08-16
 
 Second stable release. The product is what the four release candidates

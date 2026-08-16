@@ -15,6 +15,13 @@ inspected. Taking one over so that Dockplane deploys it is adoption, and that is
 not part of this release. A stack Dockplane created is a different thing and can
 be deployed.
 
+**A host is never deleted, and two host records are never merged.** A host can
+be archived, which takes it out of the active working lists and keeps
+everything it carried; there is no operation that removes a host and no
+operation that decides two records are the same machine. Nothing deduplicates
+by system hostname, by Docker identifier or by anything else. See
+[Archiving Hosts](../operations/host-archive.md).
+
 **Volume deletion and image management are not implemented.** Dockplane does not
 expose a destructive operation because the Docker API has one. Removing a
 container never removes its volumes.
@@ -34,6 +41,12 @@ working lists while keeping everything they carried — but archiving is a way o
 saying which record is current, not a merge. See
 [Add a Host](../getting-started/add-host.md) and
 [Archiving Hosts](../operations/host-archive.md).
+
+**A container cannot be prepared for a host that is offline.** A stack's
+configuration can be written and revised while its host is not answering, and
+deployed later; a single container cannot — creating or changing one requires a
+connected agent and is refused with `The agent is not connected` until the host
+answers again. There is no offline draft for a standalone container.
 
 **There is no automatic update and no self-updater.** Upgrades are explicit:
 download a release, check it, run the installer. See
