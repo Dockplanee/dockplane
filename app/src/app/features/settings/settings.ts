@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 
 import { PageContext } from '../../core/page-context';
 import { Security } from './security';
+import { SystemVersion } from './system-version';
 import { Permissions } from '../../core/permissions';
 import { Theme } from '../../core/theme';
 import { Panel } from '../../ui/panel/panel';
@@ -15,7 +16,7 @@ import { Panel } from '../../ui/panel/panel';
  */
 @Component({
   selector: 'dp-settings',
-  imports: [Security, Panel],
+  imports: [Security, SystemVersion, Panel],
   template: `
     <dp-panel heading="Appearance" icon="settings">
       <fieldset>
@@ -40,6 +41,8 @@ import { Panel } from '../../ui/panel/panel';
     </dp-panel>
 
     <dp-security class="stacked" />
+
+    <dp-system-version class="stacked" />
   `,
   styles: `
     .stacked {

@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { catchError, of } from 'rxjs';
 import { RouterLink } from '@angular/router';
 
 import { relativeTime, uptime } from '../../core/format';
 import { PageContext } from '../../core/page-context';
 import { DockplaneApi } from '../../data/dockplane-api';
 import { ComposeProject, Container, Host } from '../../domain/inventory';
+import { InstalledVersions, UpdateCheck } from '../../domain/versions';
 import { SEVERITY_ORDER, Severity, hostStatus, severity } from '../../domain/status';
 import { Button } from '../../ui/button';
 import { EmptyState } from '../../ui/empty-state/empty-state';
@@ -121,11 +123,26 @@ export class Overview {
    * failed its health check or exited, a Compose project not fully up. Nothing
    * is inferred from a threshold the product has not defined.
    */
+  /*
+   * Version state appears here when there is something to say and nowhere at
+   * all when there is not. A dashboard card that exists to show a number an
+   * operator already knows is a card in the way of the ones that matter.
+   */
+  private readonly versions = toSignal(
+    this.api.installedVersions().pipe(catchError(() => of(undefined))),
+    { initialValue: undefined },
+  );
+
+  private readonly update = toSignal(this.api.updateCheck().pipe(catchError(() => of(undefined))), {
+    initialValue: undefined,
+  });
+
   protected readonly attention = computed<Attention[]>(() => {
     const issues: Attention[] = [
       ...this.hosts().flatMap(hostIssues),
       ...this.containers().flatMap(containerIssues),
       ...this.projects().flatMap(projectIssues),
+      ...versionIssues(this.versions(), this.update()),
     ];
 
     return issues.sort(
@@ -161,6 +178,73 @@ export class Overview {
   protected severity = severity;
   protected age = relativeTime;
   protected uptimeOf = uptime;
+}
+
+/**
+ * What the versions are worth saying on a dashboard.
+ *
+ * Three different things, and only one of them is a fault. An agent speaking a
+ * protocol the server does not support cannot be driven; a fleet on several
+ * releases is worth knowing about and is working; a published release is
+ * information and nothing more. Nothing here offers to install anything.
+ */
+function versionIssues(
+  versions: InstalledVersions | undefined,
+  update: UpdateCheck | undefined,
+): Attention[] {
+  const issues: Attention[] = [];
+  const agents = versions?.agents;
+
+  if (versions?.schema.mismatch) {
+    issues.push({
+      id: 'schema-behind',
+      severity: 'critical',
+      title: 'The database schema is behind this build',
+      detail: `The control server expects ${versions.schema.expected}.`,
+      icon: 'alertTriangle',
+      link: ['/settings'],
+    });
+  }
+
+  if (agents && agents.protocolUnsupportedCount > 0) {
+    issues.push({
+      id: 'agent-protocol',
+      severity: 'critical',
+      title: `${agents.protocolUnsupportedCount} ${
+        agents.protocolUnsupportedCount === 1 ? 'agent speaks' : 'agents speak'
+      } an unsupported protocol`,
+      detail: 'The control server cannot drive them until they are upgraded.',
+      icon: 'agents',
+      link: ['/agents'],
+    });
+  }
+
+  if (agents?.mixedVersions) {
+    issues.push({
+      id: 'agent-versions',
+      severity: 'info',
+      title: 'Agents are running different versions',
+      detail:
+        agents.oldestVersion && agents.newestVersion
+          ? `${agents.oldestVersion} through ${agents.newestVersion} are in use.`
+          : 'More than one agent version is in use.',
+      icon: 'agents',
+      link: ['/agents'],
+    });
+  }
+
+  if (update?.state === 'ok' && update.updateAvailable && update.latestStableVersion) {
+    issues.push({
+      id: 'update-available',
+      severity: 'info',
+      title: `Dockplane ${update.latestStableVersion} has been published`,
+      detail: 'Upgrading is a manual step and nothing here starts it.',
+      icon: 'settings',
+      link: ['/settings'],
+    });
+  }
+
+  return issues;
 }
 
 function hostIssues(host: Host): Attention[] {

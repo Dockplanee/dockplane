@@ -36,6 +36,39 @@ import {
 } from '../app/domain/operations';
 import { OperatorSession } from '../app/domain/sessions';
 import { Stack, StackOperation, StackRevision, StackService } from '../app/domain/stacks';
+import { InstalledVersions, UpdateCheck } from '../app/domain/versions';
+
+/**
+ * A plain installation: one release, its schema applied, nothing enrolled.
+ *
+ * A test that cares about a version state names it; every other test gets a
+ * deployment with nothing to report, so a version panel rendered incidentally
+ * never fails a test about something else.
+ */
+const DEFAULT_INSTALLED: InstalledVersions = {
+  controlServer: { version: '0.3.0', commit: 'aaaaaaaaaaaa' },
+  schema: { expected: '0007_schema', applied: '0007_schema', mismatch: false },
+  protocol: { server: 1, minimumSupported: 1 },
+  agents: {
+    total: 0,
+    versions: [],
+    mixedVersions: false,
+    unknownCount: 0,
+    protocolUnsupportedCount: 0,
+    oldestVersion: null,
+    newestVersion: null,
+  },
+};
+
+/** What the shipped configuration answers. */
+const DISABLED_UPDATE_CHECK: UpdateCheck = {
+  state: 'disabled',
+  latestStableVersion: null,
+  releaseUrl: null,
+  checkedAt: null,
+  updateAvailable: null,
+  stale: false,
+};
 
 /** What a test wants the control server to answer with. */
 export interface TestData {
@@ -77,6 +110,13 @@ export interface TestData {
   applyFailure?: unknown;
   /** Set to make starting, stopping or restarting fail the way the server would. */
   operationFailure?: unknown;
+  /** What the installation reports it is running. */
+  installedVersions?: InstalledVersions;
+  /** Set to make reading the installed versions fail. */
+  installedVersionsError?: unknown;
+  updateCheck?: UpdateCheck;
+  /** Set to make the update check request fail. */
+  updateCheckError?: unknown;
   /** Set to make deleting a stack fail the way the server would. */
   deleteFailure?: unknown;
   /** What a deletion reports it kept. */
@@ -102,6 +142,26 @@ export class TestApi extends DockplaneApi {
   hosts(): Observable<readonly Host[]> {
     this.calls.push('hosts');
     return of(this.data.hosts ?? []);
+  }
+
+  installedVersions(): Observable<InstalledVersions> {
+    this.calls.push('installedVersions');
+
+    if (this.data.installedVersionsError) {
+      return throwError(() => this.data.installedVersionsError);
+    }
+
+    return of(this.data.installedVersions ?? DEFAULT_INSTALLED);
+  }
+
+  updateCheck(): Observable<UpdateCheck> {
+    this.calls.push('updateCheck');
+
+    if (this.data.updateCheckError) {
+      return throwError(() => this.data.updateCheckError);
+    }
+
+    return of(this.data.updateCheck ?? DISABLED_UPDATE_CHECK);
   }
 
   host(id: string): Observable<Host | undefined> {

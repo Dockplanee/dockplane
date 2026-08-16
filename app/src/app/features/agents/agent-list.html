@@ -84,7 +84,18 @@
                 }
               </th>
               <td data-priority="p1" class="dp-mono dp-unknown" [title]="agent.id">{{ shortId(agent.id) }}</td>
-              <td data-priority="p1" class="dp-mono dp-unknown">{{ agent.version }}</td>
+              <td data-priority="p1" class="dp-mono dp-unknown">
+                {{ agent.version ?? '—' }}
+                <!--
+                  Marked only when the fleet is actually mixed, and never in red:
+                  an older agent whose protocol the server still speaks is
+                  running as intended. Which version is newest is decided by the
+                  control server, not worked out here.
+                -->
+                @if (isBehind(agent)) {
+                  <span class="secondary">Older than {{ newestAgentVersion() }}</span>
+                }
+              </td>
               <td data-priority="p3" class="dp-mono dp-unknown">v{{ agent.protocolVersion }}</td>
               <td>
                 <dp-status-badge

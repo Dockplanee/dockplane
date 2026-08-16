@@ -17,6 +17,7 @@ import {
   ResourceUsage,
 } from '../domain/inventory';
 import { OperatorSession } from '../domain/sessions';
+import { InstalledVersions, UpdateCheck } from '../domain/versions';
 import { Stack, StackOperation, StackRevision, StackService } from '../domain/stacks';
 import {
   Agent,
@@ -231,6 +232,14 @@ export class RealDockplaneApi extends DockplaneApi {
         offset: options?.offset,
       })
       .pipe(map((response) => response.actions));
+  }
+
+  installedVersions(): Observable<InstalledVersions> {
+    return this.api.get<InstalledVersions>('/api/v1/system/versions');
+  }
+
+  updateCheck(): Observable<UpdateCheck> {
+    return this.api.get<UpdateCheck>('/api/v1/system/update-check');
   }
 
   composeProjects(): Observable<readonly ComposeProject[]> {

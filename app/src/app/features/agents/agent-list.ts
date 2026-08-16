@@ -9,7 +9,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { switchMap } from 'rxjs';
+import { catchError, of, switchMap } from 'rxjs';
 
 import { relativeTime, timestamp } from '../../core/format';
 import { PageContext } from '../../core/page-context';
@@ -80,6 +80,29 @@ export class AgentList {
     toObservable(this.reload).pipe(switchMap(() => this.api.agents())),
     { initialValue: [] },
   );
+
+  /*
+   * The fleet's version picture comes from the control server, which counts it
+   * over the database rather than over whatever page the browser happens to
+   * hold. A row only compares its own version with the newest one named.
+   */
+  private readonly fleet = toSignal(
+    this.api.installedVersions().pipe(catchError(() => of(undefined))),
+    { initialValue: undefined },
+  );
+
+  protected readonly newestAgentVersion = computed(() => this.fleet()?.agents?.newestVersion ?? null);
+
+  protected isBehind(agent: Agent): boolean {
+    const summary = this.fleet()?.agents;
+
+    return Boolean(
+      summary?.mixedVersions &&
+        agent.version &&
+        summary.newestVersion &&
+        agent.version !== summary.newestVersion,
+    );
+  }
 
   protected readonly canEnroll = this.permissions.has('agents.enroll');
   protected readonly canRevoke = this.permissions.has('agents.revoke');

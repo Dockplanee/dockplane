@@ -12,6 +12,7 @@ import {
   User,
 } from '../domain/operations';
 import { OperatorSession } from '../domain/sessions';
+import { InstalledVersions, UpdateCheck } from '../domain/versions';
 
 /**
  * The control server, as the interface uses it.
@@ -103,6 +104,24 @@ export abstract class DockplaneApi {
    * which is what ends the read on the host.
    */
   abstract streamContainerLogs(containerId: string, options?: LogOptions): Observable<LogEvent>;
+
+  /**
+   * What this installation is running.
+   *
+   * Local throughout, so it answers on a deployment with no route out. The
+   * agent summary is absent for a user who may not see the agents rather than
+   * present and hidden.
+   */
+  abstract installedVersions(): Observable<InstalledVersions>;
+
+  /**
+   * Whether a newer Dockplane has been published.
+   *
+   * A separate call because it is a separate question: it is off unless an
+   * administrator turned it on, and asking it must never delay what the
+   * installation can say about itself.
+   */
+  abstract updateCheck(): Observable<UpdateCheck>;
 
   abstract composeProjects(): Observable<readonly ComposeProject[]>;
   abstract composeProject(id: string): Observable<ComposeProject | undefined>;
