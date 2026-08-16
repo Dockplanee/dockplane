@@ -118,14 +118,26 @@ export const MEASURE = `(() => {
         width: Math.round(box.width),
       };
     })(),
-    // The smallest interactive control on the page, which is what decides
+    // The smallest interactive target on the page, which is what decides
     // whether a narrow layout is usable with a thumb.
+    //
+    // The target is what a person can hit, not what is drawn. A radio inside a
+    // label is thirteen pixels of control inside a thirty-four pixel target,
+    // and reporting the thirteen would ask for a fix to something that is not
+    // a fault.
     smallestControl: (() => {
-      const controls = [...document.querySelectorAll('main button, main a.dp-button, main select, main input')]
-        .map((element) => element.getBoundingClientRect())
+      const target = (element) => {
+        const label = element.closest('label');
+        const box = (label ?? element).getBoundingClientRect();
+        return { height: box.height, width: box.width };
+      };
+
+      const targets = [...document.querySelectorAll('main button, main a.dp-button, main select, main input')]
+        .map(target)
         .filter((box) => box.width > 0 && box.height > 0);
-      if (controls.length === 0) return null;
-      return Math.round(Math.min(...controls.map((box) => box.height)));
+
+      if (targets.length === 0) return null;
+      return Math.round(Math.min(...targets.map((box) => box.height)));
     })(),
   };
 })()`;

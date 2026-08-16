@@ -38,7 +38,7 @@ if (!BASE || !EMAIL || !PASSWORD) {
 const SCREENS = [
   { path: '/overview', label: 'overview', operational: [] },
   { path: '/hosts', label: 'hosts', operational: ['host', 'status'] },
-  { path: '/containers', label: 'containers', operational: ['name', 'host', 'state'] },
+  { path: '/containers', label: 'containers', operational: ['name', 'host', 'status'] },
   { path: '/stacks', label: 'stacks', operational: [] },
   { path: '/audit', label: 'audit', operational: [] },
   { path: '/containers/new', label: 'container create', operational: [] },
@@ -46,20 +46,12 @@ const SCREENS = [
 ];
 
 /*
- * What 0.2.0 does not do yet.
- *
- * These are the findings the responsive audit recorded, and they are printed
- * rather than failed: a suite that fails on the behaviour it was written to
- * describe could not be added until the behaviour changed, and then it would
- * never have guarded the change. Each becomes an assertion in the phase that
- * fixes it, and the suite says so when one of them starts holding, so the entry
- * is removed rather than forgotten.
+ * The findings the responsive audit recorded were printed rather than failed
+ * while they were still true, so that adding the suite did not have to wait for
+ * the fix. They are assertions now: the lists drop their secondary columns by
+ * priority and stack below a tablet's width, and the settings page no longer
+ * moves under its own content.
  */
-const KNOWN_GAPS = {
-  'settings sideways': (found) => found.path.endsWith('/settings') && found.view.width < 768,
-  'wide list columns': (found) =>
-    ['/hosts', '/containers'].some((path) => found.path.endsWith(path)) && found.view.width < 1500,
-};
 
 let failures = 0;
 
@@ -97,25 +89,12 @@ try {
     for (const screen of SCREENS) {
       const found = await measure(page, screen, viewport);
 
-      // The window itself must never scroll sideways. Every screen but one
-      // holds this in 0.2.0, and the assertion is here so a responsive change
-      // cannot quietly break the ones that do.
-      if (KNOWN_GAPS['settings sideways'](found)) {
-        console.log(
-          `    · ${screen.label}: page scrolls sideways by ${found.pageOverflow}px — known, fixed in the responsive phase`,
-        );
-        check(
-          `${screen.label}: the recorded sideways scroll is still there to fix`,
-          found.pageOverflow > 0,
-          'remove this entry once it is fixed',
-        );
-      } else {
-        check(
-          `${screen.label}: the page does not scroll sideways`,
-          found.pageOverflow <= 0,
-          found.pageOverflow > 0 ? `${found.pageOverflow}px` : '',
-        );
-      }
+      // The window itself must never scroll sideways.
+      check(
+        `${screen.label}: the page does not scroll sideways`,
+        found.pageOverflow <= 0,
+        found.pageOverflow > 0 ? `${found.pageOverflow}px` : '',
+      );
 
       // Navigation is how somebody leaves a screen that does not fit. On a
       // narrow window it lives behind a control rather than on the page, and
@@ -126,28 +105,22 @@ try {
         const columns = operationalColumnsInView(found, screen.operational);
 
         if (screen.operational.length > 0) {
-          if (KNOWN_GAPS['wide list columns'](found)) {
-            console.log(
-              `    · ${screen.label}: ${columns.outside.length} operational column(s) outside the window` +
-                `${columns.outside.length ? ` (${columns.outside.join(', ')})` : ''} — known, fixed in the responsive phase`,
-            );
-          } else {
-            check(
-              `${screen.label}: the operational columns are in the window`,
-              columns.satisfied,
-              columns.outside.length ? `outside: ${columns.outside.join(', ')}` : '',
-            );
-          }
-        }
-
-        // Recorded rather than asserted: at 0.2.0 the wide lists do need it,
-        // and the point of the responsive work is to remove the need. Failing
-        // here now would mean the suite could not be added until the fix was.
-        if (tableNeedsSidewaysScroll(found)) {
-          console.log(
-            `    · ${screen.label}: table ${found.table.width}px in ${found.table.fits}px — sideways scroll`,
+          check(
+            `${screen.label}: the operational columns are in the window`,
+            columns.satisfied,
+            columns.outside.length ? `outside: ${columns.outside.join(', ')}` : '',
           );
         }
+
+        // The point of dropping columns by priority and stacking below a
+        // tablet's width: nothing a list shows should need the window moved.
+        check(
+          `${screen.label}: the list needs no sideways scroll`,
+          !tableNeedsSidewaysScroll(found),
+          tableNeedsSidewaysScroll(found)
+            ? `${found.table.width}px in ${found.table.fits}px`
+            : '',
+        );
       }
 
       if (found.primaryAction !== null) {
@@ -156,6 +129,17 @@ try {
 
       if (found.dialog) {
         check(`${screen.label}: an open dialog fits the window`, found.dialog.withinViewport);
+      }
+
+      // Every target a person can hit is at least the size WCAG asks for. The
+      // sort control in a table heading was seventeen pixels, which is the
+      // label's own height with no room around it.
+      if (found.smallestControl !== null) {
+        check(
+          `${screen.label}: no control is smaller than 24 pixels`,
+          found.smallestControl >= 24,
+          found.smallestControl < 24 ? `${found.smallestControl}px` : '',
+        );
       }
     }
   }
