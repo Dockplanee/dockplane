@@ -138,16 +138,16 @@
 <dp-panel heading="Sessions" icon="user" headingId="sessions-heading" class="stacked" flush>
   @if (sessions().length > 0) {
     <dp-table-shell [count]="sessions().length" noun="session">
-      <table aria-labelledby="sessions-heading">
+      <table class="dp-table" aria-labelledby="sessions-heading">
         <caption class="dp-sr-only">
           Sessions signed in to this account
         </caption>
         <thead>
           <tr>
             <th scope="col">Client</th>
-            <th scope="col">Signed in</th>
-            <th scope="col">Last seen</th>
-            <th scope="col">Expires</th>
+            <th scope="col" data-priority="p1">Signed in</th>
+            <th scope="col" data-priority="p1">Last seen</th>
+            <th scope="col" data-priority="p2">Expires</th>
             <th scope="col"><span class="dp-sr-only">Actions</span></th>
           </tr>
         </thead>
@@ -163,9 +163,9 @@
                   <span class="secondary dp-mono">{{ item.sourceIp }}</span>
                 }
               </th>
-              <td class="dp-unknown">{{ age(item.createdAt) }}</td>
-              <td class="dp-unknown">{{ age(item.lastSeenAt) }}</td>
-              <td class="dp-unknown">{{ at(item.expiresAt) }}</td>
+              <td data-priority="p1" class="dp-unknown">{{ age(item.createdAt) }}</td>
+              <td data-priority="p1" class="dp-unknown">{{ age(item.lastSeenAt) }}</td>
+              <td data-priority="p2" class="dp-unknown">{{ at(item.expiresAt) }}</td>
               <td class="shrink">
                 <button
                   dpButton
