@@ -123,6 +123,18 @@ const schema = z
     AGENT_MAX_MESSAGE_BYTES: z.coerce.number().int().min(1024).default(1_048_576),
 
     /*
+     * Whether this installation asks whether a newer Dockplane exists.
+     *
+     * Off, and off is the default on a new installation and on every upgrade:
+     * a self-hosted control plane does not reach out because somebody opened a
+     * page. Turned on, the control server reads the project's public release
+     * listing on a long interval and shows the answer. The request carries
+     * nothing about the installation — no identifier, no domain, no hostnames,
+     * no counts — and nothing is downloaded, installed or changed by it.
+     */
+    UPDATE_CHECK_ENABLED: bool(false),
+
+    /*
      * Live log streams.
      *
      * Every one of these is a ceiling rather than a target. A log stream holds

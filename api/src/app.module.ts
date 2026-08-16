@@ -55,6 +55,10 @@ import { AppConfig, CONFIG } from './config/configuration';
 import { Database } from './database/database';
 import { HealthController } from './health/health.controller';
 import { VersionController } from './version/version.controller';
+import { PublishedReleaseProvider } from './version/release-provider';
+import { RELEASE_PROVIDER, ReleaseVersionService } from './version/release-version.service';
+import { SystemVersionController } from './version/system-version.controller';
+import { SystemVersionService } from './version/system-version.service';
 import { RequestContextMiddleware } from './logging/request-context.middleware';
 import { MfaController } from './mfa/mfa.controller';
 import { MfaService } from './mfa/mfa.service';
@@ -91,6 +95,7 @@ import { SecretBox } from './common/crypto';
   controllers: [
     HealthController,
     VersionController,
+    SystemVersionController,
     AuthController,
     SessionsController,
     AdminSessionsController,
@@ -124,6 +129,15 @@ import { SecretBox } from './common/crypto';
     },
     RbacService,
     AuditService,
+    SystemVersionService,
+    /*
+     * The only outbound request Dockplane can make, and the only place that
+     * knows where it goes. The upstream is fixed here rather than configured:
+     * a check that could be pointed elsewhere is a way to tell an installation
+     * that a version exists which does not.
+     */
+    { provide: RELEASE_PROVIDER, useFactory: () => new PublishedReleaseProvider() },
+    ReleaseVersionService,
     AuthService,
     AgentCaService,
     AgentRegistryService,
