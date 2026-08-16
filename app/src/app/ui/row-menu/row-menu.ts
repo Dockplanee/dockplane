@@ -99,6 +99,18 @@ export interface RowAction {
       background-color: var(--dp-surface);
     }
 
+    /*
+     * Where the list is stacked it is being used on a small screen, and the
+     * trigger is the only control in the row. The icon stays the size it is;
+     * the area around it grows.
+     */
+    @container dp-table (max-width: 39.999rem) {
+      .trigger {
+        width: 2.75rem;
+        height: 2.75rem;
+      }
+    }
+
     .menu {
       position: fixed;
       inset: auto;

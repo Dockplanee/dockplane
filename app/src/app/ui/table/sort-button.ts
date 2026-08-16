@@ -26,7 +26,14 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       display: inline-flex;
       align-items: center;
       gap: 0.3125rem;
-      padding: 0;
+
+      /*
+       * The label is eleven pixels tall, which is a target of seventeen. The
+       * padding gives it a usable one and the margin takes the space back, so
+       * the heading row is laid out as before.
+       */
+      padding: 0.5rem 0;
+      margin: -0.5rem 0;
       border: 0;
       background: none;
       color: inherit;
