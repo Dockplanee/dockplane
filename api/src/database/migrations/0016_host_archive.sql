@@ -1,0 +1,23 @@
+--
+-- When a host was taken out of the active working set.
+--
+-- Null is active and a timestamp is archived, so the state and the moment it
+-- was reached are one field. That is what makes archiving reversible without a
+-- state machine, and auditable without a second table.
+--
+-- Nothing is rewritten by this migration and nothing is inferred. Every
+-- existing host stays active, including the ones that are offline, whose agent
+-- was revoked, or that share a system hostname with several others — those are
+-- observations, and archiving is a decision somebody makes. A backfill that
+-- guessed from any of them would archive hosts nobody chose to archive.
+--
+-- Archiving removes no history: every container, Compose project, stack,
+-- action, event and audit entry goes on referencing the host it belongs to,
+-- and this column is not read by any of those relations.
+--
+ALTER TABLE "hosts" ADD COLUMN "archived_at" timestamp with time zone;--> statement-breakpoint
+--
+-- Every working list asks for the active hosts, which is most of the reads
+-- this table gets.
+--
+CREATE INDEX "hosts_archived_idx" ON "hosts" ("archived_at");

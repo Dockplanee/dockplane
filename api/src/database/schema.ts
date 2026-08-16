@@ -215,9 +215,28 @@ export const hosts = pgTable(
     metadata: jsonb('metadata'),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     observedAt: timestamp('observed_at', { withTimezone: true }),
+    /**
+     * When this host was taken out of the active working set.
+     *
+     * Null is active, and a timestamp is archived: the state and the moment it
+     * was reached are the same field, which is what makes it auditable and
+     * reversible without a state machine. Nothing is deleted by it — every
+     * container, project, stack, action and audit entry goes on pointing at
+     * this host, and every historical view goes on resolving its identity.
+     *
+     * Deliberately not derived from anything. A host that is offline, whose
+     * agent was revoked, or that shares a hostname with five others is not
+     * archived until somebody says so, because those are observations and this
+     * is a decision.
+     */
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
     ...timestamps,
   },
-  (table) => [index('hosts_hostname_idx').on(table.hostname)],
+  (table) => [
+    index('hosts_hostname_idx').on(table.hostname),
+    /* Every working list reads the active hosts, which is most of them. */
+    index('hosts_archived_idx').on(table.archivedAt),
+  ],
 );
 
 export const agents = pgTable(
