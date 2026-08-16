@@ -27,7 +27,12 @@ export async function testPki(): Promise<TestPki> {
   return sharedPki;
 }
 
-export async function createTestApp(): Promise<INestApplication> {
+/** Environment a suite needs to differ from the shared test deployment. */
+export interface TestAppOptions {
+  readonly env?: Readonly<Record<string, string>>;
+}
+
+export async function createTestApp(options: TestAppOptions = {}): Promise<INestApplication> {
   await prepareDatabase().then((db) => db.onModuleDestroy());
 
   const pki = await testPki();
@@ -66,6 +71,15 @@ export async function createTestApp(): Promise<INestApplication> {
      * intermittent failure.
      */
     LOG_LEVEL: process.env.TEST_LOG_LEVEL ?? 'silent',
+    /*
+     * Named explicitly rather than left unset.
+     *
+     * Suites in one worker share the environment, so a suite that turns the
+     * update check on would otherwise leave it on for whichever suite ran next.
+     * The shipped default is off, and this is what keeps every suite seeing it.
+     */
+    UPDATE_CHECK_ENABLED: 'false',
+    ...options.env,
   });
 
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
