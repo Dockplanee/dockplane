@@ -29,7 +29,11 @@ stops being refreshed and is shown as stale; its containers and Compose
 projects remain visible against a host that no longer reports. Dockplane does
 not merge the two, and there is no way to reattach a new agent to an existing
 host record, so a machine enrolled several times accumulates a record each
-time. See [Add a Host](../getting-started/add-host.md).
+time. The superseded records can be archived, which takes them out of the
+working lists while keeping everything they carried — but archiving is a way of
+saying which record is current, not a merge. See
+[Add a Host](../getting-started/add-host.md) and
+[Archiving Hosts](../operations/host-archive.md).
 
 **There is no automatic update and no self-updater.** Upgrades are explicit:
 download a release, check it, run the installer. See

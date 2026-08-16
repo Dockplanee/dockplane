@@ -152,6 +152,7 @@ with it:
 
 ```text
 hosts.read          view Docker hosts and their reported state
+hosts.archive       archive a host, and restore an archived one
 containers.read     view discovered containers
 containers.start    start a container
 containers.stop     stop a container

@@ -21,6 +21,7 @@ nothing here is maintained a second time somewhere else.
 | [Container Operations](operations/container-lifecycle.md) | start, stop, restart, create, change, remove |
 | [Container Logs](operations/container-logs.md) | historical output and live streams |
 | [Stacks](operations/stacks.md) | saved Compose configurations and their history |
+| [Archiving Hosts](operations/host-archive.md) | taking a superseded host out of the working set, without losing it |
 | [Versions](operations/versions.md) | what is running, mixed agent versions, the optional update check |
 | [Troubleshooting](operations/troubleshooting.md) | what to check when something is wrong |
 | [Building a Release](operations/releases.md) | for maintainers |
