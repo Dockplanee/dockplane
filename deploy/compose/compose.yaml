@@ -121,6 +121,10 @@ services:
       AGENT_RELEASE_BASE_URL:
         ${AGENT_RELEASE_BASE_URL:-https://github.com/Dockplanee/dockplane/releases/download}
       AGENT_RELEASE_VERSION: ${AGENT_RELEASE_VERSION:-}
+      # Whether this deployment asks whether a newer Dockplane exists. Off
+      # unless it is set here, and off is what a new deployment and every
+      # upgrade get.
+      UPDATE_CHECK_ENABLED: ${UPDATE_CHECK_ENABLED:-false}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     secrets:
       - application-encryption-key

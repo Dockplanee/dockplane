@@ -59,8 +59,21 @@ unchanged, which is why a 0.1.0 agent goes on working against this control
 server and a backup taken by either is readable by both. The stack plan is new
 in this series and did not exist in 0.1.
 
+## Seeing them
+
+`GET /api/v1/version` reports the server's build, its protocol version and both
+schema versions without a session, because a deployment has to be able to say
+what it is before anyone can sign in.
+
+Signed in, **Settings → System** shows the same values alongside the browser
+application's own version and a summary of what the agents report. What that
+panel does and does not do — including the update check, which is off unless an
+administrator turns it on — is described in
+[Versions](../operations/versions.md).
+
 ## Related
 
+- [Versions](../operations/versions.md)
 - [Agent Gateway](agent-gateway.md)
 - [Backup and Recovery](../operations/backup-restore.md)
 - [Building a Release](../operations/releases.md)
