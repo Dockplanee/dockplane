@@ -16,6 +16,8 @@ export interface PageInfo {
 export interface HostResponse {
   readonly id: string;
   readonly hostname: string;
+  readonly archived?: boolean;
+  readonly archivedAt?: string | null;
   readonly displayName: string | null;
   readonly os: string | null;
   readonly architecture: string | null;

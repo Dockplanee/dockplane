@@ -22,6 +22,14 @@ export interface ResourceUsage {
   readonly detail?: string;
 }
 
+/**
+ * Which hosts a list is about.
+ *
+ * `active` is the working set and the default. The other two exist so an
+ * operator can find what was archived and put it back.
+ */
+export type HostScope = 'active' | 'archived' | 'all';
+
 export interface Host {
   readonly id: string;
   /** What to call this host: the operator's name for it, or its own. */
@@ -61,6 +69,17 @@ export interface Host {
    * and when a connected agent has not reported for several intervals.
    */
   readonly stale: boolean;
+  /**
+   * True when this host has been taken out of the active working set.
+   *
+   * A decision somebody made, never a conclusion drawn from the agent, the
+   * clock or the hostname. An archived host keeps everything it ever had —
+   * containers, projects, stacks, actions and audit entries all still name it —
+   * and it can be restored.
+   */
+  readonly archived: boolean;
+  /** When it was archived, for showing and for ordering. */
+  readonly archivedAt?: string;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { Observable } from 'rxjs';
 
-import { ComposeProject, Container, ContainerDetail, Host } from '../domain/inventory';
+import { ComposeProject, Container, ContainerDetail, Host, HostScope } from '../domain/inventory';
 import { Stack, StackOperation, StackRevision, StackService } from '../domain/stacks';
 import {
   Agent,
@@ -26,7 +26,20 @@ import { InstalledVersions, UpdateCheck } from '../domain/versions';
  * fixture used by tests are interchangeable without touching a component.
  */
 export abstract class DockplaneApi {
-  abstract hosts(): Observable<readonly Host[]>;
+  /**
+   * The hosts a person is working with.
+   *
+   * Active by default, because an archived host is not part of the working
+   * set. Asking for the archived ones is deliberate, and no historical view
+   * goes through here — a container names its host whatever its state.
+   */
+  abstract hosts(scope?: HostScope): Observable<readonly Host[]>;
+
+  /** Takes a host out of the working set. Refused while its agent is connected. */
+  abstract archiveHost(id: string): Observable<Host>;
+
+  /** Returns an archived host to the working set. Visibility only. */
+  abstract unarchiveHost(id: string): Observable<Host>;
   abstract host(id: string): Observable<Host | undefined>;
 
   abstract containers(filter?: ContainerFilter): Observable<readonly Container[]>;

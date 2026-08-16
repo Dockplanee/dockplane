@@ -24,7 +24,13 @@ import {
   LogSnapshot,
   MfaSetup,
 } from '../app/data/dockplane-api';
-import { ComposeProject, Container, ContainerDetail, Host } from '../app/domain/inventory';
+import {
+  ComposeProject,
+  Container,
+  ContainerDetail,
+  Host,
+  HostScope,
+} from '../app/domain/inventory';
 import {
   Agent,
   AuditPage,
@@ -117,6 +123,9 @@ export interface TestData {
   updateCheck?: UpdateCheck;
   /** Set to make the update check request fail. */
   updateCheckError?: unknown;
+  /** Set to make archiving fail the way the server would — a connected host. */
+  archiveFailure?: unknown;
+  unarchiveFailure?: unknown;
   /** Set to make deleting a stack fail the way the server would. */
   deleteFailure?: unknown;
   /** What a deletion reports it kept. */
@@ -139,9 +148,44 @@ export class TestApi extends DockplaneApi {
     super();
   }
 
-  hosts(): Observable<readonly Host[]> {
-    this.calls.push('hosts');
-    return of(this.data.hosts ?? []);
+  hosts(scope: HostScope = 'active'): Observable<readonly Host[]> {
+    this.calls.push(`hosts:${scope}`);
+
+    const all = this.data.hosts ?? [];
+
+    if (scope === 'all') {
+      return of(all);
+    }
+
+    return of(all.filter((host) => (scope === 'archived' ? host.archived : !host.archived)));
+  }
+
+  archiveHost(id: string): Observable<Host> {
+    this.calls.push(`archiveHost:${id}`);
+
+    if (this.data.archiveFailure) {
+      return throwError(() => this.data.archiveFailure);
+    }
+
+    const host = (this.data.hosts ?? []).find((entry) => entry.id === id);
+
+    return host
+      ? of({ ...host, archived: true, archivedAt: '2026-08-16T12:00:00.000Z' })
+      : throwError(() => new ApiError('HOST_NOT_FOUND', 'The host does not exist.', 404));
+  }
+
+  unarchiveHost(id: string): Observable<Host> {
+    this.calls.push(`unarchiveHost:${id}`);
+
+    if (this.data.unarchiveFailure) {
+      return throwError(() => this.data.unarchiveFailure);
+    }
+
+    const host = (this.data.hosts ?? []).find((entry) => entry.id === id);
+
+    return host
+      ? of({ ...host, archived: false, archivedAt: undefined })
+      : throwError(() => new ApiError('HOST_NOT_FOUND', 'The host does not exist.', 404));
   }
 
   installedVersions(): Observable<InstalledVersions> {

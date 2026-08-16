@@ -28,6 +28,7 @@ export function host(overrides: Partial<Host> = {}): Host {
     lastSeen: '2026-08-09T12:00:00.000Z',
     observedAt: '2026-08-09T12:00:00.000Z',
     stale: false,
+    archived: false,
     ...overrides,
   };
 }

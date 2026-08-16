@@ -15,6 +15,7 @@ import {
   Mount,
   PortBinding,
   ResourceUsage,
+  HostScope,
 } from '../domain/inventory';
 import { OperatorSession } from '../domain/sessions';
 import { InstalledVersions, UpdateCheck } from '../domain/versions';
@@ -94,10 +95,22 @@ export class RealDockplaneApi extends DockplaneApi {
   private readonly api = inject(ApiClient);
   private readonly base = inject(API_BASE_URL);
 
-  hosts(): Observable<readonly Host[]> {
+  hosts(scope: HostScope = 'active'): Observable<readonly Host[]> {
     return this.api
-      .get<{ hosts: readonly HostResponse[] }>('/api/v1/hosts', { limit: PAGE_SIZE })
+      .get<{ hosts: readonly HostResponse[] }>('/api/v1/hosts', { limit: PAGE_SIZE, scope })
       .pipe(map((response) => response.hosts.map(toHost)));
+  }
+
+  archiveHost(id: string): Observable<Host> {
+    return this.api
+      .post<{ host: HostResponse }>(`/api/v1/hosts/${id}/archive`, {})
+      .pipe(map((response) => toHost(response.host)));
+  }
+
+  unarchiveHost(id: string): Observable<Host> {
+    return this.api
+      .post<{ host: HostResponse }>(`/api/v1/hosts/${id}/unarchive`, {})
+      .pipe(map((response) => toHost(response.host)));
   }
 
   host(id: string): Observable<Host | undefined> {
@@ -480,6 +493,8 @@ function toHost(host: HostResponse): Host {
     name: host.displayName ?? host.hostname,
     hostname: host.hostname,
     status: toHostStatus(host),
+    archived: host.archived ?? false,
+    archivedAt: host.archivedAt ?? undefined,
     os: host.os ?? undefined,
     architecture: host.architecture ?? undefined,
     kernel: host.kernel ?? undefined,

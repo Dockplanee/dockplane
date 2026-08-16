@@ -16,6 +16,7 @@ import { Session } from './session';
  */
 export const PERMISSIONS = [
   'hosts.read',
+  'hosts.archive',
   'containers.read',
   'containers.start',
   'containers.stop',

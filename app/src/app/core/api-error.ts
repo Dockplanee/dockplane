@@ -20,6 +20,10 @@ export type ApiErrorCode =
   | 'RATE_LIMITED'
   | 'VALIDATION_FAILED'
   | 'CONTAINER_NOT_FOUND'
+  /* The host is archived, so it is not a target for new operational work. */
+  | 'HOST_ARCHIVED'
+  /* Its agent is connected, so it is in use and cannot be archived. */
+  | 'HOST_CONNECTED'
   | 'CONTAINER_DETAIL_UNAVAILABLE'
   | 'CONTAINER_ALREADY_RUNNING'
   | 'CONTAINER_ALREADY_STOPPED'
@@ -198,6 +202,9 @@ const MESSAGES: Record<ApiErrorCode, string> = {
   PERMISSION_DENIED: 'You do not have permission to do this.',
   RATE_LIMITED: 'Too many attempts. Wait a moment before trying again.',
   VALIDATION_FAILED: 'Some of the details are not valid.',
+  HOST_ARCHIVED:
+    'This host is archived, so it is not a target for new work. Restore it first if it is in use again.',
+  HOST_CONNECTED: 'This host has a connected agent, so it is in use and cannot be archived.',
   CONTAINER_NOT_FOUND: 'This container no longer exists on its host.',
   CONTAINER_DETAIL_UNAVAILABLE:
     'The host has not been reachable since this container was discovered, so no detail has been read yet.',
