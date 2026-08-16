@@ -150,7 +150,9 @@ export class ContainerDetail {
   private readonly reachable = computed(() => {
     const host = this.store.host();
 
-    return host ? isReporting(host.status) : false;
+    // An archived host is not a target for new work, whatever its agent is
+    // doing. The control server refuses the same request again.
+    return host ? isReporting(host.status) && !host.archived : false;
   });
 
   /**

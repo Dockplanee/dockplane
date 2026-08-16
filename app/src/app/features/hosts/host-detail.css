@@ -39,3 +39,15 @@ h2 {
 .tabs {
   margin-bottom: 1rem;
 }
+
+/* Stated once, in the same register as the stale notice above it. */
+.archived {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--dp-line);
+  border-radius: var(--dp-radius-lg);
+  background-color: var(--dp-surface-alt);
+  color: var(--dp-fg-muted);
+  font-size: var(--dp-text-body);
+  line-height: 1.6;
+}

@@ -11,6 +11,14 @@
         [label]="status(host.status).label"
         plated
       />
+      <!--
+        Beside the reported state rather than instead of it. A host that was
+        archived and is answering again is both, and saying only one of the two
+        would hide the part that is surprising.
+      -->
+      @if (host.archived) {
+        <dp-status-badge tone="info" label="Archived" plated />
+      }
     </div>
 
     <p class="meta">
@@ -19,6 +27,13 @@
       }
     </p>
   </header>
+
+  @if (host.archived) {
+    <p class="archived">
+      This host is archived. Everything it ran is still recorded here, and it is not offered as
+      somewhere to run new work. Restore it from the hosts list to use it again.
+    </p>
+  }
 
   @if (host.stale) {
     <dp-stale-notice

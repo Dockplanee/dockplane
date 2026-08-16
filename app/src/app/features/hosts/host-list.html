@@ -29,6 +29,14 @@
       (valueChange)="osFilter.set($event)"
     />
 
+    <dp-select-filter
+      id="host-scope"
+      label="Show archived hosts"
+      [options]="scopeOptions"
+      [value]="scope()"
+      (valueChange)="scope.set($any($event))"
+    />
+
     <button #addHostTrigger type="button" dpButton variant="primary" (click)="openAddHost()">
       <dp-icon name="plus" />
       Add host
@@ -92,6 +100,7 @@
                 >Last seen</dp-sort-button
               >
             </th>
+            <th scope="col"><span class="dp-sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>
@@ -119,6 +128,14 @@
                   [tone]="status(host.status).tone"
                   [label]="status(host.status).label"
                 />
+                <!--
+                  Shown beside the reported state rather than instead of it: an
+                  archived host that is answering again is archived and
+                  connected, which is unusual and is the truth.
+                -->
+                @if (host.archived) {
+                  <span class="secondary">Archived</span>
+                }
               </td>
               <td data-priority="p2">
                 {{ host.os ?? '—' }}
@@ -174,6 +191,15 @@
               </td>
               <td data-priority="p2" class="dp-mono dp-unknown">{{ host.agentVersion ?? '—' }}</td>
               <td data-priority="p1" class="shrink dp-unknown">{{ host.lastSeen ? age(host.lastSeen) : '—' }}</td>
+              <td class="shrink">
+                @if (actionsFor(host).length > 0) {
+                  <dp-row-menu
+                    [subject]="host.name"
+                    [actions]="actionsFor(host)"
+                    (selected)="run(host, $event)"
+                  />
+                }
+              </td>
             </tr>
           }
         </tbody>
@@ -195,3 +221,13 @@
 </dp-panel>
 
 <dp-add-host-dialog />
+
+<dp-confirm-dialog
+  #archiveDialog
+  heading="Archive this host?"
+  description="Its containers, Compose projects, stacks and history stay exactly as they are, and every record that names this host goes on naming it. What changes is that it stops being offered as somewhere to run new work, and leaves the active host lists. You can restore it at any time."
+  confirmLabel="Archive host"
+  [details]="archiveDetails()"
+  [pending]="working()"
+  (confirmed)="confirmArchive()"
+/>

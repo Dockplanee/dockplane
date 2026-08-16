@@ -75,9 +75,18 @@ export class ContainerStore {
   /** Why the detail could not be read, when it could not. */
   readonly unavailable = this.detailError.asReadonly();
 
-  private readonly hosts = toSignal(this.refresh.changes.pipe(switchMap(() => this.api.hosts())), {
-    initialValue: [],
-  });
+  /*
+   * Every host, including archived ones.
+   *
+   * This resolves the identity of the machine a container belongs to, and that
+   * is history: a container discovered on a host does not stop having been on
+   * it when the host leaves the working set. Filtering here is what would make
+   * a container's host quietly disappear from its own detail page.
+   */
+  private readonly hosts = toSignal(
+    this.refresh.changes.pipe(switchMap(() => this.api.hosts('all'))),
+    { initialValue: [] },
+  );
 
   readonly host = computed(() => this.hosts().find((host) => host.id === this.container()?.hostId));
 
