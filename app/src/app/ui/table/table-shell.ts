@@ -1,10 +1,19 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 /**
- * Scroll container and result count around a list view's table.
+ * Layout container and result count around a list view's table.
  *
- * Dense operational tables keep their technical columns on narrow viewports and
- * scroll horizontally rather than dropping information.
+ * Dense operational tables used to keep every technical column at every width
+ * and scroll sideways instead of dropping any. Measured against 0.2.0 that put
+ * a container's state, health and actions outside the window on everything
+ * narrower than about 1500 pixels, while the page itself reported no overflow —
+ * so nothing signalled that the rest of the row existed.
+ *
+ * The width that decides the layout is this element's, not the window's. A
+ * 1440-pixel window carries a 1150-pixel content area once the sidebar is
+ * open, which is narrower than the containers table wants; a 768-pixel window
+ * has no sidebar and carries 718. Asking the window would call the first full
+ * and the second narrow, which is backwards.
  */
 @Component({
   selector: 'dp-table-shell',
@@ -27,6 +36,10 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
     :host {
       display: block;
       min-width: 0;
+
+      /* What the table measures itself against. See dp-table in components.css. */
+      container-type: inline-size;
+      container-name: dp-table;
     }
 
     .scroll {
@@ -34,8 +47,15 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       overscroll-behavior-x: contain;
     }
 
-    .scroll ::ng-deep table {
-      min-width: var(--dp-table-min-width, 0);
+    /*
+     * A floor for the full layout only. Below it the table drops its secondary
+     * columns and then stacks, so holding a minimum would reintroduce exactly
+     * the sideways scroll those modes exist to remove.
+     */
+    @container dp-table (min-width: 76rem) {
+      .scroll ::ng-deep table {
+        min-width: var(--dp-table-min-width, 0);
+      }
     }
 
     .count {

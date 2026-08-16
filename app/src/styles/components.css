@@ -281,6 +281,118 @@
 }
 
 @layer components {
+  /*
+   * What a list drops, and when.
+   *
+   * Every column carries the priority of what it tells an operator, and the
+   * width that decides which of them are shown is the table's own rather than
+   * the window's — a wide window with the sidebar open is a narrow content
+   * area, and the sideways scroll this replaces was measured at 1280 and at
+   * 1440 as much as at 375.
+   *
+   *   p0  an operator cannot act without it: what the thing is, which host it
+   *       belongs to, what state it is in, and the way to act on it
+   *   p1  wanted whenever there is room
+   *   p2  secondary; the detail page carries it too
+   *   p3  full layout only
+   *
+   * Three layouts follow from that: the full table where everything fits, a
+   * compact table that keeps p0 and p1, and below that a stacked list. Marking
+   * a column is the whole of what a screen has to do.
+   */
+  @container dp-table (max-width: 75.999rem) {
+    .dp-table [data-priority='p2'],
+    .dp-table [data-priority='p3'] {
+      display: none;
+    }
+  }
+
+  /*
+   * Narrower still, and what is merely wanted goes too. A tablet-width content
+   * area carries about five columns before it has to scroll, and scrolling is
+   * what these modes exist to remove.
+   */
+  @container dp-table (max-width: 47.999rem) {
+    .dp-table [data-priority='p1'] {
+      display: none;
+    }
+  }
+
+  /*
+   * The stacked list.
+   *
+   * One row per resource, read top to bottom, with the actions kept on the
+   * first line where a thumb expects them. The same table, the same cells and
+   * the same controls — a second representation would mean two sets of
+   * focusable controls and two readings of every row.
+   */
+  @container dp-table (max-width: 39.999rem) {
+    .dp-table,
+    .dp-table tbody,
+    .dp-table tbody tr,
+    .dp-table tbody th,
+    .dp-table tbody td {
+      display: block;
+      width: auto;
+    }
+
+    .dp-table thead {
+      /* The headings are repeated by each cell's own content in this layout. */
+      display: none;
+    }
+
+    .dp-table tbody tr {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 0.25rem 0.75rem;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--dp-line);
+    }
+
+    .dp-table tbody tr:last-child {
+      border-bottom: 0;
+    }
+
+    .dp-table tbody th,
+    .dp-table tbody td {
+      min-width: 0;
+      padding: 0;
+      border-bottom: 0;
+
+      /*
+       * Identifiers, images and user agents have no spaces to break at, and one
+       * of them is enough to push the page sideways — which is how the sessions
+       * list moved the settings page under its own content.
+       */
+      overflow-wrap: anywhere;
+    }
+
+    /* The name leads, and the row's actions sit beside it. */
+    .dp-table tbody th[scope='row'] {
+      grid-column: 1;
+      grid-row: 1;
+      font-weight: 500;
+    }
+
+    .dp-table tbody .shrink:last-child {
+      grid-column: 2;
+      grid-row: 1;
+      width: auto;
+      justify-self: end;
+    }
+
+    .dp-table tbody td {
+      grid-column: 1;
+    }
+
+    .dp-table .numeric {
+      text-align: left;
+    }
+  }
+}
+
+@layer components {
   /* Search and filter strip above a list view. */
   .dp-controls {
     display: flex;
