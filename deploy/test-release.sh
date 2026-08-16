@@ -558,7 +558,10 @@ check "the reproducibility gate asks it before measuring" \
 	"$(grep -q 'fixture-visible.sh' deploy/test-reproducibility.sh && echo ok || echo fail)"
 
 if ! command -v docker > /dev/null; then
-	check fail "docker is available to prove what the daemon sees"
+	# This file's check takes the description first. Written the other way
+	# round, the refusal still counted as one — and printed "fail" where the
+	# reason belonged, which is the one moment the reason is worth having.
+	check "docker is available to prove what the daemon sees" fail
 else
 	prepared="$work/fixture"
 	mkdir -p "$prepared/usr/bin"
