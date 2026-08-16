@@ -52,6 +52,7 @@ const SUITES = [
   ['container management', 'container-management.e2e.mjs'],
   ['stack management', 'stack-management.e2e.mjs'],
   ['host inventory', 'host-inventory.e2e.mjs'],
+  ['version visibility', 'version-visibility.e2e.mjs'],
   // Last, and thin: what changes with the window is reach rather than
   // behaviour, so this passes over representative screens at each viewport
   // class instead of repeating the suites above at five sizes.
