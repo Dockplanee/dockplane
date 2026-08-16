@@ -24,6 +24,19 @@ RUN npm ci
 
 COPY . .
 
+# What the bundle says it is.
+#
+# The browser application is its own artefact, and an operator who pins the two
+# images to different tags is running two revisions. So the version is compiled
+# in here rather than read from the runtime container's environment, which the
+# browser never sees: the assets are static files behind Caddy, and a variable
+# set beside them reaches nobody.
+#
+# Both are release facts rather than build facts — no clock, no host, no path —
+# so the same source at the same version still produces the same bytes.
+ARG DOCKPLANE_VERSION=0.0.0-dev
+ARG DOCKPLANE_COMMIT=unknown
+
 # The assets under public/ are copied into the output untouched, modification
 # time and permissions included, and both are properties of the checkout rather
 # than of the commit: git records only whether a file is executable, and the

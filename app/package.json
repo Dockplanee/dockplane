@@ -4,7 +4,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build",
+    "build": "ng build --define DOCKPLANE_WEB_VERSION=\"\\\"${DOCKPLANE_VERSION:-0.0.0-dev}\\\"\" --define DOCKPLANE_WEB_COMMIT=\"\\\"${DOCKPLANE_COMMIT:-unknown}\\\"\"",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "lint": "ng lint",
