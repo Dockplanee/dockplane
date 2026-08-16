@@ -299,6 +299,141 @@ work is what is left after the shared work lands.
 7. **Screen-specific** — the duplicate Host header on Compose, and deciding
    whether the overview keeps its own list or reuses the hosts one.
 
+## Resolutions
+
+What was built against the findings above, and what the same eighty-five
+measurements say now. The findings themselves are left as they were recorded
+against 0.2.0; this section is the answer to them, not a revision of them.
+
+The re-measurement uses the same seventeen screens at the same five widths, run
+against the implementation with real data — seven host identities and nine
+containers created by the browser suites. Verdicts are read the same way both
+times: `overflow` if the document scrolls sideways, `scroll` if a table needs
+the window moved to be read, `ok` otherwise.
+
+| | Before | After |
+| --- | --- | --- |
+| ok | 45 | **85** |
+| scroll | 38 | **0** |
+| overflow | 2 | **0** |
+
+### P0 · Operational columns leave the window on the two widest lists
+
+**Fix.** Every column now carries the priority of what it tells an operator, and
+the width that decides which are shown is the table's own rather than the
+window's. Three layouts follow: the full table above 76rem of table width, a
+compact table that keeps P0 and P1 below it, and a stacked list below 40rem.
+
+**Verification.** `/containers` and `/hosts` measure `ok` at all five widths;
+the table is given exactly the width it wants at each (341, 566, 718, 734,
+1150). The responsive suite asserts that name, host and status are inside the
+window on every one. Nine tables are covered by
+`app/src/app/ui/table/column-priority.spec.ts`, which fails if a heading and its
+cell disagree about priority.
+
+**Status.** Resolved.
+
+### P0 · Settings scrolls the window sideways
+
+**Fix.** The sessions table was the one list not using the shared table pattern,
+so none of the priority rules reached it. It carries `dp-table` now.
+
+**Verification.** Page overflow at 375 fell from 292 pixels to 0, and at 600
+from 67 to 0. Measured again after the change with every element on the page
+checked against the window: nothing extends past it.
+
+**Status.** Resolved.
+
+### P1 · Row actions are unreachable on narrow windows
+
+**Fix.** The actions cell is P0 and, in the stacked layout, sits on the first
+line beside the resource name.
+
+**Verification.** No screen reports an unreachable row action at any width. In
+the stacked layout the menu trigger measures 44 by 44.
+
+**Status.** Resolved.
+
+### P1 · The compact band has no design
+
+**Fix.** The band between a tablet and a wide desktop is the compact table: P0
+and P1 columns, P2 and P3 dropped.
+
+**Verification.** `ok` at 768 and 1024 on every list, where all seven lists
+previously scrolled.
+
+**Status.** Resolved.
+
+### P1 · Two hosts columns carry the same header
+
+**Fix.** The second column is `System hostname` and is P2, so it is the first to
+go when the table narrows.
+
+**Status.** Resolved.
+
+### P1 · The overview list repeats the hosts table
+
+**Fix.** Neither screen carries responsive code of its own. Both mark their
+columns and inherit the same three layouts, so the compact and stacked forms are
+defined once.
+
+**Status.** Resolved for the responsive behaviour. Whether the overview should
+render the hosts table component rather than its own markup is a component
+question and stays open.
+
+### P2 · Controls are sized for a pointer at every width
+
+**Fix.** The sort control in a table heading was the label's own height with no
+room around it; it now carries padding that the surrounding negative margin
+takes back out of the layout, so the target grew without moving the header. The
+row menu trigger is 44 by 44 in the stacked layout.
+
+**Verification.** No control under 24 pixels on any of the eighty-five
+measurements. The smallest is 28 — the row menu on wide layouts, which meets
+WCAG 2.2 AA and is a pointer target rather than a thumb one.
+
+**Correction to the record above.** The 13-pixel reading on Settings was a
+measurement fault, not a fault in the product: it is a radio input inside a
+36-pixel label, and the label is what a person hits. The measurement now reports
+the effective target. Nothing about that control changed, and it was never
+below the minimum.
+
+**Status.** Resolved for the sort control. The 40-to-44-pixel aspiration is met
+by the row menu in the stacked layout and not pursued for the rest.
+
+### P2 · Table widths are set by content, not by a scale
+
+**Fix.** Partial. A table's minimum width now applies only in the full layout;
+below it the priorities decide what is shown, so the number no longer sets a
+breaking point.
+
+**Status.** Open. Nine tables still declare nine widths.
+
+### P2 · Breakpoints are ad hoc
+
+**Status.** Open. The table layouts are driven by three container widths
+declared once, but the seven `min-width` rules the finding names are in eleven
+component stylesheets covering cards, forms and the top bar, and consolidating
+them would change layout well outside the lists.
+
+### P3 · Detail screens have no table to adapt
+
+**Status.** Unchanged and still `ok` at every width.
+
+### Accessibility of the stacked layout
+
+Changing `display` on a table is normally where its semantics are lost, which
+would make the stacked list a run of text with no row boundaries. Asked of the
+browsers rather than assumed: Chromium, Firefox and WebKit all expose `table`,
+`rowgroup`, `row`, `rowheader` and `cell` for the stacked layout, so no ARIA
+roles are needed to hold the semantics up.
+
+The column headers are removed along with the columns they head, so no heading
+is left describing something that is not shown. Focus order matches the visual
+order: the only controls a row leaves visible are the identifier and the row
+action, and nothing focusable is placed between them. No identifiers were added,
+so no element carries a duplicated one.
+
 ## Related
 
 - [App UI Spec](APP_UI_SPEC.md)
