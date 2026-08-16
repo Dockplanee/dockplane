@@ -235,7 +235,7 @@ describe('upgrading a 0.1.0 installation', () => {
       const applied = await ledger();
 
       expect(applied).toHaveLength(current.length);
-      expect(current).toHaveLength(16);
+      expect(current).toHaveLength(17);
     });
 
     /*
