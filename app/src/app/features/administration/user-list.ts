@@ -31,8 +31,8 @@ const USER_STATUS: Record<string, { label: string; tone: StatusTone }> = {
               <tr>
                 <th scope="col">User</th>
                 <th scope="col">Status</th>
-                <th scope="col">MFA</th>
-                <th scope="col">Last login</th>
+                <th scope="col" data-priority="p1">MFA</th>
+                <th scope="col" data-priority="p1">Last login</th>
               </tr>
             </thead>
             <tbody>
@@ -45,13 +45,13 @@ const USER_STATUS: Record<string, { label: string; tone: StatusTone }> = {
                   <td>
                     <dp-status-badge [tone]="user.statusTone" [label]="user.statusLabel" />
                   </td>
-                  <td>
+                  <td data-priority="p1">
                     <dp-status-badge
                       [tone]="user.mfaEnabled ? 'ok' : 'warn'"
                       [label]="user.mfaEnabled ? 'Enabled' : 'Not enabled'"
                     />
                   </td>
-                  <td class="shrink dp-unknown">{{ user.lastLogin }}</td>
+                  <td data-priority="p1" class="shrink dp-unknown">{{ user.lastLogin }}</td>
                 </tr>
               }
             </tbody>

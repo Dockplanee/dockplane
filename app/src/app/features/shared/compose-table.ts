@@ -32,9 +32,9 @@ import { TableShell } from '../../ui/table/table-shell';
                 <th scope="col">Host</th>
               }
               <th scope="col">State</th>
-              <th scope="col">Services</th>
-              <th scope="col">Host</th>
-              <th scope="col">Last observed</th>
+              <th scope="col" data-priority="p1">Services</th>
+              <th scope="col" data-priority="p2">System hostname</th>
+              <th scope="col" data-priority="p1">Last observed</th>
             </tr>
           </thead>
           <tbody>
@@ -54,9 +54,9 @@ import { TableShell } from '../../ui/table/table-shell';
                     [label]="stateBadge(project).label"
                   />
                 </td>
-                <td class="dp-mono">{{ project.servicesRunning }} / {{ project.servicesTotal }}</td>
-                <td class="dp-mono dp-unknown">{{ project.hostname }}</td>
-                <td class="shrink dp-unknown">
+                <td data-priority="p1" class="dp-mono">{{ project.servicesRunning }} / {{ project.servicesTotal }}</td>
+                <td data-priority="p2" class="dp-mono dp-unknown">{{ project.hostname }}</td>
+                <td data-priority="p1" class="shrink dp-unknown">
                   {{ project.observedAt ? age(project.observedAt) : '—' }}
                 </td>
               </tr>

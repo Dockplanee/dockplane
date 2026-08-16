@@ -16,12 +16,12 @@
           @if (showHost()) {
             <th scope="col">Host</th>
           }
-          <th scope="col">Image</th>
-          <th scope="col">Managed by</th>
+          <th scope="col" data-priority="p1">Image</th>
+          <th scope="col" data-priority="p1">Managed by</th>
           <th scope="col">Status</th>
           <th scope="col">Health</th>
-          <th scope="col" class="numeric">Restarts</th>
-          <th scope="col">Uptime</th>
+          <th scope="col" class="numeric" data-priority="p2">Restarts</th>
+          <th scope="col" data-priority="p2">Uptime</th>
           <th scope="col"><span class="dp-sr-only">Actions</span></th>
         </tr>
       </thead>
@@ -46,8 +46,8 @@
                 }
               </td>
             }
-            <td class="dp-mono dp-unknown">{{ container.image }}</td>
-            <td><dp-management-badge [management]="container.management" /></td>
+            <td class="dp-mono dp-unknown" data-priority="p1">{{ container.image }}</td>
+            <td data-priority="p1"><dp-management-badge [management]="container.management" /></td>
             <td class="state">
               <dp-status-badge
                 [tone]="stateBadge(container).tone"
@@ -63,10 +63,10 @@
                 [label]="health(container.health).label"
               />
             </td>
-            <td class="numeric" [class.dp-unknown]="container.restarts === 0">
+            <td class="numeric" data-priority="p2" [class.dp-unknown]="container.restarts === 0">
               {{ container.restarts }}
             </td>
-            <td class="shrink dp-mono">{{ runningFor(container) }}</td>
+            <td class="shrink dp-mono" data-priority="p2">{{ runningFor(container) }}</td>
             <td class="shrink">
               <dp-row-menu
                 [subject]="container.name"

@@ -82,12 +82,12 @@
           <tr>
             <th scope="col">Host</th>
             <th scope="col">Status</th>
-            <th scope="col">Containers</th>
-            <th scope="col">CPU</th>
-            <th scope="col">Memory</th>
-            <th scope="col">Disk</th>
-            <th scope="col">Uptime</th>
-            <th scope="col">Last seen</th>
+            <th scope="col" data-priority="p1">Containers</th>
+            <th scope="col" data-priority="p1">CPU</th>
+            <th scope="col" data-priority="p1">Memory</th>
+            <th scope="col" data-priority="p1">Disk</th>
+            <th scope="col" data-priority="p3">Uptime</th>
+            <th scope="col" data-priority="p1">Last seen</th>
           </tr>
         </thead>
         <tbody>
@@ -107,32 +107,32 @@
                   [label]="status(host.status).label"
                 />
               </td>
-              <td class="dp-mono">
+              <td data-priority="p1" class="dp-mono">
                 {{ containerCount(host).running }} / {{ containerCount(host).total }}
               </td>
-              <td>
+              <td data-priority="p1">
                 @if (host.cpu; as cpu) {
                   <dp-meter [percent]="cpu.percent" [label]="'CPU ' + cpu.detail" />
                 } @else {
                   <span class="dp-unknown">—</span>
                 }
               </td>
-              <td>
+              <td data-priority="p1">
                 @if (host.memory; as memory) {
                   <dp-meter [percent]="memory.percent" [label]="'Memory ' + memory.detail" />
                 } @else {
                   <span class="dp-unknown">—</span>
                 }
               </td>
-              <td>
+              <td data-priority="p1">
                 @if (host.disk; as disk) {
                   <dp-meter [percent]="disk.percent" [label]="'Disk ' + disk.detail" />
                 } @else {
                   <span class="dp-unknown">—</span>
                 }
               </td>
-              <td class="shrink dp-mono">{{ uptimeOf(host.uptimeSeconds) ?? '—' }}</td>
-              <td class="shrink dp-unknown">{{ host.lastSeen ? age(host.lastSeen) : '—' }}</td>
+              <td data-priority="p3" class="shrink dp-mono">{{ uptimeOf(host.uptimeSeconds) ?? '—' }}</td>
+              <td data-priority="p1" class="shrink dp-unknown">{{ host.lastSeen ? age(host.lastSeen) : '—' }}</td>
             </tr>
           }
         </tbody>

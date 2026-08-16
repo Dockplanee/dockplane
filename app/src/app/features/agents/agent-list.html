@@ -60,11 +60,11 @@
         <thead>
           <tr>
             <th scope="col">Host</th>
-            <th scope="col">Agent ID</th>
-            <th scope="col">Version</th>
-            <th scope="col">Protocol</th>
+            <th scope="col" data-priority="p1">Agent ID</th>
+            <th scope="col" data-priority="p1">Version</th>
+            <th scope="col" data-priority="p3">Protocol</th>
             <th scope="col">Status</th>
-            <th scope="col">Last seen</th>
+            <th scope="col" data-priority="p1">Last seen</th>
             <th scope="col"><span class="dp-sr-only">Actions</span></th>
           </tr>
         </thead>
@@ -83,16 +83,16 @@
                   <span class="secondary">{{ agent.hostname }}</span>
                 }
               </th>
-              <td class="dp-mono dp-unknown" [title]="agent.id">{{ shortId(agent.id) }}</td>
-              <td class="dp-mono dp-unknown">{{ agent.version }}</td>
-              <td class="dp-mono dp-unknown">v{{ agent.protocolVersion }}</td>
+              <td data-priority="p1" class="dp-mono dp-unknown" [title]="agent.id">{{ shortId(agent.id) }}</td>
+              <td data-priority="p1" class="dp-mono dp-unknown">{{ agent.version }}</td>
+              <td data-priority="p3" class="dp-mono dp-unknown">v{{ agent.protocolVersion }}</td>
               <td>
                 <dp-status-badge
                   [tone]="status(agent.status).tone"
                   [label]="status(agent.status).label"
                 />
               </td>
-              <td class="shrink dp-unknown">{{ agent.lastSeen ? age(agent.lastSeen) : '—' }}</td>
+              <td data-priority="p1" class="shrink dp-unknown">{{ agent.lastSeen ? age(agent.lastSeen) : '—' }}</td>
               <td class="shrink">
                 <dp-row-menu
                   [subject]="'agent ' + agent.id"

@@ -65,10 +65,10 @@ import { TableShell } from '../../ui/table/table-shell';
                 <th scope="col">Time</th>
                 <th scope="col">Actor</th>
                 <th scope="col">Action</th>
-                <th scope="col">Target</th>
+                <th scope="col" data-priority="p1">Target</th>
                 <th scope="col">Result</th>
-                <th scope="col">Source</th>
-                <th scope="col">Request ID</th>
+                <th scope="col" data-priority="p2">Source</th>
+                <th scope="col" data-priority="p2">Request ID</th>
               </tr>
             </thead>
             <tbody>
@@ -77,15 +77,15 @@ import { TableShell } from '../../ui/table/table-shell';
                   <th scope="row" class="shrink dp-mono">{{ at(entry.time) }}</th>
                   <td>{{ entry.actor }}</td>
                   <td class="dp-mono">{{ entry.action }}</td>
-                  <td class="dp-mono dp-unknown">{{ entry.target }}</td>
+                  <td data-priority="p1" class="dp-mono dp-unknown">{{ entry.target }}</td>
                   <td>
                     <dp-status-badge
                       [tone]="entry.result === 'success' ? 'ok' : 'critical'"
                       [label]="entry.result === 'success' ? 'Success' : 'Failure'"
                     />
                   </td>
-                  <td class="dp-mono dp-unknown">{{ entry.source }}</td>
-                  <td class="dp-mono dp-unknown">{{ entry.requestId }}</td>
+                  <td data-priority="p2" class="dp-mono dp-unknown">{{ entry.source }}</td>
+                  <td data-priority="p2" class="dp-mono dp-unknown">{{ entry.requestId }}</td>
                 </tr>
               }
             </tbody>

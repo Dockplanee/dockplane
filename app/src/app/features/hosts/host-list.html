@@ -59,35 +59,35 @@
                 >Status</dp-sort-button
               >
             </th>
-            <th scope="col" [attr.aria-sort]="ariaSort('os')">
+            <th scope="col" data-priority="p2" [attr.aria-sort]="ariaSort('os')">
               <dp-sort-button [direction]="directionFor('os')" (sort)="toggleSort('os')"
                 >OS / Version</dp-sort-button
               >
             </th>
-            <th scope="col" [attr.aria-sort]="ariaSort('containers')">
+            <th scope="col" data-priority="p1" [attr.aria-sort]="ariaSort('containers')">
               <dp-sort-button
                 [direction]="directionFor('containers')"
                 (sort)="toggleSort('containers')"
                 >Containers</dp-sort-button
               >
             </th>
-            <th scope="col" [attr.aria-sort]="ariaSort('cpu')">
+            <th scope="col" data-priority="p1" [attr.aria-sort]="ariaSort('cpu')">
               <dp-sort-button [direction]="directionFor('cpu')" (sort)="toggleSort('cpu')"
                 >CPU</dp-sort-button
               >
             </th>
-            <th scope="col" [attr.aria-sort]="ariaSort('memory')">
+            <th scope="col" data-priority="p1" [attr.aria-sort]="ariaSort('memory')">
               <dp-sort-button [direction]="directionFor('memory')" (sort)="toggleSort('memory')"
                 >Memory</dp-sort-button
               >
             </th>
-            <th scope="col" [attr.aria-sort]="ariaSort('disk')">
+            <th scope="col" data-priority="p1" [attr.aria-sort]="ariaSort('disk')">
               <dp-sort-button [direction]="directionFor('disk')" (sort)="toggleSort('disk')"
                 >Disk</dp-sort-button
               >
             </th>
-            <th scope="col">Agent</th>
-            <th scope="col" [attr.aria-sort]="ariaSort('lastSeen')">
+            <th scope="col" data-priority="p2">Agent</th>
+            <th scope="col" data-priority="p1" [attr.aria-sort]="ariaSort('lastSeen')">
               <dp-sort-button [direction]="directionFor('lastSeen')" (sort)="toggleSort('lastSeen')"
                 >Last seen</dp-sort-button
               >
@@ -120,7 +120,7 @@
                   [label]="status(host.status).label"
                 />
               </td>
-              <td>
+              <td data-priority="p2">
                 {{ host.os ?? '—' }}
                 <span class="secondary">
                   @if (host.dockerVersion) {
@@ -130,13 +130,13 @@
                   }
                 </span>
               </td>
-              <td class="dp-mono">
+              <td data-priority="p1" class="dp-mono">
                 {{ containerCount(host).running }} / {{ containerCount(host).total }}
                 @if (host.stale) {
                   <dp-last-known />
                 }
               </td>
-              <td>
+              <td data-priority="p1">
                 @if (host.cpu; as cpu) {
                   <dp-meter
                     [percent]="cpu.percent"
@@ -150,7 +150,7 @@
                   <span class="dp-unknown">—</span>
                 }
               </td>
-              <td>
+              <td data-priority="p1">
                 @if (host.memory; as memory) {
                   <dp-meter
                     [percent]="memory.percent"
@@ -161,7 +161,7 @@
                   <span class="dp-unknown">—</span>
                 }
               </td>
-              <td>
+              <td data-priority="p1">
                 @if (host.disk; as disk) {
                   <dp-meter
                     [percent]="disk.percent"
@@ -172,8 +172,8 @@
                   <span class="dp-unknown">—</span>
                 }
               </td>
-              <td class="dp-mono dp-unknown">{{ host.agentVersion ?? '—' }}</td>
-              <td class="shrink dp-unknown">{{ host.lastSeen ? age(host.lastSeen) : '—' }}</td>
+              <td data-priority="p2" class="dp-mono dp-unknown">{{ host.agentVersion ?? '—' }}</td>
+              <td data-priority="p1" class="shrink dp-unknown">{{ host.lastSeen ? age(host.lastSeen) : '—' }}</td>
             </tr>
           }
         </tbody>

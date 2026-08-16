@@ -80,11 +80,11 @@ const OUTCOME: Record<string, { tone: StatusTone; label: string }> = {
               <tr>
                 <th scope="col">Requested</th>
                 <th scope="col">Operation</th>
-                <th scope="col">Container</th>
-                <th scope="col">Host</th>
-                <th scope="col">Actor</th>
+                <th scope="col" data-priority="p1">Container</th>
+                <th scope="col" data-priority="p1">Host</th>
+                <th scope="col" data-priority="p1">Actor</th>
                 <th scope="col">Result</th>
-                <th scope="col" class="numeric">Duration</th>
+                <th scope="col" data-priority="p2" class="numeric">Duration</th>
               </tr>
             </thead>
             <tbody>
@@ -92,9 +92,9 @@ const OUTCOME: Record<string, { tone: StatusTone; label: string }> = {
                 <tr>
                   <th scope="row" class="shrink dp-mono">{{ at(record.requestedAt) }}</th>
                   <td>{{ operation(record.capability) }}</td>
-                  <td class="dp-mono">{{ record.containerName }}</td>
-                  <td class="dp-mono dp-unknown">{{ record.hostname ?? '—' }}</td>
-                  <td class="dp-unknown">{{ record.actor ?? '—' }}</td>
+                  <td data-priority="p1" class="dp-mono">{{ record.containerName }}</td>
+                  <td data-priority="p1" class="dp-mono dp-unknown">{{ record.hostname ?? '—' }}</td>
+                  <td data-priority="p1" class="dp-unknown">{{ record.actor ?? '—' }}</td>
                   <td>
                     <dp-status-badge
                       [tone]="outcome(record.status).tone"
@@ -104,7 +104,7 @@ const OUTCOME: Record<string, { tone: StatusTone; label: string }> = {
                       <span class="code dp-mono">{{ record.errorCode }}</span>
                     }
                   </td>
-                  <td class="numeric dp-mono dp-unknown">{{ took(record) }}</td>
+                  <td data-priority="p2" class="numeric dp-mono dp-unknown">{{ took(record) }}</td>
                 </tr>
               }
             </tbody>
