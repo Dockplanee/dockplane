@@ -68,7 +68,7 @@ See workloads, health and resource state across every connected Docker host.
 ### Operate safely
 
 ```text
-Start, stop and restart workloads through defined agent capabilities with backend-enforced permissions and audit history.
+Run, create, change and remove workloads through defined agent capabilities, with backend-enforced permissions and audit history.
 ```
 
 ### Stay self-hosted
@@ -256,7 +256,7 @@ Operate containers with context.
 Body:
 
 ```text
-Inspect container state, image, health, resource usage and logs before using controlled lifecycle actions such as start, stop or restart.
+Read a container's state, image, health and logs before acting on it. Every container on a connected host can be started, stopped and restarted; the ones Dockplane created can also be changed and removed.
 ```
 
 ## Compose
@@ -301,18 +301,18 @@ Body:
 Dockplane is designed around backend-enforced permissions and auditable actions so operational access can be controlled more precisely than sharing a privileged host login.
 ```
 
-## Docker Resources
+## Versions
 
 Heading:
 
 ```text
-Understand the resources behind your workloads.
+Know what this deployment is running.
 ```
 
 Body:
 
 ```text
-Inspect Docker images, networks and volumes across connected hosts. High-risk mutations remain deliberately constrained rather than being exposed just because the Docker API supports them.
+The control server and the browser application are two images and report themselves as two. Alongside them: the database schema, the agent protocol range, and what every enrolled agent reports.
 ```
 
 # Security Page
