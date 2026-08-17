@@ -1,5 +1,8 @@
 .split {
   display: grid;
+  /* See home.css: an implicit `auto` column cannot shrink below the preview it
+     holds, which put the page 223px past a phone's width. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 3rem;
   align-items: center;
 }

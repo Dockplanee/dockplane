@@ -138,6 +138,11 @@
 
 .split {
   display: grid;
+  /* An implicit grid column is `auto`, which will not shrink below the
+     min-content width of what is in it. The interface previews are wider than
+     a phone, so without this the column — and the page with it — was 598px
+     wide on a 375px screen. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 3rem;
   align-items: center;
 }
