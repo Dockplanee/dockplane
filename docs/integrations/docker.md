@@ -5,10 +5,10 @@
 Dockplane reads a Docker host through an agent installed on it. The agent talks
 to the local Docker Engine over the Engine API using the official Go SDK.
 
-Discovery is read-only. The one thing Dockplane changes on a host is the run
-state of a container it already discovered: start, stop and restart. It also
-reads container output. Everything else the Docker API exposes is absent from
-the agent.
+Discovery is read-only. What Dockplane changes on a host is the run state of a
+container it discovered, the containers it created itself, and the stacks it
+deployed. It also reads container output. Everything else the Docker API
+exposes is absent from the agent.
 
 ## Capabilities
 
@@ -25,6 +25,14 @@ The capability set is fixed at build time and is exactly:
 | `container.start` | starts one container, and reports the state observed afterwards |
 | `container.stop` | stops one container, and reports the state observed afterwards |
 | `container.restart` | restarts one container, and reports the state observed afterwards |
+| `container.create` | creates one container from a typed specification |
+| `container.replace` | replaces one container with a new specification, keeping its identity |
+| `container.remove` | removes one container, and no volume |
+| `stack.deploy` | applies a resolved plan for one stack |
+| `stack.start` | starts the containers of a deployed stack |
+| `stack.stop` | stops the containers of a deployed stack |
+| `stack.restart` | restarts the containers of a deployed stack |
+| `stack.remove` | removes the containers of a stack, and no volume |
 | `container.logs` | streams one container's output, historical and live |
 
 Both sides check the list. A capability the server will not dispatch is also
@@ -32,10 +40,10 @@ one the agent refuses to run.
 
 ## Container lifecycle
 
-A lifecycle capability takes a container identifier and nothing else. There is
-no field in which a caller could name an operation, a command or a flag, and an
-identifier that does not look like one is refused before the Engine API is
-touched.
+A run-state capability — start, stop or restart — takes a container identifier
+and nothing else. There is no field in which a caller could name an operation,
+a command or a flag, and an identifier that does not look like one is refused
+before the Engine API is touched.
 
 Each maps to exactly one Engine API call. Restart in particular is a single
 `ContainerRestart`, never a stop followed by a start: sequencing them would open
@@ -107,10 +115,17 @@ into the daemon instead of solving it.
 
 ## Not implemented
 
-Remove, exec, attach, a shell, Compose up, down or deploy, image pull, and
-volume or network changes are not implemented. They are not hidden behind a
-permission or a feature flag; the code to perform them does not exist in the
-agent.
+Exec, attach, a shell, and volume or network changes are not implemented. They
+are not hidden behind a permission or a feature flag; the code to perform them
+does not exist in the agent.
+
+There is no `docker compose` invocation and no Compose parser in the agent: a
+stack is deployed from a plan the control server resolved. A Compose project
+the agent discovered on a host is reported and never changed.
+
+There is no image management, and no operation whose purpose is to pull an
+image. An image is pulled only as a step of creating or replacing a container
+or deploying a stack, and only when the host does not already have it.
 
 ## What is transmitted
 

@@ -4,9 +4,9 @@ The agent runs on each managed Docker host, natively under systemd. It is
 deliberately not a container: it manages the Docker daemon it runs beside.
 
 It reports host facts, container state and Compose projects, streams a
-container's output, and starts, stops or restarts a container the control
-server asks it to — one identifier per request, from a fixed catalog of
-capabilities. There is no remove, exec, attach or shell, and no request the
+container's output, operates and builds the containers the control server asks
+it to, and deploys and runs the stacks Dockplane manages — each from a fixed
+catalog of capabilities. There is no exec, attach or shell, and no request the
 control server can send carries a command or any input for a container.
 
 **To add a host, use [Add a Host](../getting-started/add-host.md).** One command
@@ -68,8 +68,9 @@ how the agent reaches the Engine API.
 Anything able to talk to the Docker daemon can start a privileged container
 that mounts the host filesystem. This is unavoidable for managing Docker, and
 it is the reason the agent has no way to run a command: the set of operations
-is fixed at build time, and the three that change anything — start, stop and
-restart — take a container identifier and nothing else.
+is fixed at build time, and each of those that changes anything names the
+container or the stack it acts on and carries a typed payload rather than
+something to execute.
 
 The package neither creates the `docker` group nor depends on a particular
 Docker package, because there is more than one legitimate way to install Docker
@@ -295,11 +296,14 @@ If the host answers that a container no longer exists, that answer is newer than
 anything stored: the record is removed and the request answers
 `CONTAINER_NOT_FOUND`.
 
-The only mutating endpoints are container start, stop and restart, each behind
-its own permission and each recorded. Reading logs is read-only and behind a
-permission of its own. Remove, exec and attach are not implemented anywhere in
-this release. See [Container Operations](../operations/container-lifecycle.md)
-and [Container Logs](../operations/container-logs.md).
+The mutating endpoints are the container operations — start, stop, restart,
+create, replace and remove — and the stack operations — deploy, start, stop,
+restart and remove. Each is behind its own permission and each is recorded.
+Reading logs is read-only and behind a permission of its own. Exec and attach
+are not implemented anywhere in this release. See
+[Container Operations](../operations/container-lifecycle.md),
+[Stacks](../operations/stacks.md) and
+[Container Logs](../operations/container-logs.md).
 
 ## Freshness
 

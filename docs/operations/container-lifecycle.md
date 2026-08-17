@@ -1,12 +1,14 @@
 # Container Operations
 
 Dockplane can start, stop and restart a container it has discovered, and can
-create, change and remove a container it manages itself. These are the only
-operations that change a managed host.
+create, change and remove a container it manages itself. Together with the
+stack operations in [Stacks](stacks.md), these are the only things that change
+a managed host.
 
-Exec, a shell, image pull and volume or network changes are not implemented.
-They are not hidden behind a permission or a flag; no code exists to perform
-them.
+Exec, a shell, image management and volume or network changes are not
+implemented. They are not hidden behind a permission or a flag; no code exists
+to perform them. An image is pulled only as a step of creating or replacing a
+container, and only when the host does not already have it.
 
 ## What a request contains
 
