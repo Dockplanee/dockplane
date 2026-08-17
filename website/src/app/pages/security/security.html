@@ -36,8 +36,23 @@
         eyebrow="Capability model"
         headingId="capability-heading"
         heading="Defined operations instead of arbitrary commands."
-        lede="The Dockplane agent accepts explicit capabilities with validated payloads. The control protocol is not designed as an unrestricted remote shell."
+        lede="The agent accepts a fixed catalogue of named capabilities with validated payloads, decided when it was built. A request names a container or a stack and an operation from that catalogue; none of them carries a command, an argument list or input for a container."
       />
+
+      <div class="dp-prose">
+        <p>
+          There is no exec, no attach and no shell on any path, and nothing that administers the
+          host itself — nothing reboots a machine, installs a package or changes a system setting.
+          What Dockplane changes on a managed host it changes through the Docker Engine: containers,
+          and the stacks made of them.
+        </p>
+        @if (securityModelUrl; as href) {
+          <p>
+            The catalogue is listed in full in the
+            <a class="dp-link-arrow" [href]="href" rel="noopener">security model</a>.
+          </p>
+        }
+      </div>
     </div>
 
     <div>
@@ -60,8 +75,10 @@
         require backend authorization.
       </p>
       <p>
-        Permissions are designed to be scoped to resources, so operational access can be granted for
-        a single host or workload group instead of the whole environment.
+        Permissions are granular by operation: reading a container, following its output, changing
+        it and removing it are separate grants, so an operator who should be able to restart a stuck
+        service does not also have to be able to delete one. They apply across the environment
+        today; scoping them to a single host or group is planned, not present.
       </p>
     </div>
   </div>

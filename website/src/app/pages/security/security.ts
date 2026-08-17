@@ -27,4 +27,5 @@ const ENROLLMENT_STEPS = [
 export class Security {
   protected readonly enrollmentSteps = ENROLLMENT_STEPS;
   protected readonly advisoryUrl = externalLink('securityAdvisory');
+  protected readonly securityModelUrl = externalLink('securityModel');
 }

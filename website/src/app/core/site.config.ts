@@ -8,7 +8,13 @@
  */
 
 export type ExternalDestination =
-  'source' | 'releases' | 'issues' | 'discussions' | 'license' | 'securityAdvisory';
+  | 'source'
+  | 'releases'
+  | 'issues'
+  | 'discussions'
+  | 'license'
+  | 'securityAdvisory'
+  | 'securityModel';
 
 /** Absolute origin the public site is deployed to. Used for canonical URLs, sitemap entries and social metadata. */
 export const SITE_ORIGIN = 'https://dockplane.de';
@@ -28,6 +34,9 @@ export const EXTERNAL_LINKS: Record<ExternalDestination, string | null> = {
   releases: `${SOURCE_REPOSITORY}/releases`,
   // Private vulnerability reporting; requires the repository setting to be enabled.
   securityAdvisory: `${SOURCE_REPOSITORY}/security/advisories/new`,
+  // The capability catalogue is maintained here and deliberately not copied
+  // onto the website, where it would be a second version of the same list.
+  securityModel: `${SOURCE_REPOSITORY}/blob/main/docs/security/security-model.md`,
   discussions: null,
   license: null,
 };
