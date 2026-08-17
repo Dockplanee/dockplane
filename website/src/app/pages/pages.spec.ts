@@ -23,6 +23,34 @@ const PAGES: [name: string, component: Type<unknown>, expectsH1: boolean][] = [
 describe('public pages', () => {
   for (const [name, component, expectsH1] of PAGES) {
     describe(name, () => {
+      /*
+       * The numbers beside the section eyebrows.
+       *
+       * Twice now a section has been inserted into a page whose later sections
+       * carried hand-written numbers, and the page went out with two sections
+       * claiming the same position. A reader counts them; nothing else did.
+       */
+      it('numbers its sections once each, in order', async () => {
+        const fixture = await renderPage(component);
+        const rendered: string[] = [
+          ...fixture.nativeElement.querySelectorAll('.header__index'),
+        ].map((element: Element) => element.textContent?.trim() ?? '');
+
+        // A page with an inline index writes it as "03 — Authorization".
+        const inline: string[] = [...fixture.nativeElement.querySelectorAll('.stack__index')]
+          .map((element: Element) => (element.textContent ?? '').trim().slice(0, 2))
+          .filter((value: string) => /^\d\d$/.test(value));
+
+        const indices = [...rendered, ...inline].filter((value) => /^\d+$/.test(value));
+
+        expect(new Set(indices).size, `${name} repeats a section number`).toBe(indices.length);
+
+        const numbers = indices.map(Number).sort((a, b) => a - b);
+        expect(numbers, `${name} skips a section number`).toEqual(
+          numbers.map((_, position) => position + 1),
+        );
+      });
+
       it('has no accessibility violations', async () => {
         const fixture = await renderPage(component);
         const { violations } = await checkAccessibility(fixture);

@@ -1,4 +1,5 @@
-import { EXAMPLE_PERMISSIONS, IN_SCOPE } from './product';
+import { renderPage } from '../../../testing/page-harness';
+import { EXAMPLE_PERMISSIONS, IN_SCOPE, Product } from './product';
 
 /**
  * The product page shows permission keys in a code block. A key that does not
@@ -51,6 +52,23 @@ describe('the product page', () => {
     // None of them exists: there is no route, and no agent capability.
     for (const claim of ['host groups', 'container metrics', 'resource-scoped', 'volumes']) {
       expect(scope, `"${claim}" is presented as part of the product`).not.toContain(claim);
+    }
+  });
+
+  it('does not claim that everything a permission allows is audited', async () => {
+    /*
+     * Permissions include reads. The inventory and container controllers write
+     * no audit entry, so a page saying every permitted operation is recorded
+     * describes something the backend does not do. The claim reached the
+     * product page once already, as a tightening of vaguer wording.
+     */
+    const fixture = await renderPage(Product);
+    const copy = (fixture.nativeElement.textContent ?? '').toLowerCase();
+
+    for (const scope of ['every operation', 'all operations', 'every action', 'every request']) {
+      const claim = new RegExp(`${scope}[^.]{0,60}(record|audit|log)`);
+
+      expect(claim.test(copy), `the page claims ${scope} is audited`).toBe(false);
     }
   });
 });
