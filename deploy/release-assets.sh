@@ -45,13 +45,35 @@ bundle_name() {
 	printf 'dockplane-%s.tar.gz' "$1"
 }
 
-# The vulnerability report published for one agent architecture.
+# What a release scans. The two control-plane images come from the registry,
+# the agent from the binary in its release tarball; all three are published as
+# one report per architecture.
+VULNERABILITY_SUBJECTS=(control-server web agent)
+
+# The vulnerability report published for one subject and one architecture.
 #
-# The scan writes agent-linux-<arch>.json and the release prefixes every report
-# the same way, so the published name is assembled here rather than assumed in
-# the workflow and again in the check that looks for it.
-agent_report_name() {
-	printf 'vulnerabilities-agent-linux-%s.json' "$1"
+# The scan writes <subject>-linux-<arch>.json and the release prefixes every
+# report the same way, so the published name is assembled here rather than
+# assumed in the workflow and again in the check that looks for it.
+vulnerability_report_name() {
+	printf 'vulnerabilities-%s-linux-%s.json' "$1" "$2"
+}
+
+# Every vulnerability report a release publishes.
+#
+# Required by name, because a report expected only because a file happens to be
+# on disk is a report whose absence nobody notices. A scan that never ran and a
+# scan that found nothing produce the same silence otherwise.
+vulnerability_report_names() {
+	local architectures=("$@")
+	local subject arch
+
+	for subject in "${VULNERABILITY_SUBJECTS[@]}"; do
+		for arch in "${architectures[@]}"; do
+			vulnerability_report_name "$subject" "$arch"
+			printf '\n'
+		done
+	done
 }
 
 checksums_name() {

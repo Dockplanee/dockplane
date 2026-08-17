@@ -86,26 +86,20 @@ done < <(release_asset_names "$VERSION" "${ARCHITECTURES[@]}")
 
 expected+=("$(checksums_name)" "$(manifest_name)")
 
-# The supply-chain documents are named by the build rather than by version
-# alone, so they are taken from what is actually on disk.
-#
-# The agent reports are deliberately not among them. A document expected only
-# because it is present is a document whose absence is silent, and the agent is
-# the artefact that ends up on every managed host: its reports are required
-# below by name, whether or not anything produced them.
-for path in "$LOCAL_DIR"/sbom-*.json "$LOCAL_DIR"/provenance-*.json \
-	"$LOCAL_DIR"/vulnerabilities-*.json; do
+# The bill of materials and the provenance document are named by the build
+# rather than by version alone, so they are taken from what is actually on disk.
+for path in "$LOCAL_DIR"/sbom-*.json "$LOCAL_DIR"/provenance-*.json; do
 	[[ -f "$path" ]] || continue
-
-	name="$(basename "$path")"
-	[[ "$name" == vulnerabilities-agent-* ]] && continue
-
-	expected+=("$name")
+	expected+=("$(basename "$path")")
 done
 
-for arch in "${ARCHITECTURES[@]}"; do
-	expected+=("$(agent_report_name "$arch")")
-done
+# The vulnerability reports are not. Every one of them is required by name,
+# whether or not anything produced it: a report expected only because it is
+# present makes a scan that never ran indistinguishable from a scan that found
+# nothing.
+while IFS= read -r name; do
+	[[ -n "$name" ]] && expected+=("$name")
+done < <(vulnerability_report_names "${ARCHITECTURES[@]}")
 
 echo
 echo "==> what the release should hold"
@@ -287,7 +281,7 @@ else
 	# report published for one architecture and produced from another would
 	# otherwise be indistinguishable from a correct one.
 	for arch in "${ARCHITECTURES[@]}"; do
-		name="$(agent_report_name "$arch")"
+		name="$(vulnerability_report_name agent "$arch")"
 		report="$DOWNLOAD_DIR/$name"
 
 		if [[ ! -f "$report" ]]; then

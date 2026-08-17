@@ -140,14 +140,18 @@ build_release() {
 	printf 'sbom\n' > "$root/local/sbom-web-$VERSION.json"
 	printf 'prov\n' > "$root/local/provenance-control-server-$VERSION.json"
 	printf 'prov\n' > "$root/local/provenance-web-$VERSION.json"
-	printf 'trivy\n' > "$root/local/vulnerabilities-control-server-linux-amd64.json"
+
+	# Every report a release publishes, from the list that says which they are.
+	local arch name
+	for name in $(vulnerability_report_names "${ARCHITECTURES[@]}"); do
+		printf 'trivy\n' > "$root/local/$name"
+	done
 
 	# The agent reports are read rather than counted, so these are shaped like
 	# what Trivy writes: a scanner version, and a Go binary target naming the
 	# tarball the binary was taken out of.
-	local arch
 	for arch in "${ARCHITECTURES[@]}"; do
-		agent_report "$VERSION" "$arch" > "$root/local/$(agent_report_name "$arch")"
+		agent_report "$VERSION" "$arch" > "$root/local/$(vulnerability_report_name agent "$arch")"
 	done
 
 	(cd "$root/local" && sha256sum ./* > "$(checksums_name)" 2> /dev/null)
@@ -243,22 +247,25 @@ refuses "a manifest with a placeholder where a digest belongs" placeholder-diges
 refuses "a manifest with a digest that is not a digest" short-digest \
 	'jq ".images.web.digest = \"sha256:abc\"" download/release-manifest.json > a && mv a download/release-manifest.json'
 
+# A report that was never produced has to fail, for every subject and every
+# architecture. Taken from the list itself rather than written out, so a
+# subject added there without a scan behind it is caught here.
+for report in $(vulnerability_report_names "${ARCHITECTURES[@]}"); do
+	refuses "a $report that was never produced" "no-${report%.json}" \
+		"rm -f local/$report download/$report
+		 jq \"map(select(.name != \\\"$report\\\"))\" assets.json > a && mv a assets.json"
+done
+
+# Present, and outside what the checksums cover. Neither end notices on its own:
+# the file is there, and SHA256SUMS verifies the files it still names.
+refuses "a report the checksums do not cover" unchecksummed-report \
+	'grep -v "vulnerabilities-control-server-linux-amd64.json" download/SHA256SUMS > a && mv a download/SHA256SUMS
+	 printf "tampered\n" > download/vulnerabilities-control-server-linux-amd64.json'
+
 # The agent runs on every managed host and was the one published artefact
 # nothing scanned. These are the ways that can go wrong again.
-refuses "an agent report that was never produced for amd64" no-agent-report-amd64 \
-	'rm -f local/vulnerabilities-agent-linux-amd64.json download/vulnerabilities-agent-linux-amd64.json
-	 jq "map(select(.name != \"vulnerabilities-agent-linux-amd64.json\"))" assets.json > a && mv a assets.json'
-
-refuses "an agent report that was never produced for arm64" no-agent-report-arm64 \
-	'rm -f local/vulnerabilities-agent-linux-arm64.json download/vulnerabilities-agent-linux-arm64.json
-	 jq "map(select(.name != \"vulnerabilities-agent-linux-arm64.json\"))" assets.json > a && mv a assets.json'
-
 refuses "an agent report that came back different" altered-agent-report \
 	'printf "tampered\n" > download/vulnerabilities-agent-linux-amd64.json'
-
-refuses "an agent report the checksums do not cover" unchecksummed-agent-report \
-	'grep -v "vulnerabilities-agent-linux-amd64.json" download/SHA256SUMS > a && mv a download/SHA256SUMS
-	 printf "tampered\n" > download/vulnerabilities-agent-linux-amd64.json'
 
 # Correctly named, correctly checksummed, and produced from the wrong artefact.
 refuses "an agent report produced for another architecture" crossed-agent-report \
