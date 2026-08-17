@@ -7,7 +7,7 @@ happens because a struct was edited.
 | | Value | Changes when |
 | --- | --- | --- |
 | Protocol version | **1** | The agent gateway's message format changes in a way an older agent cannot read |
-| Schema version | **0015_stack_operations** | A migration is added |
+| Schema version | **0016_host_archive** | A migration is added |
 | Backup format version | **1** | The layout of a backup directory changes |
 | Stack plan version | **2** deploy, **1** lifecycle | The shape of the plan the agent is sent changes |
 
@@ -18,7 +18,7 @@ happens because a struct was edited.
 | Protocol | `agent/internal/protocol/protocol.go`, `api/src/agents/protocol.ts` | `GET /api/v1/version`, `dockplane-agent version` |
 | Schema | the last entry of `api/src/database/migrations/meta/_journal.json` | `GET /api/v1/version`, as both `schemaVersion` and `appliedSchemaVersion` |
 | Backup format | `deploy/backup-restore.sh` | every backup's `manifest.json` |
-| Stack plan | `agent/internal/docker/stack.go`, `stack_lifecycle.go`, `api/src/stacks/stack-plan.ts` | every plan, in its `planVersion` field |
+| Stack plan | `agent/internal/docker/stack.go` and `stack_lifecycle.go`; `api/src/stacks/stack-plan.ts` for a deployment, `stack-lifecycle.service.ts` and `stack-delete.service.ts` for the rest | every plan, in its `planVersion` field |
 
 ## What each one guarantees
 
@@ -46,18 +46,33 @@ between a refusal and a stack nobody can account for.
 
 ## During a release candidate
 
-These values are fixed for `0.2.0-rc.1` and must be identical in the final
-`0.2.0`. If one of them has to change before release, the change is a new
+These values are fixed for the current candidate and must be identical in the
+final release. If one of them has to change before release, the change is a new
 release candidate, not a quiet correction: an operator who installed the first
 candidate has agents enrolled against it and backups taken from it.
 
+## What 0.3 changed
+
+The schema moved from `0015_stack_operations` to `0016_host_archive`, a
+nullable column on the hosts table, which is what an upgrade applies. Nothing
+else in this table moved: the protocol version, the backup format version and
+both stack plan versions are what 0.2 shipped, so a 0.2 agent still speaks to
+this control server.
+
+Stack operations are the one place where an agent's release matters beyond
+these four numbers. Attributing a stack's containers depends on what the agent
+reports rather than on the message format, so a host running an agent from
+before that reporting has its stack operations refused while everything else it
+serves goes on working. See [Stacks](../operations/stacks.md) and
+[Upgrading](../operations/upgrade.md).
+
 ## What 0.2 changed
 
-The schema moved from `0005_host_setup` to `0015_stack_operations`, which is
-what an upgrade applies. The protocol version and the backup format version are
-unchanged, which is why a 0.1.0 agent goes on working against this control
-server and a backup taken by either is readable by both. The stack plan is new
-in this series and did not exist in 0.1.
+The schema moved from `0005_host_setup` to `0015_stack_operations`. The
+protocol version and the backup format version were unchanged, which is why a
+0.1.0 agent goes on working against this control server and a backup taken by
+either is readable by both. The stack plan is new in this series and did not
+exist in 0.1.
 
 ## Seeing them
 

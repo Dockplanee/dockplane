@@ -4,7 +4,7 @@
 run it. There is one supported path and this is it.
 
 ```bash
-VERSION=0.1.0        # the release you are installing
+VERSION=0.3.0        # the release you are installing
 
 sha256sum -c SHA256SUMS
 tar xzf "dockplane-$VERSION.tar.gz"
@@ -100,8 +100,8 @@ across upgrades because it is your setting. The installer reports it on every
 upgrade:
 
 ```text
-! AGENT_RELEASE_VERSION is pinned to 0.1.0-rc.3, not 0.1.0
-  Add host will keep installing the 0.1.0-rc.3 agent on new machines.
+! AGENT_RELEASE_VERSION is pinned to 0.3.0-rc.2, not 0.3.0
+  Add host will keep installing the 0.3.0-rc.2 agent on new machines.
 ```
 
 `dockplane-control doctor` reports it too. To stop pinning, remove the line and
@@ -137,6 +137,15 @@ half-done:
   removes a capability, so a newer agent serves every request an older control
   server makes.
 
+**Stack management is the one thing an older agent can hold back.** Attributing
+a stack's containers depends on what the agent reports, not on the message
+format, so a host running an agent from before that reporting existed has its
+stack operations refused with `AGENT_UPGRADE_REQUIRED` before anything is sent
+to it. That host is not incompatible: its inventory, metrics, logs, container
+operations and Compose discovery go on working, and its containers stay
+individually manageable. Upgrading that host's agent is the whole repair — no
+re-enrollment, no database work. See [Stacks](stacks.md).
+
 `GET /api/v1/agents/{id}` reports the capabilities each agent advertised, which
 is how to tell which hosts are still on an older one.
 
@@ -162,5 +171,7 @@ the installer of that older release — see
 
 - [Installation](../getting-started/installation.md)
 - [Backup and Restore](backup-restore.md)
+- [Versions](versions.md)
+- [The Agent](agent.md)
 - [Troubleshooting](troubleshooting.md)
 - [Interface Versions](../reference/interface-versions.md)

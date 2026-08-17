@@ -54,10 +54,11 @@ control server keeps the last observation and marks it stale.
 Do not work around a permission problem by exposing the daemon over
 unauthenticated TCP.
 
-## The stack will not come up
+## The control plane will not come up
 
-`docker compose ps` shows which service stopped. Three failures account for
-almost all of them:
+This is the deployment's own Compose stack, not a stack you manage with
+Dockplane. `docker compose ps` on the control-plane host shows which service
+stopped. Three failures account for almost all of them:
 
 - **`migrate` exited non-zero.** The schema change failed and the control
   server was not started, on purpose. `docker compose logs migrate` names the
@@ -146,6 +147,14 @@ host could not be reached." The host's own wording is deliberately not passed
 on to the browser; it is in the control server's log against
 `agent_capability_failed`, with the request identifier, the capability and the
 agent.
+
+## Stack operations on one host are refused
+
+`AGENT_UPGRADE_REQUIRED` means that host's agent predates stack attribution, so
+the control server cannot tell which of its containers belong to a stack and
+refuses the operation rather than acting on a guess. Everything else on that
+host keeps working. Upgrade its agent; nothing else is needed, and the host is
+not re-enrolled. See [Stacks](stacks.md) and [The Agent](agent.md).
 
 ## Every operation against a host is refused
 

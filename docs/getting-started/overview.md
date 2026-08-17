@@ -104,6 +104,9 @@ See [Architecture](../reference/architecture.md).
 | --- | --- |
 | [Installation](installation.md) | put the control plane on a machine |
 | [Add a Host](add-host.md) | connect your first Docker host |
+| [Container Operations](../operations/container-lifecycle.md) | create, change, remove and run containers |
+| [Stacks](../operations/stacks.md) | saved Compose configurations and their history |
+| [Archiving Hosts](../operations/host-archive.md) | taking a superseded host out of the working set |
 | [Upgrading](../operations/upgrade.md) | move to a newer release |
 | [Backup and Restore](../operations/backup-restore.md) | what to keep, and how to come back |
 | [Security Model](../security/security-model.md) | what the trust boundaries are |

@@ -39,7 +39,7 @@ not count. Treat arm64 as unproven.
 ## Install
 
 ```bash
-VERSION=0.1.0
+VERSION=0.3.0
 
 sha256sum -c SHA256SUMS
 sudo dpkg -i "dockplane-agent_${VERSION}_amd64.deb"
@@ -178,6 +178,11 @@ version within seconds.
 Agents and the control server are upgraded independently. An older agent keeps
 working against a newer server as long as both speak the same protocol version,
 which `dockplane-agent version` and `/api/v1/version` both report.
+
+Stack operations are the exception, and upgrading is what resolves them: a host
+whose agent predates stack attribution refuses them with
+`AGENT_UPGRADE_REQUIRED` while serving everything else normally. See
+[Stacks](stacks.md) and [Upgrading](upgrade.md).
 
 **Downgrading is supported only between versions that speak the same protocol
 version.** Nothing converts an identity or a state directory back to an older
@@ -377,6 +382,8 @@ is marked stale.
 ## Related
 
 - [Add a Host](../getting-started/add-host.md)
+- [Upgrading](upgrade.md)
+- [Versions](versions.md)
 - [Agent Security](../security/agent-security.md)
 - [Agent Gateway](../reference/agent-gateway.md)
 - [Agent Protocol](../reference/agent-protocol.md)
