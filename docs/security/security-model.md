@@ -101,9 +101,14 @@ line reaches the operator who holds `containers.logs` and is written nowhere
 else: not to the database, not to the audit trail, not to the control server's
 or the agent's own log.
 
-Exec, attach, a shell, anything that changes the host itself, and volume or
-network changes are not implemented. The code to perform them does not exist in
-the agent, so they are not reachable by configuration or by a crafted request.
+Exec, attach, a shell, and administration of the host operating system are not
+implemented: nothing reboots a machine, installs a package or changes a system
+setting. What Dockplane changes on a managed host it changes through the Docker
+Engine — containers, and the stacks made of them. Volume and network operations
+are not implemented either.
+
+The code to perform any of this does not exist in the agent, so none of it is
+reachable by configuration or by a crafted request.
 
 A Compose project the agent discovered on a host is read-only. `compose.list`
 and `compose.inspect` report it; no capability deploys, changes or removes it.

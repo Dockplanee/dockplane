@@ -168,9 +168,11 @@ inspected, and no arm64 machine has run them. Use amd64 in production. See
 ## Deliberately not implemented
 
 Exec, attach, a shell, and any other way to run a command on a managed host.
-Anything that changes the host itself. Image management, and volume or network
-operations — an image is pulled only as a step of creating or replacing a
-container or deploying a stack, and only when the host does not already have
+Administration of the host operating system: nothing reboots a machine,
+installs a package or changes a system setting. What Dockplane changes on a
+host it changes through the Docker Engine. Image management, and volume or
+network operations — an image is pulled only as a step of creating or replacing
+a container or deploying a stack, and only when the host does not already have
 it.
 
 Deliberately out of scope: Proxmox, Kubernetes, virtual machines, network
