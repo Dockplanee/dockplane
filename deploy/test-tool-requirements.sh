@@ -59,6 +59,7 @@ declare -A GATES=(
 	[deploy/check-agent-release.sh]="docker file strings dpkg-deb sha256sum tar"
 	[deploy/build-images.sh]="docker git sha256sum tar jq"
 	[deploy/build-agent.sh]="docker git sha256sum"
+	[deploy/scan-agent.sh]="docker jq tar"
 	[deploy/test-release-verification.sh]="jq dpkg-deb sha256sum"
 )
 

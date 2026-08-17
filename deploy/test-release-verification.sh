@@ -89,6 +89,28 @@ build_packages() {
 PACKAGES="$work/packages"
 build_packages "$PACKAGES" "$(debian_version "$VERSION")"
 
+# A stand-in for what deploy/scan-agent.sh produces, for one version and one
+# architecture. Only the fields the verifier reads are filled in.
+agent_report() {
+	local version="$1" arch="$2"
+
+	cat <<-REPORT
+		{
+		  "SchemaVersion": 2,
+		  "ArtifactName": "/scan",
+		  "ArtifactType": "filesystem",
+		  "Trivy": { "Version": "0.73.0" },
+		  "Results": [
+		    {
+		      "Target": "dockplane-agent_${version}_linux_${arch}/dockplane-agent",
+		      "Class": "lang-pkgs",
+		      "Type": "gobinary"
+		    }
+		  ]
+		}
+	REPORT
+}
+
 # A release exactly as it should be: built here, uploaded, fetched back.
 # A second package directory builds an otherwise flawless release around
 # packages that declare something else, so that check is tested on its own
@@ -119,6 +141,14 @@ build_release() {
 	printf 'prov\n' > "$root/local/provenance-control-server-$VERSION.json"
 	printf 'prov\n' > "$root/local/provenance-web-$VERSION.json"
 	printf 'trivy\n' > "$root/local/vulnerabilities-control-server-linux-amd64.json"
+
+	# The agent reports are read rather than counted, so these are shaped like
+	# what Trivy writes: a scanner version, and a Go binary target naming the
+	# tarball the binary was taken out of.
+	local arch
+	for arch in "${ARCHITECTURES[@]}"; do
+		agent_report "$VERSION" "$arch" > "$root/local/$(agent_report_name "$arch")"
+	done
 
 	(cd "$root/local" && sha256sum ./* > "$(checksums_name)" 2> /dev/null)
 	# The checksum file names files the way a release does, without ./ prefixes.
@@ -212,6 +242,45 @@ refuses "a manifest with a placeholder where a digest belongs" placeholder-diges
 
 refuses "a manifest with a digest that is not a digest" short-digest \
 	'jq ".images.web.digest = \"sha256:abc\"" download/release-manifest.json > a && mv a download/release-manifest.json'
+
+# The agent runs on every managed host and was the one published artefact
+# nothing scanned. These are the ways that can go wrong again.
+refuses "an agent report that was never produced for amd64" no-agent-report-amd64 \
+	'rm -f local/vulnerabilities-agent-linux-amd64.json download/vulnerabilities-agent-linux-amd64.json
+	 jq "map(select(.name != \"vulnerabilities-agent-linux-amd64.json\"))" assets.json > a && mv a assets.json'
+
+refuses "an agent report that was never produced for arm64" no-agent-report-arm64 \
+	'rm -f local/vulnerabilities-agent-linux-arm64.json download/vulnerabilities-agent-linux-arm64.json
+	 jq "map(select(.name != \"vulnerabilities-agent-linux-arm64.json\"))" assets.json > a && mv a assets.json'
+
+refuses "an agent report that came back different" altered-agent-report \
+	'printf "tampered\n" > download/vulnerabilities-agent-linux-amd64.json'
+
+refuses "an agent report the checksums do not cover" unchecksummed-agent-report \
+	'grep -v "vulnerabilities-agent-linux-amd64.json" download/SHA256SUMS > a && mv a download/SHA256SUMS
+	 printf "tampered\n" > download/vulnerabilities-agent-linux-amd64.json'
+
+# Correctly named, correctly checksummed, and produced from the wrong artefact.
+refuses "an agent report produced for another architecture" crossed-agent-report \
+	'sed "s/linux_arm64/linux_amd64/" local/vulnerabilities-agent-linux-arm64.json > a
+	 mv a local/vulnerabilities-agent-linux-arm64.json
+	 cp local/vulnerabilities-agent-linux-arm64.json download/
+	 (cd local && sha256sum ./* > SHA256SUMS 2>/dev/null; sed -i.bak "s| \./| |" SHA256SUMS; rm -f SHA256SUMS.bak)
+	 cp local/SHA256SUMS download/SHA256SUMS'
+
+refuses "an agent report produced for another version" stale-agent-report \
+	'sed "s/dockplane-agent_0.1.0-rc.3_linux_amd64/dockplane-agent_0.9.9_linux_amd64/" \
+	     local/vulnerabilities-agent-linux-amd64.json > a
+	 mv a local/vulnerabilities-agent-linux-amd64.json
+	 cp local/vulnerabilities-agent-linux-amd64.json download/
+	 (cd local && sha256sum ./* > SHA256SUMS 2>/dev/null; sed -i.bak "s| \./| |" SHA256SUMS; rm -f SHA256SUMS.bak)
+	 cp local/SHA256SUMS download/SHA256SUMS'
+
+refuses "an agent report that is not a scanner report" unreadable-agent-report \
+	'printf "not json\n" > local/vulnerabilities-agent-linux-amd64.json
+	 cp local/vulnerabilities-agent-linux-amd64.json download/
+	 (cd local && sha256sum ./* > SHA256SUMS 2>/dev/null; sed -i.bak "s| \./| |" SHA256SUMS; rm -f SHA256SUMS.bak)
+	 cp local/SHA256SUMS download/SHA256SUMS'
 
 echo
 if [[ "$failed" -eq 0 ]]; then

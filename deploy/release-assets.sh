@@ -45,6 +45,15 @@ bundle_name() {
 	printf 'dockplane-%s.tar.gz' "$1"
 }
 
+# The vulnerability report published for one agent architecture.
+#
+# The scan writes agent-linux-<arch>.json and the release prefixes every report
+# the same way, so the published name is assembled here rather than assumed in
+# the workflow and again in the check that looks for it.
+agent_report_name() {
+	printf 'vulnerabilities-agent-linux-%s.json' "$1"
+}
+
 checksums_name() {
 	printf 'SHA256SUMS'
 }

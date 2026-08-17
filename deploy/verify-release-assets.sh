@@ -88,9 +88,24 @@ expected+=("$(checksums_name)" "$(manifest_name)")
 
 # The supply-chain documents are named by the build rather than by version
 # alone, so they are taken from what is actually on disk.
-while IFS= read -r name; do
-	[[ -n "$name" ]] && expected+=("$name")
-done < <(cd "$LOCAL_DIR" 2> /dev/null && ls sbom-*.json provenance-*.json vulnerabilities-*.json 2> /dev/null)
+#
+# The agent reports are deliberately not among them. A document expected only
+# because it is present is a document whose absence is silent, and the agent is
+# the artefact that ends up on every managed host: its reports are required
+# below by name, whether or not anything produced them.
+for path in "$LOCAL_DIR"/sbom-*.json "$LOCAL_DIR"/provenance-*.json \
+	"$LOCAL_DIR"/vulnerabilities-*.json; do
+	[[ -f "$path" ]] || continue
+
+	name="$(basename "$path")"
+	[[ "$name" == vulnerabilities-agent-* ]] && continue
+
+	expected+=("$name")
+done
+
+for arch in "${ARCHITECTURES[@]}"; do
+	expected+=("$(agent_report_name "$arch")")
+done
 
 echo
 echo "==> what the release should hold"
@@ -263,6 +278,41 @@ else
 	else
 		check "the manifest came back" fail
 	fi
+
+	# The agent reports, read rather than counted.
+	#
+	# A report is only evidence about the artefact it actually scanned. Trivy
+	# names that artefact itself: the binary is read out of the release tarball,
+	# so the target it records carries this version and this architecture. A
+	# report published for one architecture and produced from another would
+	# otherwise be indistinguishable from a correct one.
+	for arch in "${ARCHITECTURES[@]}"; do
+		name="$(agent_report_name "$arch")"
+		report="$DOWNLOAD_DIR/$name"
+
+		if [[ ! -f "$report" ]]; then
+			check "the $arch agent report came back" fail
+			continue
+		fi
+
+		if ! jq -e . "$report" > /dev/null 2>&1; then
+			check "the $arch agent report is a scanner report" fail
+			printf '     %s is not readable as JSON\n' "$name"
+			continue
+		fi
+
+		check "the $arch agent report records the scanner that wrote it" \
+			"$(jq -e '.Trivy.Version | type == "string" and length > 0' "$report" > /dev/null 2>&1 &&
+				echo ok || echo fail)"
+
+		expected_target="dockplane-agent_${VERSION}_linux_${arch}/dockplane-agent"
+
+		check "the $arch agent report describes $expected_target" \
+			"$(jq -e --arg target "$expected_target" '
+				[.Results[]? | select(.Class == "lang-pkgs" and .Type == "gobinary")
+				 | .Target] | any(. == $target)
+			' "$report" > /dev/null 2>&1 && echo ok || echo fail)"
+	done
 fi
 
 echo

@@ -211,6 +211,15 @@ check "the release job waits for every gate" \
 check "the image push waits for the gates" \
 	"$(grep -q "needs: \[tag, quality, agent\]" "$release" && echo ok || echo fail)"
 
+# The agent is published to every managed host and was the one release artefact
+# nothing scanned. The scan has to wait for the binaries and then read them.
+check "the scan waits for the agent artefacts" \
+	"$(grep -q "needs: \[tag, agent, images\]" "$release" && echo ok || echo fail)"
+check "the agent binaries are scanned" \
+	"$(grep -q "deploy/scan-agent.sh" "$release" && echo ok || echo fail)"
+check "the agent is scanned from what was built, not built again" \
+	"$(grep -q "deploy/scan-agent.sh \"\$VERSION\" dist/agent dist/scan" "$release" && echo ok || echo fail)"
+
 check "CI grants nothing by default" \
 	"$(grep -q "^permissions: {}" "$ci" && echo ok || echo fail)"
 check "CI cannot write packages" \

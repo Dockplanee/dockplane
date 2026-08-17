@@ -235,7 +235,7 @@ jobs:
 
   scan:
     name: Vulnerability scan
-    needs: [tag, images]
+    needs: [tag, agent, images]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -245,6 +245,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # The binaries that were built, not ones built again here. The report and
+      # the artefact an operator installs have to describe the same bytes.
+      - name: Take the agent artefacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: agent
+          path: dist/agent
 
       - name: Scan what was published
         env:
@@ -278,6 +286,14 @@ jobs:
                 "$reference"
             done
           done
+
+      # The agent is not an image and is not in the registry, so it is scanned
+      # from the artefacts the agent job built. Same scanner, same severities,
+      # same policy below.
+      - name: Scan the agent binaries
+        env:
+          VERSION: ${{ needs.tag.outputs.version }}
+        run: deploy/scan-agent.sh "$VERSION" dist/agent dist/scan
 
       - name: Apply the release policy
         run: |
