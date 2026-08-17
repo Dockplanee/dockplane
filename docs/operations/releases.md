@@ -255,8 +255,13 @@ the release and in the registry, not in the history it was built from.
 
 ### The vulnerability gate
 
-Trivy scans the published images, per architecture, and
-`deploy/check-vulnerabilities.sh` applies the policy:
+Trivy scans the published images, per architecture, and — from 0.3.0 — the
+agent binary on each architecture as well. The agent is not an image and is not
+in the registry, so `deploy/scan-agent.sh` reads the binary out of the release
+tarball that was built, rather than building one to scan. The scan tree holds
+that binary and nothing else.
+
+`deploy/check-vulnerabilities.sh` applies one policy to every report:
 
 | | |
 | --- | --- |

@@ -1,8 +1,10 @@
 # Vulnerability Assessment
 
-Every release is scanned, both images on both architectures, and the report for
-each is published as a release asset. This page is the assessment behind those
-numbers: what is in them, what was fixed, and why what remains is still there.
+Every release is scanned and the report for each artefact is published as a
+release asset: both control-plane images on both architectures, and — from
+0.3.0 — the agent binary on both architectures. This page is the assessment
+behind those numbers: what is in them, what was fixed, and why what remains is
+still there.
 
 The figures below are from **0.3.0-rc.2**, the last release scanned. They are
 what its published reports contain, not a summary of them. `0.3.0` has not been
@@ -188,16 +190,57 @@ findings.
 They are tracked. When Caddy publishes a release built on newer dependencies,
 the pinned version moves and this table shrinks.
 
+## The agent
+
+The agent is the artefact that ends up on every managed host, and until 0.3.0
+nothing scanned it: it is a native binary in a package and a tarball rather than
+an image, and the pipeline scanned images.
+
+From 0.3.0 it is scanned on both architectures and both reports are published,
+as `vulnerabilities-agent-linux-amd64.json` and
+`vulnerabilities-agent-linux-arm64.json`. The binary read is the one that was
+published — taken out of the release tarball rather than built again — so the
+report and the artefact cannot describe different bytes. Scanner, severities and
+policy are the ones the images are held to; there is no separate rule for the
+agent and no ignore file.
+
+`0.3.0-rc.2` was built before this, so it published no agent report. The figures
+on this page are the images', and there are no agent figures here until a
+release produces them.
+
+The agent is built with the same Go toolchain as the Compose compiler, so a
+standard-library finding in one is a finding in the other.
+
+### Findings recorded against the Docker repository
+
+The agent links the Docker Engine's Go client, and the scanner reads that
+module's version. Docker publishes the daemon and the client from one
+repository, so a finding recorded against it is reported against the agent
+whether the affected code is in the client or in the daemon — and the fixed
+version named is an Engine release, which may not exist as a version of the Go
+module the agent imports.
+
+Such a finding has to be read against the code paths the agent actually uses.
+The agent has no archive or `docker cp` surface, no exec, no attach and no
+plugin surface; a vulnerability in one of those is not reachable through
+anything the agent exposes. What remains of the risk belongs to the Docker
+Engine version installed on the managed host, not to a daemon function the agent
+provides — which is a reason to keep Docker Engine current, not a reason to read
+the finding as inapplicable.
+
+These findings are not suppressed. They stay in the published report, and the
+assessment belongs here.
+
 ## What is not covered
 
 **Images are not signed.** A bill of materials and build provenance are
 attached to each image as attestations. That is evidence of how an image was
 built, not a signature.
 
-The agent is a static Go binary, published as a `.deb` and a tarball rather
-than an image, and is not scanned by this pipeline. It is built with the same
-Go 1.26.5 as the Compose compiler, so the standard-library findings recorded
-above apply to it as well; a toolchain bump moves both. Its dependencies are
+**The agent has no bill of materials and no provenance document.** Both are
+attestations the image builder produces, and the agent is not an image. Its
+artefacts are covered by the release checksums and by the scan described below,
+which is not the same evidence. Its dependencies are
 covered by the Go module checks in CI.
 
 ## Related
