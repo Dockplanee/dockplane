@@ -29,21 +29,18 @@ Nothing needs to reach into a managed host. Agents connect outward.
 Point a DNS record at this server first — `dockplane.example.com` to its
 address — because a certificate is obtained on the first start.
 
-**Dockplane has no published release yet**, so the installer comes from a
-checkout rather than from a download:
+Take the release and its `SHA256SUMS` from the
+[releases page](https://github.com/Dockplanee/dockplane/releases):
 
 ```bash
-git clone https://github.com/Dockplanee/dockplane && cd dockplane
+VERSION=0.3.0        # the release you are installing
 
-# The images are not in a registry yet either, so build them once
-sudo deploy/build-images.sh 0.1.0-rc.1
+sha256sum -c SHA256SUMS                     # 1. check what you downloaded
+tar xzf "dockplane-$VERSION.tar.gz"         # 2. unpack it
+cd "dockplane-$VERSION"
 
-sudo deploy/install-control-plane.sh --domain dockplane.example.com
+sudo ./install-control-plane.sh --domain dockplane.example.com
 ```
-
-Once releases are published this becomes: download the archive, check it
-against its `SHA256SUMS`, unpack it, and run the same script — which is the
-only step that changes.
 
 Then open `https://dockplane.example.com`, sign in, and add a Docker host:
 create an enrollment token under **Agents**, install
@@ -217,7 +214,7 @@ An upgrade is the new release's installer, run on the machine that already has
 Dockplane:
 
 ```bash
-VERSION=0.1.0                               # the release you are moving to
+VERSION=0.3.0                               # the release you are moving to
 
 sha256sum -c SHA256SUMS                     # 1. check what you downloaded
 tar xzf "dockplane-$VERSION.tar.gz"         # 2. unpack it
@@ -232,7 +229,7 @@ It recognises what is already installed and says what it is about to do:
 
 ```text
 ==> Dockplane upgrade
-    0.1.0 -> 0.2.0
+    0.2.0 -> 0.3.0
 ```
 
 Then, in this order: a backup of the current deployment, this release's Compose
@@ -263,7 +260,7 @@ printed.
 
 ```json
 {
-  "version": "0.2.0",
+  "version": "0.3.0",
   "protocolVersion": 1,
   "schemaVersion": "0005_something",
   "appliedSchemaVersion": "0005_something"
