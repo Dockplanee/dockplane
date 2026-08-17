@@ -138,33 +138,42 @@ identifier it has already handled, from a cache bounded in both size and age.
 
 ## Browser Security
 
-Use secure server-managed sessions.
+A production deployment is served over HTTPS, and sessions are managed on the
+server. The browser holds an opaque token in a cookie set `HttpOnly`,
+`SameSite=Lax`, scoped to `/` and, outside development, `Secure`. The database
+stores only the token's digest, so a copy of it contains nothing that can be
+replayed as a cookie.
 
-Production:
-- HTTPS
-- HttpOnly
-- Secure
-- appropriate SameSite
-- CSRF defense
-- restrictive CORS
+State-changing requests authenticated by that cookie pass two independent
+checks: the request origin has to match the deployment's public address, and a
+CSRF token bound to the session has to be presented. CORS is not treated as a
+defence against this. A browser sends a cross-site form post whether or not the
+response can be read, and the state change has already happened by then.
+
+See [Authentication](authentication.md).
 
 ## Secrets
 
-Secrets are redacted and encrypted when persisted.
+A stored secret is encrypted under `APPLICATION_ENCRYPTION_KEY`, and that key is
+held outside the database it protects, so a copy of the database alone does not
+open what is in it. A stack secret is never returned once it is set; a
+second-factor secret is encrypted rather than hashed, because a code has to be
+verified against it.
 
-Application encryption material must not be stored only inside the same database it protects.
+Secrets are redacted wherever they would otherwise be written: not into logs,
+not into error telemetry, and not into the audit trail.
 
 ## Audit
 
-Important events include:
-- login failure/success
-- MFA changes
-- password reset
-- session revocation
-- role changes
-- agent enrollment
-- agent revocation
-- action request/result
-- configuration changes
+Security-relevant and infrastructure-changing events carry the actor, the
+action, the target, the result, a timestamp and the request correlation ID.
+Sign-ins and their failures, second-factor changes, recovery-code use, role
+assignment, session revocation, agent enrollment and revocation, host archiving,
+and every container and stack action with its outcome are recorded.
 
-Audit logs must not become a secret store.
+Reads are not all recorded, and the trail is not a secret store. No password,
+token, second-factor secret or recovery code reaches it, and neither does
+anything a container printed: what is recorded about container output is that
+somebody read it.
+
+See [Authentication](authentication.md).

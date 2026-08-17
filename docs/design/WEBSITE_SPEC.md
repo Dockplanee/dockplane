@@ -1,58 +1,58 @@
 # Dockplane Public Website
 
+How the public website is put together: its purpose, its pages, and the rules
+the implementation is held to.
+
 ## Content Source
 
-Approved baseline copy is maintained in:
+The approved wording lives in one place:
 
 ```text
 docs/design/WEBSITE_COPY.md
 ```
 
-Do not rewrite the product voice into generic SaaS marketing unless the actual product positioning changes.
+This file describes structure, layout and delivery. It deliberately does not
+repeat the copy, because a second copy of a sentence is a second thing to keep
+current and the one that goes stale is never the one anybody is reading.
+
+Do not rewrite the product voice into generic SaaS marketing unless the product
+positioning actually changes.
 
 ## Purpose
 
-The public Dockplane website is independent from the authenticated Dockplane application.
+The public website is deployed independently of the authenticated Dockplane
+application and does not depend on a running control server.
 
 Its goals:
+
 - explain Dockplane within seconds
-- build trust
 - explain the security model
 - communicate the multi-host Docker focus
 - provide documentation and installation entry points
-- provide source/release links when they exist
-- remain useful during Dockplane instance maintenance
+- provide source and release links when they exist
+- stay useful while a Dockplane instance is down for maintenance
 
 ## Positioning
 
-Preferred tagline:
+Tagline:
 
 > **Your Docker hosts. One control plane.**
 
 Short description:
 
-> Dockplane is a self-hosted control plane for managing Docker across multiple hosts.
+> Dockplane is a self-hosted control plane for managing Docker across multiple
+> hosts.
 
-Longer description:
-
-> Manage containers, Compose stacks, logs, health and operations across your Docker hosts from one secure, self-hosted interface.
-
-Avoid vague slogans such as:
-- Infrastructure reimagined
-- Future of DevOps
-- Next-generation cloud-native orchestration
-
-Dockplane is intentionally Docker-focused.
+Dockplane is intentionally Docker-focused. Avoid vague slogans such as
+"infrastructure reimagined", "the future of DevOps" or "next-generation
+cloud-native orchestration".
 
 ## Primary Language
 
-Use English as the primary public website language.
-
-Design content and routing so localization can be added later without rewriting core components.
+English. Content and routing are designed so localization can be added later
+without rewriting core components.
 
 ## Navigation
-
-Recommended:
 
 ```text
 Dockplane
@@ -66,271 +66,115 @@ Changelog
 [ Get Started ]
 ```
 
-`Product` is the narrative overview. `Features` is the detailed capability catalogue, grouped by product area, and is also where planned capabilities and the explicit non-goals are listed.
+`Product` is the narrative overview. `Features` is the detailed capability
+catalogue grouped by product area, and is also where planned capabilities and
+the explicit non-goals are listed.
 
-Show GitHub/source navigation only when the real destination exists.
+Source and release navigation appears only when the destination exists. Do not
+ship dead links.
 
-Do not ship dead links.
-
-## Initial Routes
+## Routes
 
 ```text
 /
- /product
- /features
- /security
- /docs
- /changelog
+/product
+/features
+/security
+/docs
+/changelog
 ```
 
-Also include:
-- 404
-- sitemap
-- robots.txt where appropriate
+Every route above is prerendered and listed in the sitemap. The 404 document is
+prerendered at `/404` so static hosting can serve it for unknown addresses; it
+is excluded from the sitemap and marked `noindex`. A `robots.txt` is served
+alongside them.
 
-The 404 document is prerendered at `/404` so static hosting can serve it for unknown addresses. It is excluded from the sitemap and marked `noindex`.
+## Page Structure
 
-## Hero
+Sections carry a two-digit index beside the eyebrow. The index is a position on
+the page, so it is derived where a page's sections come from a list rather than
+written by hand: a section inserted into a hand-numbered page has twice gone out
+with two sections claiming the same number.
 
-Eyebrow:
+### Home
 
-```text
-SELF-HOSTED DOCKER MANAGEMENT
-```
+A hero carrying an eyebrow, a two-line heading, a body, a primary and a
+secondary action, a supporting line and the overview visual. Then the numbered
+sections:
 
-Heading:
+1. Operations, with three supporting items
+2. Multi-host, with the host fleet visual
+3. Stacks, with the Compose project visual
+4. Operational context, with the logs and events visual
+5. Security, with four principles, the capability flow visual and a link to the
+   security page
+6. Versions, with three supporting items
+7. Self-hosted, with three supporting items
 
-```text
-Your Docker hosts.
-One control plane.
-```
+Then the closing call to action, which is unnumbered.
 
-Body:
+### Product
 
-```text
-Manage containers, Compose stacks, logs, health and operations across your Docker hosts from one secure, self-hosted interface.
-```
+Hero, then: hosts, containers, stacks, logs and events, permissions and audit,
+versions, the interface screenshots, scope, and the closing call to action.
 
-Primary action:
+The containers and stacks sections are where ownership has to stay legible:
+what Dockplane created, what it discovered, and what belongs to a stack are
+three different things and are never merged into one sentence.
 
-```text
-Get Started
-```
+### Features
 
-Secondary action, only when valid:
+Hero with a jump list, one section per capability area, then the planned
+section and the boundary section. The areas and their entries come from
+`website/src/app/pages/features/feature-catalog.ts`, which follows
+[Product Scope](../product/PRODUCT_SCOPE.md).
 
-```text
-View Source
-```
+Planned capabilities are listed apart from the areas and carry no dates.
 
-Supporting line:
+### Security
 
-```text
-Self-hosted · Multi-host · Security-first
-```
+Hero, then: agent identity with the enrollment lifecycle, the capability model
+with the capability flow visual, authorization, audit, Docker access, secrets,
+and private reporting.
 
-Do not show fake:
-- stars
-- users
-- logos
-- testimonials
-- download counts
+The reporting call to action renders only while a private reporting channel
+exists.
 
-## Hero Product Visual
+### Docs
 
-Use a realistic Dockplane application preview.
+Hero with a panel saying where the documentation lives, the deployment
+topology, the steps that connect a host, and an index of `docs/` generated on
+every build.
 
-Example content:
+### Changelog
 
-```text
-Overview
+Hero, then the releases, generated from `CHANGELOG.md`. A release without a
+date renders as not released.
 
-4 Hosts
-38 Containers
-7 Compose Projects
-1 Needs Attention
+## Product Visuals
 
-docker-01     Healthy       12 containers
-docker-02     Healthy        8 containers
-storage-01    Warning        6 containers
-apps-01       Healthy       12 containers
+The visual focus is the product itself, in two forms.
 
-Needs attention
+**Curated interface previews** are built from the site's own components with
+synthetic data, and are the primary visuals. They may show only views and
+actions that exist in the current release, and they carry a caption saying what
+they are.
 
-paperless-db
-Health check failing
-docker-02
-```
+**Screenshots** are captures from a running installation, shown on the product
+page beside the previews rather than in place of them. The data in them is
+synthetic and the copy says so.
 
-This may be a controlled design mockup until the real application UI exists.
-
-Do not use meaningless charts as decoration.
-
-## Section: No Host Hopping
-
-Heading:
-
-```text
-Docker operations without host hopping.
-```
-
-Body:
-
-```text
-Stop jumping between SSH sessions and separate Docker endpoints. Dockplane gives connected hosts one consistent operational interface while keeping execution local to each machine through its agent.
-```
-
-Three supporting items:
-
-### All hosts in one place
-See workloads, health and resource state across connected Docker hosts.
-
-### Operate safely
-Use defined agent capabilities with backend permissions and audit history.
-
-### Stay self-hosted
-Run the control plane on infrastructure you control.
-
-## Section: Multi-Host
-
-Heading:
-
-```text
-Built for more than one Docker host.
-```
-
-Explain that multi-host is the default model.
-
-Show:
-- host status
-- workload count
-- agent status/version
-- key health signals
-
-## Section: Compose
-
-Heading:
-
-```text
-Your Compose stacks, wherever they run.
-```
-
-Show a realistic Compose project card:
-
-```text
-Nextcloud
-apps-01
-
-nextcloud     Running
-postgres      Running
-redis         Running
-
-3 / 3 healthy
-```
-
-Only show actions that exist in the current release.
-
-## Section: Operational Context
-
-Heading:
-
-```text
-Know what is happening before you touch it.
-```
-
-Show:
-- logs
-- CPU
-- memory
-- network
-- state
-- health
-- recent events
-
-Dockplane is not positioned as a Prometheus replacement.
-
-## Section: Security
-
-Heading:
-
-```text
-Remote control without a remote shell.
-```
-
-Body:
-
-```text
-Dockplane agents expose defined operational capabilities instead of an unrestricted command interface. Device identity, encrypted communication, authorization and audit history are part of the architecture from the start.
-```
-
-Principles:
-- unique agent identity
-- explicit capabilities
-- resource permissions
-- auditable operations
-
-CTA:
-
-```text
-Read the security model
-```
-
-Never claim:
-- unhackable
-- 100% secure
-- military-grade
-- zero risk
-
-## Section: Services
-
-Only show this as available when implemented.
-
-Heading:
-
-```text
-Think in applications, not just containers.
-```
-
-Explain higher-level grouping without hiding container detail.
-
-## Section: Self-Hosted
-
-Heading:
-
-```text
-Your control plane belongs on your infrastructure.
-```
-
-Points:
-- self-hosted
-- inspectable/transparent architecture
-- ordinary Docker-based deployment when implemented
-
-Do not claim open-source licensing unless the repository actually contains a chosen license and the project is distributed accordingly.
-
-## Final CTA
-
-Heading:
-
-```text
-Bring your Docker hosts together.
-```
-
-Body:
-
-```text
-Deploy Dockplane and manage your Docker environment from one self-hosted control plane.
-```
+Do not use meaningless charts as decoration, and do not show fake stars, users,
+logos, testimonials or download counts.
 
 ## Footer
 
-Only show existing destinations.
-
-Recommended groups:
+Only destinations that exist. Recommended groups:
 
 ```text
 Product
   Overview
+  Features
   Security
   Changelog
 
@@ -339,75 +183,61 @@ Resources
   Releases
 
 Project
-  Security Policy
-  Contributing
-  Source (when public)
-  License (when selected)
+  Security policy
+  Source
+  Issues
+  License
 ```
 
 ## Visual Design
 
 Use `BRAND_SPEC.md`.
 
-Website characteristics:
-- dark-first visual lead
-- excellent light mode
+- dark-first visual lead, with an equally good light mode
 - generous whitespace
-- max content width approximately 1200–1320px
-- 2-column hero on large screens
-- restrained borders
-- moderate radii
-- minimal shadow
-- real product UI as the visual focus
+- maximum content width of roughly 1200 to 1320px
+- two-column hero on large screens
+- restrained borders, moderate radii, minimal shadow
+- the product interface as the visual focus
 
-Do not build a generic “gradient orb + three cards” SaaS landing page.
+Do not build a generic gradient-orb-and-three-cards SaaS landing page.
 
 ## Responsive
 
-### Desktop
-- 2-column hero
-- generous margins
-- large product visual
+**Desktop.** Two-column hero, generous margins, large product visual.
 
-### Tablet
-- reduce grid count
-- preserve readable diagrams
+**Tablet.** Fewer grid columns, diagrams still readable.
 
-### Mobile
-- single column
-- accessible nav
-- no essential hover behavior
-- intentional screenshot cropping
-- horizontally scrollable code where needed
+**Mobile.** Single column, accessible navigation, nothing essential behind a
+hover, deliberate cropping of previews, and horizontally scrollable code where
+a line cannot break.
 
 ## Accessibility
 
-Target WCAG 2.2 AA where practical.
+Target WCAG 2.2 AA where practical:
 
-Require:
 - keyboard navigation
 - visible focus
-- semantic heading hierarchy
+- semantic heading hierarchy, one level-one heading per page and no skipped
+  levels
 - sufficient contrast
-- meaningful alt text
+- meaningful alternative text
 - reduced motion
 - clear link labels
 
 ## SEO
 
-Homepage title:
+Each route carries its own document title and description, rendered verbatim
+without an appended site suffix. They describe the page in the same voice as
+the page. The title in `index.html` is the pre-hydration fallback, not the
+homepage title.
 
-```text
-Dockplane — Self-Hosted Multi-Host Docker Management
-```
-
-Meta description:
-
-```text
-Dockplane is a self-hosted control plane for managing containers, Compose stacks, logs, health and operations across multiple Docker hosts.
-```
+Structured data is limited to what the project can stand behind: that these
+addresses are one site, and what the software is. No version, release date,
+price or rating.
 
 Natural relevant terms:
+
 - self-hosted Docker management
 - multi-host Docker management
 - Docker dashboard
@@ -419,23 +249,30 @@ Do not keyword-stuff.
 
 ## Technical Delivery
 
-Preferred:
 - Angular
 - TailwindCSS
-- SSR or prerendering
-- independently deployable
-- no database dependency for marketing pages
-- privacy-friendly by default
+- prerendered, and independently deployable
+- no database dependency for the public pages
 - no mandatory analytics
 - CSP-compatible
-- no secrets in frontend bundles
+- no secrets in the frontend bundle
+
+Generated files are written by the build from their sources and are never
+edited by hand.
 
 ## Content Integrity
 
 Never:
+
 - advertise unimplemented functionality as available
-- invent adoption metrics
-- invent customer evidence
-- invent security certifications
+- invent adoption metrics, customer evidence or security certifications
+- claim a security property the product does not have
 - publish placeholder text
 - expose internal implementation history
+
+## Related
+
+- [Website Copy](WEBSITE_COPY.md)
+- [Brand Specification](BRAND_SPEC.md)
+- [Content Style](CONTENT_STYLE.md)
+- [Product Scope](../product/PRODUCT_SCOPE.md)

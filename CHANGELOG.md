@@ -8,10 +8,9 @@ Do not include internal prompt history, development conversation notes or artifi
 
 ## Unreleased
 
-Third stable release. The product is what the two release candidates converged
-on, with the entries below describing it rather than repeating how it got there.
-What Dockplane manages is unchanged from `0.2.0`: the same capability catalog,
-the same containers and stacks, the same trust boundary.
+Third stable release, and what the two release candidates converged on. What
+Dockplane manages is unchanged from `0.2.0`: the same capability catalog, the
+same containers and stacks, the same trust boundary.
 
 ### Added
 - Settings reports what this installation is running: the control server's release and commit, the browser application's own release and commit, the migration the database has reached, the agent protocol range, and what the enrolled agents report. The server and the application are two images and are reported as two.

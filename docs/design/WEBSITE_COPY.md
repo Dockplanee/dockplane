@@ -1,8 +1,23 @@
 # Dockplane Website Copy
 
-The public website uses English as its primary language.
+The approved copy for the public website. The website is the implementation of
+this file; where the two disagree, one of them is wrong and the disagreement is
+worth resolving before either is released.
 
-Copy should be adjusted only when product behavior changes.
+The primary language is English. Copy changes when product behaviour changes,
+or when the same behaviour can be stated more clearly. It does not change to
+make the product sound larger than it is.
+
+Two things on the site are not written here, because writing them twice would
+create a second version of the same list:
+
+- The feature catalogue on the features page, which lives in
+  `website/src/app/pages/features/feature-catalog.ts` and follows
+  [Product Scope](../product/PRODUCT_SCOPE.md).
+- The documentation index and the changelog, which are generated on every build
+  from `docs/` and `CHANGELOG.md`.
+
+Sections below are numbered as they are numbered on the page.
 
 # Homepage
 
@@ -11,10 +26,10 @@ Copy should be adjusted only when product behavior changes.
 Eyebrow:
 
 ```text
-SELF-HOSTED DOCKER MANAGEMENT
+Self-hosted Docker management
 ```
 
-Heading:
+Heading, on two lines:
 
 ```text
 Your Docker hosts.
@@ -24,7 +39,7 @@ One control plane.
 Body:
 
 ```text
-Manage containers, Compose stacks, logs, health and operations across your Docker hosts from one secure, self-hosted interface.
+Manage containers, Compose stacks, logs, health and operations across your Docker hosts from one interface, on infrastructure you run yourself.
 ```
 
 Supporting line:
@@ -45,7 +60,7 @@ Secondary CTA, only when the destination exists:
 View Source
 ```
 
-## Value
+## 01 Operations
 
 Heading:
 
@@ -56,7 +71,7 @@ Docker operations without host hopping.
 Body:
 
 ```text
-Stop jumping between SSH sessions and separate Docker endpoints. Dockplane gives connected hosts one consistent operational interface while keeping execution local to each machine through its agent.
+Stop moving between SSH sessions and separate Docker endpoints. Every connected host is managed from the same interface, and the work still happens on the machine itself, through its agent.
 ```
 
 ### All hosts in one place
@@ -71,13 +86,13 @@ See workloads, health and resource state across every connected Docker host.
 Run, create, change and remove workloads through defined agent capabilities, with backend-enforced permissions and audit history.
 ```
 
-### Stay self-hosted
+### Nothing reaches in
 
 ```text
-Run Dockplane on infrastructure you control. Your operational control plane does not need to depend on an external management SaaS.
+Each host runs one small service that connects outward to the control plane. No inbound management port has to be opened on a Docker host.
 ```
 
-## Multi-Host
+## 02 Multi-host
 
 Heading:
 
@@ -88,24 +103,27 @@ Built for more than one Docker host.
 Body:
 
 ```text
-Dockplane treats distributed Docker environments as the default. See host state, workload counts, agent status and health signals without opening a separate management session for every machine.
+More than one Docker host is the normal case here, not the exception. Host state, workload counts, agent status and health signals are in one list, without a separate management session per machine. A host that has been replaced can be archived, which takes it out of the working lists without losing what it ran.
 ```
 
-## Compose
+## 03 Stacks
+
+Managed stacks and discovered Compose projects are two different things, and
+the homepage is the first place that distinction has to survive.
 
 Heading:
 
 ```text
-Your Compose stacks, wherever they run.
+A Compose file, its history, and the host it runs on.
 ```
 
 Body:
 
 ```text
-Understand which containers belong together, inspect their current state and manage Compose workloads without reducing every application to an unrelated list of containers.
+A managed stack keeps its Compose configuration, the environment it needs and every revision it has had, so deploying an earlier one is the rollback. Compose projects already running on a host are discovered and grouped alongside them, and stay read-only.
 ```
 
-## Operational Context
+## 04 Operational context
 
 Heading:
 
@@ -116,10 +134,10 @@ Know what is happening before you touch it.
 Body:
 
 ```text
-Inspect logs, resource usage, health state and recent events before performing an operational action. Dockplane keeps the context close to the workload you are managing.
+Read a workload's state, its health, its output and the events around it before you act on it. The context sits beside the thing you are managing rather than in a separate tool.
 ```
 
-## Security
+## 05 Security
 
 Heading:
 
@@ -130,7 +148,7 @@ Remote control without a remote shell.
 Body:
 
 ```text
-Dockplane agents expose defined operational capabilities instead of an unrestricted command interface. Device identity, encrypted communication, authorization and audit history are part of the architecture from the start.
+An agent exposes a fixed set of operational capabilities and no way to run a command. Each host holds its own identity, the channel between it and the control plane is encrypted, and the control server authorizes an action before any agent is asked to perform it.
 ```
 
 ### Unique agent identity
@@ -145,16 +163,23 @@ Each enrolled host uses its own agent identity and can be revoked independently.
 Operations such as restarting a container or reading logs use defined and validated actions.
 ```
 
-### Resource permissions
+### Permissions by operation
+
+Permissions are per operation. They apply across the environment; scoping them
+to a host or a group is on the features page as planned, and must not be
+implied here.
 
 ```text
-Backend-enforced permissions decide who can perform which operations on which resources.
+Backend-enforced permissions decide who may perform which operations. Restarting a container and removing one are separate grants.
 ```
 
 ### Auditable changes
 
+The audit trail covers security-relevant and infrastructure-changing actions.
+It is not a record of every request, and no copy may say that it is.
+
 ```text
-Infrastructure mutations and security-relevant actions are recorded with actor, target and result context.
+Security-relevant and infrastructure-changing actions are recorded with actor, target and result context.
 ```
 
 CTA:
@@ -163,7 +188,39 @@ CTA:
 Read the security model
 ```
 
-## Self-Hosted
+## 06 Versions
+
+Heading:
+
+```text
+What is running, and what is not updating itself.
+```
+
+Body:
+
+```text
+Settings reports the control server, the browser application, the database schema, the agent protocol range and what every enrolled agent reports. A fleet part-way through a rollout is marked as running mixed versions rather than as broken.
+```
+
+### No self-updating
+
+```text
+Dockplane can check the public release listing and say whether something newer exists. It is off until an administrator turns it on, and nothing acts on the answer.
+```
+
+### Upgrade in your own order
+
+```text
+Upgrade the control plane first, then the agents. An older agent keeps working while its protocol version is one the server accepts.
+```
+
+### Usable at the width you have
+
+```text
+The management lists and settings adapt to the space they are given, down to a stacked list below a tablet's width.
+```
+
+## 07 Self-hosted
 
 Heading:
 
@@ -174,13 +231,13 @@ Your control plane belongs on your infrastructure.
 Body:
 
 ```text
-Dockplane is designed to run on systems you control and to operate without a mandatory external management service.
+Dockplane runs on systems you control and works without an external management service.
 ```
 
-### Self-hosted
+### No account anywhere
 
 ```text
-Deploy and operate the control plane yourself.
+There is nothing to sign up for and no tenant to belong to. You install the control plane and it is yours.
 ```
 
 ### Understandable
@@ -189,13 +246,16 @@ Deploy and operate the control plane yourself.
 The architecture, permissions and agent trust model are documented instead of being hidden behind a remote service.
 ```
 
-### Docker-focused
+### Scoped to Docker
 
 ```text
-Dockplane focuses on Docker operations instead of becoming a generic datacenter control panel.
+What Dockplane manages is Docker and its immediate operational environment. It is not on its way to becoming a datacenter panel.
 ```
 
 ## Final CTA
+
+Used unchanged at the foot of the homepage, the product page and the features
+page.
 
 Heading:
 
@@ -228,10 +288,10 @@ Docker management built around multiple hosts.
 Body:
 
 ```text
-Dockplane brings Docker hosts, containers, Compose workloads and operational context into one self-hosted management experience.
+Docker hosts, containers, Compose workloads and the operational context around them, in one self-hosted control plane.
 ```
 
-## Hosts
+## 01 Hosts
 
 Heading:
 
@@ -242,10 +302,28 @@ One view of every connected host.
 Body:
 
 ```text
-See host connectivity, Docker version, agent state, workload counts and key resource signals without switching between machines.
+Connectivity, Docker version, agent state, workload counts and the host's own CPU, memory and disk, without switching between machines.
 ```
 
-## Containers
+Metrics are the host's. Per-container metrics are planned and belong on the
+features page, not here.
+
+Supporting paragraph:
+
+```text
+A host that has been replaced can be archived: it leaves the working lists and keeps everything it carried, and it can be brought back. Archiving is not a delete — no host record is removed, and none is merged with another.
+```
+
+## 02 Containers
+
+The three ownership kinds have to stay distinguishable in every sentence on
+this page:
+
+- **external** — Dockplane did not create the container. Read and run only.
+- **Dockplane-managed standalone** — Dockplane holds the intended
+  configuration, so the container can also be changed and removed.
+- **stack-owned** — the configuration belongs to the stack, so the container is
+  not edited on its own.
 
 Heading:
 
@@ -259,21 +337,57 @@ Body:
 Read a container's state, image, health and logs before acting on it. Every container on a connected host can be started, stopped and restarted; the ones Dockplane created can also be changed and removed.
 ```
 
-## Compose
+### State and health
+
+```text
+Current state, health check result and the image a container is running.
+```
+
+### Run state
+
+```text
+Start, stop and restart map to defined agent capabilities rather than free-form commands.
+```
+
+### Create and change
+
+```text
+Define a container and edit it later. Editing replaces it and keeps its identity and history, and volumes are never removed.
+```
+
+Supporting paragraph:
+
+```text
+A container Dockplane did not create keeps a read-only configuration: its environment is deliberately not read back off a host, so there is nothing to edit from. It can still be inspected, followed and run.
+```
+
+## 03 Stacks
 
 Heading:
 
 ```text
-Keep application context intact.
+Compose files Dockplane keeps, and Compose projects it finds.
 ```
 
 Body:
 
 ```text
-Dockplane treats Compose projects as grouped workloads so you can understand which containers belong together while keeping container-level detail available.
+A managed stack is a Compose file Dockplane holds, with its environment, its encrypted values and every revision it has had. Deploying an earlier revision is the rollback — it restores configuration, not volumes.
 ```
 
-## Logs and Events
+Rollback is a configuration rollback. Copy may not call it a data rollback or a
+volume rollback anywhere.
+
+Supporting paragraph:
+
+```text
+A Compose project already running on a host is a different thing: it is discovered, inspected and grouped, and it stays read-only. Dockplane does not take one over.
+```
+
+A discovered project is never described as adopted, deployed, built from
+source, updated automatically or driven by Git or a webhook.
+
+## 04 Logs and events
 
 Heading:
 
@@ -284,10 +398,10 @@ Follow what changed.
 Body:
 
 ```text
-Use workload logs, normalized events and action history to understand what happened and verify the result of an operation.
+Workload logs, normalized events and action history, so what happened is readable afterwards and an operation can be checked against what it reported.
 ```
 
-## Permissions and Audit
+## 05 Permissions and audit
 
 Heading:
 
@@ -298,10 +412,14 @@ Operational access without all-or-nothing permissions.
 Body:
 
 ```text
-Dockplane is designed around backend-enforced permissions and auditable actions so operational access can be controlled more precisely than sharing a privileged host login.
+Permissions are enforced by the backend, and security-relevant and infrastructure-changing actions are recorded in the audit trail. Operational access can be granted more precisely than by handing out a privileged host login.
 ```
 
-## Versions
+Example permission keys are shown beside this section. Every key rendered on
+the site exists in `api/src/rbac/permissions.ts`; a plausible key that nobody
+can grant reads exactly like a real one.
+
+## 06 Versions
 
 Heading:
 
@@ -315,7 +433,120 @@ Body:
 The control server and the browser application are two images and report themselves as two. Alongside them: the database schema, the agent protocol range, and what every enrolled agent reports.
 ```
 
+### Mixed agent versions
+
+```text
+A fleet part-way through a rollout is marked as mixed rather than as broken. An older agent keeps working while its protocol version is one the server accepts.
+```
+
+### States worth naming
+
+```text
+An agent outside the accepted protocol range is reported as an incompatibility. One that has never reported a readable version is counted as unknown, not as out of date.
+```
+
+### An update check you switch on
+
+```text
+Dockplane can ask the public release listing whether something newer exists. It is off until an administrator turns it on, and nothing acts on the answer: there is no auto-updater and no agent auto-upgrade.
+```
+
+## 07 Interface
+
+Four captures from a running installation, shown alongside the curated
+interface previews rather than in place of them. The hosts, workloads and
+stacks in them are synthetic; the interface is not, and the copy says so.
+
+Heading:
+
+```text
+Dockplane, as it actually looks.
+```
+
+Body:
+
+```text
+Four views from a running installation. The hosts, workloads and stacks in them are made up for the picture; the interface around them is not.
+```
+
+Captions:
+
+```text
+Overview
+Hosts
+A managed stack
+Agents and their versions
+```
+
+Each screenshot carries alternative text describing what the view shows, since
+the picture is the content.
+
+## 08 Scope
+
+Heading:
+
+```text
+A Docker control plane, not a datacenter suite.
+```
+
+Body:
+
+```text
+Dockplane stays inside the Docker operating model. The full capability list, the planned direction and the parts that stay outside the product are set out on the features page.
+```
+
+The panel beside it lists what is in scope today. Anything not yet built belongs
+on the features page under the planned heading, never in this list.
+
+# Features Page
+
+Heading:
+
+```text
+Everything Dockplane manages, area by area.
+```
+
+Body:
+
+```text
+Dockplane is deliberately scoped to Docker and its direct operational environment. What belongs to the product, what is planned and what stays outside it are all set out below.
+```
+
+The areas, their entries, the planned list and the out-of-scope list are the
+catalogue in `website/src/app/pages/features/feature-catalog.ts`. Three rules
+govern it:
+
+1. An entry in an area describes something the release does. If it does not,
+   it belongs under **Planned, not available**.
+2. The planned section carries no dates.
+3. The out-of-scope list is the product boundary from
+   [Product Scope](../product/PRODUCT_SCOPE.md) and is not softened into
+   "not yet".
+
+Planned section:
+
+```text
+Planned, not available.
+```
+
+```text
+These capabilities are part of the product direction. They are listed separately so the current boundary stays unambiguous.
+```
+
+Boundary section:
+
+```text
+What Dockplane does not do.
+```
+
+```text
+Dockplane manages Docker across hosts. Broadening it into a general infrastructure suite would weaken both the security model and the product.
+```
+
 # Security Page
+
+The most conservative page on the site. Nothing here may be strengthened for
+rhythm.
 
 ## Hero
 
@@ -328,10 +559,10 @@ Security is part of the control plane.
 Body:
 
 ```text
-Dockplane manages privileged Docker operations, so identity, authorization, constrained agent capabilities and auditability are architectural requirements rather than optional add-ons.
+Managing Docker on a machine is a privileged operation, so Dockplane is built around that. Every host holds its own identity, the control server authorizes each action, the agent can perform only the operations it was built with, and what changes is recorded.
 ```
 
-## Agent Identity
+## 01 Agent identity
 
 Heading:
 
@@ -342,10 +573,21 @@ Every agent has its own identity.
 Body:
 
 ```text
-Enrollment is designed around short-lived enrollment material and device-specific credentials. An individual agent can be revoked without replacing one global fleet key.
+A host enrolls with a short-lived token and comes away with a credential of its own. An individual agent can be revoked without replacing one global fleet key.
 ```
 
-## Capability Model
+The enrollment lifecycle is listed as steps:
+
+```text
+An administrator creates a short-lived enrollment token.
+The agent enrolls over authenticated TLS.
+The agent receives its own device-specific credential.
+Ongoing communication uses a device-authenticated encrypted channel.
+A single agent credential can be revoked without replacing the others.
+Enrollment and revocation are recorded in the audit history.
+```
+
+## 02 Capability model
 
 Heading:
 
@@ -356,21 +598,37 @@ Defined operations instead of arbitrary commands.
 Body:
 
 ```text
-The Dockplane agent accepts explicit capabilities with validated payloads. The control protocol is not designed as an unrestricted remote shell.
+The agent accepts a fixed catalogue of named capabilities with validated payloads, decided when it was built. A request names a container or a stack and an operation from that catalogue; none of them carries a command, an argument list or input for a container.
 ```
 
-Example:
+Supporting paragraph:
 
 ```text
-container.list
-container.inspect
-container.start
-container.stop
-container.restart
-container.logs
+There is no exec, no attach and no shell on any path, and nothing that administers the host itself — nothing reboots a machine, installs a package or changes a system setting. What Dockplane changes on a managed host it changes through the Docker Engine: containers, and the stacks made of them.
 ```
 
-## Authorization
+Beside it, the capability flow visual shows an example subset of real capability
+names and the page links to the full catalogue in
+[Security Model](../security/security-model.md), which is where the catalogue is
+maintained. The example is currently:
+
+```text
+host.metrics
+container.inspect
+container.logs
+container.restart
+container.replace
+stack.deploy
+```
+
+Every name shown anywhere on the site has to be one the agent actually
+implements. An illustration of the shape of a capability name is not acceptable:
+a name nobody can dispatch reads exactly like one that works.
+
+"Nothing changes on the host" is wrong and must not come back: container and
+stack state is changed, through the Docker Engine.
+
+## 03 Authorization
 
 Heading:
 
@@ -384,7 +642,13 @@ Body:
 Hiding a button is not access control. Sensitive API operations and dispatched agent actions require backend authorization.
 ```
 
-## Audit
+Supporting paragraph:
+
+```text
+Permissions are granular by operation: reading a container, following its output, changing it and removing it are separate grants, so an operator who should be able to restart a stuck service does not also have to be able to delete one. They apply across the environment today; scoping them to a single host or group is planned, not present.
+```
+
+## 04 Audit
 
 Heading:
 
@@ -395,10 +659,13 @@ Operational changes leave a trail.
 Body:
 
 ```text
-Security-relevant and infrastructure-mutating actions are designed to carry actor, target, result and correlation context without turning the audit log into a secret store.
+Security-relevant and infrastructure-changing actions are recorded with actor, target, result and correlation context, without turning the audit log into a secret store.
 ```
 
-## Docker Access
+Reads are not fully audited. No page may claim that every operation, every
+request or every permitted action is recorded.
+
+## 05 Docker access
 
 Heading:
 
@@ -412,7 +679,11 @@ Body:
 Access to the Docker daemon can be equivalent to privileged host control depending on configuration. Dockplane documents that trust boundary rather than presenting Docker socket access as harmless.
 ```
 
-## Secrets
+```text
+An unauthenticated Docker TCP endpoint is not an acceptable way to simplify agent deployment.
+```
+
+## 06 Secrets
 
 Heading:
 
@@ -426,7 +697,7 @@ Body:
 Passwords, enrollment material, private keys, session credentials and unrestricted environment values must be excluded or redacted from normal logging and telemetry.
 ```
 
-## Security Policy CTA
+## Reporting
 
 Heading:
 
@@ -437,7 +708,71 @@ Found a security issue?
 Body:
 
 ```text
-Use the private security reporting process described in the project security policy.
+Report it privately rather than in a public issue. A report is most useful when it names the affected version and component, describes the impact and includes a reproduction with sanitized logs.
 ```
 
-Do not show a reporting address until a real private reporting channel exists.
+```text
+Please do not disclose an exploitable issue publicly before the maintainers have had a chance to investigate and prepare a fix.
+```
+
+The reporting button is rendered only while a private reporting channel exists.
+
+# Docs Page
+
+Heading:
+
+```text
+Set up Dockplane and connect your Docker hosts.
+```
+
+Body:
+
+```text
+How a Dockplane deployment is put together, how the first host joins it, and where the documentation for the rest of it lives.
+```
+
+The page carries the deployment topology, the steps that connect a host, and an
+index of `docs/` generated on every build. Nothing in that index is written
+here; a page added, renamed or rewritten in `docs/` appears on the website
+without the site being edited.
+
+# Changelog Page
+
+Heading:
+
+```text
+What changed in Dockplane.
+```
+
+Body:
+
+```text
+Entries describe changes from an operator perspective. Work that has not shipped is listed as unreleased until it does.
+```
+
+Entries are generated from `CHANGELOG.md`. A release without a date is rendered
+as not released; the date is added when the release is published, and never
+before.
+
+# Footer
+
+```text
+A self-hosted control plane for managing Docker across multiple hosts.
+```
+
+```text
+Dockplane is in active development. Releases, their notes and their checksums are published in the source repository.
+```
+
+A footer link to a destination that does not exist yet is omitted rather than
+rendered dead.
+
+# Metadata
+
+Every route carries a document title and a description. They describe the page,
+in the same voice as the page, and are not a place to repeat keywords. Titles
+are rendered verbatim without an appended site suffix.
+
+Structured data states only what the project can stand behind: that these
+addresses are one site, and what the software is. A version, a release date, a
+price or a rating is not decided on the website, so none of them appears there.

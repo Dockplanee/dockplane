@@ -87,7 +87,11 @@ The control server coordinates identity, authorization, state and actions. Agent
          Docker Engine
 ```
 
-## Goals
+## Design Goals
+
+The properties the architecture is built for. Some are reached today and some
+are direction; [Product Scope](../product/PRODUCT_SCOPE.md) and the features
+page are where that line is drawn.
 
 - centralized Docker visibility across multiple hosts
 - no central storage of SSH passwords
@@ -101,11 +105,11 @@ The control server coordinates identity, authorization, state and actions. Agent
 
 ## Connectivity
 
-Prefer an outbound connection from each agent to the control server.
+Each agent opens the connection to the control server, so no public inbound
+management port is required on a Docker host.
 
-This avoids requiring a public inbound management port on every Docker host.
-
-Agents should reconnect with bounded exponential backoff and jitter.
+A dropped connection is retried with bounded exponential backoff and jitter, so
+a control plane coming back does not meet a fleet reconnecting in lockstep.
 
 ## State
 
@@ -127,14 +131,11 @@ The UI must never present stale data as current without indication.
 
 ## Action Lifecycle
 
-Suggested states:
+An action is authorized before it is recorded, so a request that fails
+authorization never becomes one. From there it carries a status:
 
 ```text
-requested
-authorized
 queued
-dispatched
-acknowledged
 running
 succeeded
 failed
@@ -142,7 +143,10 @@ timed_out
 cancelled
 ```
 
-Every action receives an ID and audit context.
+alongside the moments it was requested, started and completed. Every action
+carries its own identifier, the capability it dispatched, the host and target it
+names, the actor behind it, and the correlation ID that ties it to the audit
+entry and to the request that started it.
 
 ## Core Domain
 
@@ -158,26 +162,17 @@ A managed Docker host.
 ### Agent
 Device identity associated with a managed host.
 
-### Host Group
-Logical grouping of Docker hosts.
-
 ### Container
-Discovered Docker container.
+A Docker container, discovered on a host or created by Dockplane.
 
 ### Compose Project
-A discovered Docker Compose workload.
+A Docker Compose workload discovered on a host. Read-only.
 
-### Image
-Docker image metadata relevant to managed workloads.
+### Stack
+A Compose configuration Dockplane holds, deployed to a host it names.
 
-### Network
-Docker network.
-
-### Volume
-Docker volume.
-
-### Service
-Optional higher-level grouping of related Docker workloads.
+### Stack Revision
+One saved version of a stack's configuration. Written once and never changed.
 
 ### Health Check
 Configured or observed health state.
@@ -191,21 +186,24 @@ Normalized operational event.
 ### Audit Entry
 Security-relevant append-oriented record.
 
+Host groups, images, networks, volumes and a higher-level service grouping are
+in the product's direction and are not entities today. See
+[Product Scope](../product/PRODUCT_SCOPE.md).
+
 ## Docker Integration
 
-Agents should use the Docker Engine API or a maintained Go SDK.
+The agent reaches the local Docker Engine through the Engine API, using the
+official Go SDK, and never through a shell.
 
-Initial operations remain intentionally narrow.
+The capability set is fixed at build time: reading a host and its containers,
+running a container, creating, replacing and removing the containers Dockplane
+made, streaming container output, discovering Compose projects, and deploying
+and operating the stacks Dockplane deployed. A container or a stack Dockplane
+removes takes no volume with it, and there is no capability that removes a
+volume, a network or an image.
 
-Examples:
-- list
-- inspect
-- start
-- stop
-- restart
-- logs
-
-Deleting containers, stacks or persistent volumes is not part of the safe foundation.
+The full catalogue and what each capability returns are in
+[Docker Integration](../integrations/docker.md).
 
 ## Compose
 
@@ -223,9 +221,7 @@ Do not assume every container belongs to Compose.
 
 ## Services
 
-A Service is a Dockplane-level grouping.
-
-Example:
+A service would be a Dockplane-level grouping of related workloads:
 
 ```text
 Nextcloud
@@ -234,35 +230,32 @@ Nextcloud
 └── redis
 ```
 
-This gives operators an application view while retaining container-level detail.
+It is direction rather than product. Nothing in this release groups workloads
+above the stack and the Compose project.
 
 ## Storage
 
-PostgreSQL stores durable application state such as:
-- users
-- roles
-- sessions
-- hosts
-- agents
-- enrollment records
-- inventory
-- actions
-- events
-- audit entries
-- services
-- configuration metadata
+PostgreSQL holds the durable state:
 
-High-volume telemetry may later use specialized storage if justified.
+- users, roles, permissions and sessions
+- hosts, agents and enrollment records
+- discovered containers and Compose projects
+- stacks, their revisions and their environment
+- the desired configuration of the containers Dockplane created
+- actions, events and audit entries
+
+Container output is not among them. Logs are read from the host when somebody
+asks for them and are never written down here.
 
 ## Versioning
 
-Version:
-- REST API
-- agent protocol
-- migrations
-- capability schema when compatibility requires it
-
-The control server should be able to report supported/minimum agent versions.
+The REST API is versioned in its path. Four further numbers decide whether two
+pieces of a deployment can work together: the agent protocol version, the
+database schema version, the backup format version, and the version of the plan
+a stack operation is sent as. `GET /api/v1/version` reports the server's build,
+its protocol version and both schema versions without a session, because a
+deployment has to be able to say what it is before anyone can sign in. See
+[Interface Versions](interface-versions.md).
 
 ## Trust Boundaries
 

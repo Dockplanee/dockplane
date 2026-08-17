@@ -18,10 +18,8 @@ again before it acts.
 That is a limit on Dockplane, not only on an attacker. There is no exec, no
 attach and no shell on any path.
 
-The catalog itself is listed in
-[Security Model](docs/security/security-model.md) and
-[Docker Integration](docs/integrations/docker.md), and is deliberately not
-repeated here: one place to keep current is enough.
+The catalog is listed in [Security Model](docs/security/security-model.md) and
+[Docker Integration](docs/integrations/docker.md).
 
 ## Quick start
 
@@ -94,9 +92,9 @@ webhook and no automatic update. See
 
 ### Operators and the deployment
 
-Accounts, roles, backend-enforced permissions, sessions, TOTP second factors
-and recovery codes. Audit history, backup and restore, and upgrades that
-migrate.
+Accounts, roles, backend-enforced permissions, sessions, TOTP second factors and
+recovery codes. Audit history, backup and restore, and an upgrade that applies
+the migrations it needs.
 
 ## The interface
 
@@ -171,16 +169,15 @@ Exec, attach, a shell, and any other way to run a command on a managed host.
 Administration of the host operating system: nothing reboots a machine,
 installs a package or changes a system setting. What Dockplane changes on a
 host it changes through the Docker Engine. Image management, and volume or
-network operations — an image is pulled only as a step of creating or replacing
-a container or deploying a stack, and only when the host does not already have
-it.
+network operations: an image is pulled only as part of creating or replacing a
+container or deploying a stack, and only when the host does not already have it.
 
 Deliberately out of scope: Proxmox, Kubernetes, virtual machines, network
 devices, and Linux servers in general.
 
-Other things are simply not built yet: a Compose project found on a host cannot
-be taken over, two host records are never merged, a stack's networks outlive
-it. Read [Known Limitations](docs/reference/known-limitations.md) before
+Other things are not built yet: a Compose project found on a host cannot be
+taken over, two host records are never merged, a stack's networks outlive it.
+Read [Known Limitations](docs/reference/known-limitations.md) before
 deploying, and [Product Scope](docs/product/PRODUCT_SCOPE.md) for the line
 between a decision and a gap.
 
