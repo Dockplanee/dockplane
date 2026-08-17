@@ -22,6 +22,7 @@ serve goes on working.
 - Deleting a stack no longer reports success without removing anything. The check that refuses to delete a stack whose containers are still on the host reads the association above, so with it missing the check passed, the stack record was deleted and the workload kept running. The check is unchanged; what it reads now arrives.
 
 ### Changed
+- Release images are built from pinned inputs. Every base image is named by digest as well as by tag, and the web runtime no longer applies distribution updates during the build, so the same commit produces the same image whenever it is built. The web runtime carries only what serving the application needs, which removed three packages Dockplane never used.
 - Deploying, starting, stopping, restarting and removing a stack are refused with `AGENT_UPGRADE_REQUIRED` on a host whose agent is older than 0.3.0-rc.2, before anything is sent to that host. This is not a protocol incompatibility: protocol 1 is fully supported, and inventory, metrics, logs, container operations and Compose discovery are unaffected on those hosts.
 
 ### Known limitations

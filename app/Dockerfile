@@ -21,6 +21,8 @@ ARG NODE_VERSION=22.23.2
 ARG NODE_DIGEST=sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436
 ARG CADDY_VERSION=2.11.4
 ARG CADDY_DIGEST=sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+ARG ALPINE_VERSION=3.24.1
+ARG ALPINE_DIGEST=sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
 
 # --- Build ------------------------------------------------------------------
 #
@@ -64,14 +66,47 @@ RUN npm run build \
 	&& find dist -exec touch {} +
 
 # --- Runtime ----------------------------------------------------------------
-FROM caddy:${CADDY_VERSION}-alpine@${CADDY_DIGEST} AS runtime
+# --- Caddy ------------------------------------------------------------------
+#
+# Read for one file. The published Caddy image is the project's own build of the
+# server, pinned by digest, and taking the binary out of it is what makes that
+# build an input here rather than a base to inherit everything else from.
+FROM caddy:${CADDY_VERSION}-alpine@${CADDY_DIGEST} AS caddy-source
 
-# Security updates arrive by changing the pinned base above, not by asking the
-# distribution what it has today. Applying them during the build made the image
-# a function of the moment it ran: two builds of one commit, days apart,
-# produced different bytes, and no rebuild could be checked against a published
-# artefact. Raising the pin instead makes each update a commit with a scan and a
-# reviewer behind it.
+# --- Runtime ----------------------------------------------------------------
+#
+# A pinned distribution image, and only what serving the application needs.
+#
+# Caddy's own image carries curl, libcurl and c-ares, which Dockplane uses for
+# nothing: the binary is statically linked and the health check is busybox's
+# wget. They arrived with the base and stayed, and between them they accounted
+# for every fixable finding this image reported that the distribution had
+# already patched. Not installing them is a better answer than upgrading them.
+#
+# Nothing here asks a package repository anything. The distribution is pinned by
+# digest and raised deliberately, so the same commit builds the same bytes for
+# as long as the pins say so.
+FROM alpine:${ALPINE_VERSION}@${ALPINE_DIGEST} AS runtime
+
+COPY --from=caddy-source /usr/bin/caddy /usr/bin/caddy
+
+# The MIME table Go consults when serving files. Without it a font or a web
+# manifest leaves as application/octet-stream, which a browser will not use.
+COPY --from=caddy-source /etc/mime.types /etc/mime.types
+
+# The directories Caddy expects, taken from the image that defines them rather
+# than created here: a command in this stage would run under emulation whenever
+# the image's architecture is not the machine's own.
+COPY --from=caddy-source /config /config
+COPY --from=caddy-source /data /data
+COPY --from=caddy-source /etc/caddy /etc/caddy
+
+# Where Caddy keeps its configuration and its certificates, both volumes in the
+# deployment. Named the same way the published image names them, because the
+# deployment mounts them by those paths.
+ENV XDG_CONFIG_HOME=/config \
+    XDG_DATA_HOME=/data
+
 ARG DOCKPLANE_VERSION=0.0.0-dev
 ARG DOCKPLANE_COMMIT=unknown
 ARG DOCKPLANE_BUILD_DATE=unknown
@@ -94,3 +129,7 @@ COPY --from=build /build/dist/dockplane-app/browser /srv/dockplane
 # the operator's domain, and a change to it should not require a new image.
 
 EXPOSE 80 443
+
+WORKDIR /srv
+
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
