@@ -6,7 +6,7 @@ Use release-oriented language.
 
 Do not include internal prompt history, development conversation notes or artificial task numbering.
 
-## 0.3.0 — 2026-08-17
+## Unreleased
 
 Third stable release. The product is what the two release candidates converged
 on, with the entries below describing it rather than repeating how it got there.
