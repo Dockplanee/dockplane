@@ -143,6 +143,37 @@
   </div>
 </section>
 
+<section dpSection tone="alt" divided aria-labelledby="interface-heading">
+  <div class="dp-shell">
+    <dp-section-header
+      index="07"
+      eyebrow="The real thing"
+      headingId="interface-heading"
+      heading="Dockplane, as it actually looks."
+      lede="Four views from a running installation. The hosts, workloads and stacks in them are made up for the picture; the interface around them is not."
+    />
+
+    <ul class="shots">
+      @for (shot of screenshots; track shot.file) {
+        <li class="shots__item">
+          <figure class="shot">
+            <img
+              class="shot__image"
+              [src]="'/screenshots/' + shot.file"
+              [alt]="shot.alt"
+              width="1440"
+              height="900"
+              loading="lazy"
+              decoding="async"
+            />
+            <figcaption class="shot__caption">{{ shot.caption }}</figcaption>
+          </figure>
+        </li>
+      }
+    </ul>
+  </div>
+</section>
+
 <section dpSection aria-labelledby="scope-heading">
   <div class="dp-shell scope">
     <div>

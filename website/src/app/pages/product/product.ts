@@ -33,6 +33,33 @@ export const EXAMPLE_PERMISSIONS = [
  * Written so that neither reading is wrong: everything here exists, and the
  * features page is where the planned direction is marked as planned.
  */
+/*
+ * Captures from a running installation, kept beside the curated previews rather
+ * than in place of them. Every host, workload and stack in them is synthetic.
+ */
+export const SCREENSHOTS = [
+  {
+    file: 'overview.webp',
+    alt: 'The Dockplane overview: counts for hosts, containers and Compose projects, and a table of connected hosts with their state and resource use.',
+    caption: 'Overview',
+  },
+  {
+    file: 'hosts.webp',
+    alt: 'The hosts list, showing each host with its status, workload counts, CPU, memory and disk, and a filter for active or archived hosts.',
+    caption: 'Hosts',
+  },
+  {
+    file: 'stacks.webp',
+    alt: 'A managed stack, showing the saved revision, the deployed revision, its services, and the actions to deploy, stop, restart or delete it.',
+    caption: 'A managed stack',
+  },
+  {
+    file: 'agents.webp',
+    alt: "The agents list, showing each host's agent version and connection state, with one agent marked as older than the current release.",
+    caption: 'Agents and their versions',
+  },
+];
+
 export const IN_SCOPE = [
   'Docker hosts and their agents',
   'Containers, created here or discovered',
@@ -68,4 +95,5 @@ export class Product {
   protected readonly getStarted = GET_STARTED;
   protected readonly permissions = EXAMPLE_PERMISSIONS;
   protected readonly inScope = IN_SCOPE;
+  protected readonly screenshots = SCREENSHOTS;
 }

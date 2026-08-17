@@ -101,3 +101,38 @@
 .closing__actions {
   margin-top: 2rem;
 }
+
+/* The real screenshots. Wide enough to read on a laptop, one per row on a
+   phone, and never wider than the column they sit in. */
+.shots {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 900px) {
+  .shots {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.shot {
+  margin: 0;
+}
+
+.shot__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--dp-line);
+  border-radius: 0.75rem;
+}
+
+.shot__caption {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--dp-fg-muted);
+}
