@@ -3,6 +3,32 @@ import { ChangelogRelease } from './changelog-entries';
 
 export const CHANGELOG: readonly ChangelogRelease[] = [
   {
+    version: '0.3.0-rc.2',
+    date: '2026-08-17',
+    changes: [
+      {
+        type: 'Fixed',
+        items: [
+          'Containers Dockplane creates for a stack are associated with that stack again. The agent labels them with the stack, the service and the revision, and did not report those labels; the control server therefore recorded them as ordinary containers belonging to nothing. A stack whose containers were running read as never deployed, and every operation that resolves a stack\'s containers found none. Present since 0.2.0-rc.1.',
+          'Deleting a stack no longer reports success without removing anything. The check that refuses to delete a stack whose containers are still on the host reads the association above, so with it missing the check passed, the stack record was deleted and the workload kept running. The check is unchanged; what it reads now arrives.',
+        ],
+      },
+      {
+        type: 'Changed',
+        items: [
+          'Deploying, starting, stopping, restarting and removing a stack are refused with `AGENT_UPGRADE_REQUIRED` on a host whose agent is older than 0.3.0-rc.2, before anything is sent to that host. This is not a protocol incompatibility: protocol 1 is fully supported, and inventory, metrics, logs, container operations and Compose discovery are unaffected on those hosts.',
+        ],
+      },
+      {
+        type: 'Known limitations',
+        items: [
+          'A stack whose deployment never completed while its agent was old still reads as not deployed after the agent is upgraded, because that deployment genuinely never completed. Apply its revision again to reconcile it.',
+          'A stack deleted while its agent was old is not recreated. Its containers keep running and stay visible as managed containers with no stack; remove them individually if they are no longer wanted.',
+        ],
+      },
+    ],
+  },
+  {
     version: '0.3.0-rc.1',
     date: '2026-08-17',
     changes: [
