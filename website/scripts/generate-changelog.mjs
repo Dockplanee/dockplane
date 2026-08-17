@@ -8,9 +8,11 @@
  *   ### Added
  *   - A user-facing change.
  */
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { writeGenerated } from './write-generated.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const source = join(root, '..', 'CHANGELOG.md');
@@ -130,6 +132,6 @@ if (releases.length === 0) {
   throw new Error(`No release entries found in ${source}`);
 }
 
-await writeFile(target, render(releases), 'utf8');
+await writeGenerated(target, render(releases));
 
 process.stdout.write(`changelog: ${releases.length} release(s)\n`);

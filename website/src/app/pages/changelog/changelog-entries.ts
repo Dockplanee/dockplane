@@ -7,13 +7,7 @@
  * which refuses a heading that is not listed in both.
  */
 export type ChangeType =
-  | 'Added'
-  | 'Changed'
-  | 'Deprecated'
-  | 'Fixed'
-  | 'Removed'
-  | 'Security'
-  | 'Known limitations';
+  'Added' | 'Changed' | 'Deprecated' | 'Fixed' | 'Removed' | 'Security' | 'Known limitations';
 
 export interface ChangeGroup {
   readonly type: ChangeType;

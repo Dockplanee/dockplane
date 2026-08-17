@@ -9,7 +9,7 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
       {
         type: 'Fixed',
         items: [
-          'Containers Dockplane creates for a stack are associated with that stack again. The agent labels them with the stack, the service and the revision, and did not report those labels; the control server therefore recorded them as ordinary containers belonging to nothing. A stack whose containers were running read as never deployed, and every operation that resolves a stack\'s containers found none. Present since 0.2.0-rc.1.',
+          "Containers Dockplane creates for a stack are associated with that stack again. The agent labels them with the stack, the service and the revision, and did not report those labels; the control server therefore recorded them as ordinary containers belonging to nothing. A stack whose containers were running read as never deployed, and every operation that resolves a stack's containers found none. Present since 0.2.0-rc.1.",
           'Deleting a stack no longer reports success without removing anything. The check that refuses to delete a stack whose containers are still on the host reads the association above, so with it missing the check passed, the stack record was deleted and the workload kept running. The check is unchanged; what it reads now arrives.',
         ],
       },
@@ -36,7 +36,7 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
       {
         type: 'Added',
         items: [
-          'Settings shows what this installation is running: the control server\'s release and commit, the browser application\'s own release and commit, the migration the database has reached, the agent protocol range, and what the enrolled agents report. The server and the application are two images and are reported as two.',
+          "Settings shows what this installation is running: the control server's release and commit, the browser application's own release and commit, the migration the database has reached, the agent protocol range, and what the enrolled agents report. The server and the application are two images and are reported as two.",
           'Agents running different versions are shown as a mixed fleet rather than as a fault. An agent on an older release is supported for as long as its protocol version is one the control server accepts; only a protocol outside that range is reported as an incompatibility.',
           'An optional check for a newer published release, off by default and off across every upgrade until an administrator sets `UPDATE_CHECK_ENABLED`. When it is on the control server makes one request a few times a day to a fixed public address, with no query string, no body and nothing about the installation in it. Nothing is downloaded, installed or upgraded by it.',
           'A host that has been replaced can be archived. It leaves the active host lists and stops being offered as somewhere to run new work, and everything it carried stays: its containers, Compose projects, stacks, actions and audit entries all still resolve the host they belong to. Restoring it is one action, and its agent is never touched.',
@@ -46,7 +46,7 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
       {
         type: 'Changed',
         items: [
-          'Management tables adapt to the width they are given. Every column carries the priority of what it tells an operator, and the width that decides which are shown is the table\'s own rather than the window\'s — so a 1440-pixel window with the sidebar open is treated as the narrow content area it is. What an operator cannot act without is in the window at every width, without scrolling sideways.',
+          "Management tables adapt to the width they are given. Every column carries the priority of what it tells an operator, and the width that decides which are shown is the table's own rather than the window's — so a 1440-pixel window with the sidebar open is treated as the narrow content area it is. What an operator cannot act without is in the window at every width, without scrolling sideways.",
           'A host whose agent is connected cannot be archived, and the control server decides that when the request arrives rather than from what the page was showing. An archived host that starts answering again stays archived and is shown as archived and connected.',
           'New operational work against an archived host is refused with a stated reason. Reading is never refused, and archived is not the same as offline: a stack configuration can still be written for a host that is merely offline.',
         ],
@@ -69,10 +69,10 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
         items: [
           'Stacks: a Compose file written and saved in Dockplane, then deployed to one of your hosts. Every save is an immutable revision, and what is saved and what is running are kept as two separate facts.',
           'Any revision can be applied, forwards or back. Applying an earlier one is named as a rollback, and Dockplane converges the host on the revision you chose.',
-          'Stack environments can hold secrets. They are encrypted at rest under the deployment\'s own key, travel to the host inside the deployment plan, and appear in no log, audit entry or API response.',
+          "Stack environments can hold secrets. They are encrypted at rest under the deployment's own key, travel to the host inside the deployment plan, and appear in no log, audit entry or API response.",
           'Deployed stacks can be started, stopped and restarted in dependency order without being redeployed, with the result read back off the host.',
           'A stack can be deleted: its service containers are removed and its configuration and revision history are deleted. Named volumes are kept and no data in them is deleted.',
-          'Single containers can be created, reconfigured and removed. Reconfiguring recreates the container on Docker\'s side while it stays the same container in Dockplane, with the same identity, history and audit trail.',
+          "Single containers can be created, reconfigured and removed. Reconfiguring recreates the container on Docker's side while it stays the same container in Dockplane, with the same identity, history and audit trail.",
           'Compose files are compiled and checked before they can be saved. Anything Dockplane will not deploy is refused with the path in the file and a reason.',
         ],
       },
@@ -91,7 +91,7 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
       {
         type: 'Fixed',
         items: [
-          'Building a release twice from the same commit produces the same images and the same agent packages, on a different machine and at a different time. Layer timestamps, a checkout\'s own file times and permissions, an emulator\'s translation cache and a package\'s declared installed size all reached the artifacts and made two builds of one commit differ.',
+          "Building a release twice from the same commit produces the same images and the same agent packages, on a different machine and at a different time. Layer timestamps, a checkout's own file times and permissions, an emulator's translation cache and a package's declared installed size all reached the artifacts and made two builds of one commit differ.",
           'A release gate written against a newer shell than the one running it, or measuring a fixture its container runtime never received, now stops instead of reporting success.',
         ],
       },
@@ -104,8 +104,8 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
       {
         type: 'Fixed',
         items: [
-          'Building a release twice from the same commit produces the same images. Layer timestamps were left at the minute each build ran, and a checkout\'s own file times and permissions reached the image through files the compilers copy rather than generate.',
-          'An image built for an architecture other than the building machine\'s no longer carries the emulator\'s translation cache. An amd64 image built on Apple silicon contained it.',
+          "Building a release twice from the same commit produces the same images. Layer timestamps were left at the minute each build ran, and a checkout's own file times and permissions reached the image through files the compilers copy rather than generate.",
+          "An image built for an architecture other than the building machine's no longer carries the emulator's translation cache. An amd64 image built on Apple silicon contained it.",
           'The agent packages record an installed size derived from what they contain. It was read from the block allocation of whichever filesystem staged the package, so two builds of identical payloads declared different sizes and were different files.',
           'A release gate written against a newer shell than the one running it now stops instead of reporting success. On the shell macOS ships, the gate that checks whether other gates can be skipped reported nothing and passed.',
         ],
@@ -113,7 +113,7 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
       {
         type: 'Changed',
         items: [
-          'The release hardening step compares two builds that cannot share a build cache. The previous comparison used one builder for both, so the second build read the first one\'s layers and agreed with itself.',
+          "The release hardening step compares two builds that cannot share a build cache. The previous comparison used one builder for both, so the second build read the first one's layers and agreed with itself.",
         ],
       },
     ],
@@ -125,8 +125,8 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
       {
         type: 'Fixed',
         items: [
-          'A host that stops answering marks its readings as the last known ones straight away. Its containers, its Compose projects and the containers listed on a project\'s page do the same, so one page no longer shows workloads as running beside a host that already says it is offline.',
-          'A host\'s CPU, memory and disk readings stay on its page while it is offline, labelled with when they were reported. They were being dropped entirely.',
+          "A host that stops answering marks its readings as the last known ones straight away. Its containers, its Compose projects and the containers listed on a project's page do the same, so one page no longer shows workloads as running beside a host that already says it is offline.",
+          "A host's CPU, memory and disk readings stay on its page while it is offline, labelled with when they were reported. They were being dropped entirely.",
           'A container whose host cannot be reached still opens. It was reported as though the container no longer existed, which sent people looking for a workload that had not gone anywhere.',
           'The state of such a container is shown as the last one seen rather than in the colour of a running workload, and the page says when it was observed.',
           'Where a host is named, the name it was given comes first and the system hostname follows it. A machine enrolled more than once leaves a host resource behind for every enrolment and they all report the same hostname, so hosts, agents, containers and stacks would all show the same word for different machines. They are now told apart everywhere, including in the deployment dialog and the stack list.',
@@ -159,7 +159,7 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
         items: [
           'Stacks. Write a Compose file in Dockplane, save it, and deploy it to a host. Every save is an immutable revision, so what is saved and what is running are separate facts and the interface says which is which.',
           'Any saved revision can be applied, forwards or back. Rolling back is deploying an earlier revision and is named that way.',
-          'Stack environment variables, with secrets encrypted at rest under the deployment\'s own key. A secret reaches the host in the deployment plan and appears in no log, no audit entry and no API response.',
+          "Stack environment variables, with secrets encrypted at rest under the deployment's own key. A secret reaches the host in the deployment plan and appears in no log, no audit entry and no API response.",
           'Start, stop and restart a deployed stack, in dependency order, each recorded and answered with what the host was observed to be afterwards.',
           'Delete a stack. Its service containers are removed and its saved configuration and revision history are deleted. **Named volumes are kept and no data in them is deleted**; a deployed stack has to be named back before the action is offered.',
           'Standalone containers can be created, reconfigured and removed. A container keeps its Dockplane identity when Docker replaces it, so a reconfiguration is the same container rather than a new one.',
@@ -172,7 +172,7 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
         type: 'Changed',
         items: [
           '`roles.manage`, `stacks.adopt` and `stacks.secrets.reveal` are no longer in the permission catalog. Nothing enforced them, so they could be granted and conferred nothing. A custom role that had `roles.manage` loses a grant that never did anything; no other permission changes.',
-          'The release bundle\'s example settings name the release they were packed with.',
+          "The release bundle's example settings name the release they were packed with.",
         ],
       },
       {
@@ -185,7 +185,7 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
         type: 'Security',
         items: [
           'Stack operations are typed capabilities like every other: `stack.deploy`, `stack.start`, `stack.stop`, `stack.restart` and `stack.remove`. No Compose file, command or shell reaches a host.',
-          'The agent refuses to act on a container it cannot prove belongs to the stack it was asked about, and a deployment stops rather than adopting a volume, network or container that carries somebody else\'s identity.',
+          "The agent refuses to act on a container it cannot prove belongs to the stack it was asked about, and a deployment stops rather than adopting a volume, network or container that carries somebody else's identity.",
           'A stack whose containers do not match one complete revision needs attention, and Dockplane will not operate or delete it until somebody decides what it should be.',
         ],
       },
@@ -214,8 +214,8 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
           'Compose projects discovered and inspected, read-only.',
           'Local accounts with TOTP second factors and single-use recovery codes, server-side sessions with revocation, and roles whose permissions the control server enforces.',
           'Audit history with actor, action, target, result and request context.',
-          'Backup and restore of the database, the application encryption key, the agent certificate authority and Caddy\'s certificates, validated in full before a restore touches anything.',
-          'Upgrades through the installer: a validated backup first, then the deployment\'s files, then the schema, then the containers, and the version marker last.',
+          "Backup and restore of the database, the application encryption key, the agent certificate authority and Caddy's certificates, validated in full before a restore touches anything.",
+          "Upgrades through the installer: a validated backup first, then the deployment's files, then the schema, then the containers, and the version marker last.",
           'Agents for amd64 and arm64 as Debian packages and tarballs, and multi-architecture control plane images with a bill of materials and build provenance attached.',
         ],
       },
@@ -234,7 +234,7 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
         items: [
           'Re-enrolling a machine creates a new host record; the previous one remains and stops being refreshed.',
           'arm64 is built and inspected; no arm64 machine has run it. Use amd64 in production.',
-          'Backups are not encrypted by Dockplane and contain this deployment\'s private keys.',
+          "Backups are not encrypted by Dockplane and contain this deployment's private keys.",
           'Images are not signed; a bill of materials and provenance are attached instead.',
           'Compose projects are read-only, and container removal, volume and image management are not implemented.',
           'There is no automatic updater and no APT repository.',
@@ -250,7 +250,7 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
         type: 'Changed',
         items: [
           'An upgrade reports a pinned agent version that is not the release being installed, and `dockplane-control doctor` reports one at any time. Without a pin, adding a host installs the agent matching the control plane, and always has; what was missing is that a pin nobody remembers setting was invisible.',
-          'The reverse proxy image applies the distribution\'s own security updates, which removes five of the ten high findings against it — curl, libcurl and c-ares. The five that remain are compiled into the Caddy binary and can only be fixed by Caddy publishing a build against a newer Go toolchain.',
+          "The reverse proxy image applies the distribution's own security updates, which removes five of the ten high findings against it — curl, libcurl and c-ares. The five that remain are compiled into the Caddy binary and can only be fixed by Caddy publishing a build against a newer Go toolchain.",
         ],
       },
       {
@@ -275,7 +275,7 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
       {
         type: 'Fixed',
         items: [
-          'The agent package can be downloaded from the release. It was published under a name the installer never asks for, because a tilde is rewritten in a release asset name, and adding a host failed on a missing file. The tilde belongs in the package\'s version field, which is not a file name.',
+          "The agent package can be downloaded from the release. It was published under a name the installer never asks for, because a tilde is rewritten in a release asset name, and adding a host failed on a missing file. The tilde belongs in the package's version field, which is not a file name.",
           'Multi-architecture images build reliably. The JavaScript build now runs on the machine doing the building rather than under emulation, where the toolchain wrote binaries and ran them in the same moment.',
         ],
       },
@@ -301,7 +301,7 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
       {
         type: 'Changed',
         items: [
-          'The installer is the upgrade. It recognises an existing deployment, takes a backup and refuses to continue without one, replaces the deployment\'s Compose file and Caddyfile with the release\'s, migrates the schema before replacing containers, and records the new version only once the result is serving.',
+          "The installer is the upgrade. It recognises an existing deployment, takes a backup and refuses to continue without one, replaces the deployment's Compose file and Caddyfile with the release's, migrates the schema before replacing containers, and records the new version only once the result is serving.",
         ],
       },
       {
@@ -317,7 +317,7 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
         type: 'Known limitations',
         items: [
           'arm64 is built and inspected; no arm64 machine has run it. Use amd64 in production.',
-          'Backups are not encrypted and contain this deployment\'s private keys.',
+          "Backups are not encrypted and contain this deployment's private keys.",
           'Upgrading from 0.1.0-rc.1 uses the installer from this release; the sequence documented in 0.1.0-rc.1 never adopted a new Compose file.',
         ],
       },
@@ -335,7 +335,7 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
           'Read-only APIs for hosts, containers and Compose projects, protected by backend-enforced permissions, with pagination, filters and explicit stale and observed-at state.',
           'Operational events for agent connectivity, inventory changes and discovery failures, recorded on change and kept separate from the audit trail.',
           'Agent enrollment with single-use, short-lived tokens exchanged for per-agent client certificates issued by an internal certificate authority.',
-          'Agent gateway on a dedicated mutual-TLS listener, where an agent\'s identity is derived from its client certificate rather than from anything it sends.',
+          "Agent gateway on a dedicated mutual-TLS listener, where an agent's identity is derived from its client certificate rather than from anything it sends.",
           'Agent registry with certificate renewal over the authenticated connection, and revocation that closes a live connection and prevents reconnection.',
           'Control server with local authentication, server-side sessions, TOTP multi-factor authentication with single-use recovery codes, backend-enforced roles and permissions, an audit trail and health endpoints.',
           'Container start, stop and restart, each behind its own permission, confirmed before it runs, serialised per container, recorded as an action and in the audit trail, and answered with the container state observed on the host afterwards.',
@@ -345,9 +345,9 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
           'Public website covering the product overview, feature catalogue, security model, documentation entry point and changelog.',
           'Initial product, architecture, security and design baseline.',
           'Docker Compose distribution of the control plane: PostgreSQL, the control server, and Caddy serving the application and obtaining its certificate, with the REST API and the database reachable only from inside the stack.',
-          'An installer that prepares a host in one command — checking it first, generating this deployment\'s secrets and certificate authority, applying the schema, waiting until the control plane is actually serving, and creating the first administrator — and that replaces nothing when it is run again.',
+          "An installer that prepares a host in one command — checking it first, generating this deployment's secrets and certificate authority, applying the schema, waiting until the control plane is actually serving, and creating the first administrator — and that replaces nothing when it is run again.",
           '`dockplane-control` for everyday operation: status, start, stop, restart, logs, version, and a doctor that checks the whole deployment without printing any of it.',
-          'Backup and restore of the control plane: the database, the application encryption key, the agent certificate authority and Caddy\'s certificates, with a manifest and checksums. A restore validates the whole backup before touching anything, saves the current deployment first, signs everyone out, invalidates unused enrollment tokens and cancels actions that were still running.',
+          "Backup and restore of the control plane: the database, the application encryption key, the agent certificate authority and Caddy's certificates, with a manifest and checksums. A restore validates the whole backup before touching anything, saves the current deployment first, signs everyone out, invalidates unused enrollment tokens and cancels actions that were still running.",
           'Debian packages and tarballs of the agent for amd64 and arm64, with a systemd unit, and a release build that produces byte-identical artefacts from the same commit.',
           'Multi-architecture control plane images for amd64 and arm64, with software bills of materials and build provenance attached.',
           '`GET /api/v1/version` reporting the release, the commit, the build date, the agent protocol version and the database schema version.',
@@ -357,7 +357,7 @@ export const CHANGELOG: readonly ChangelogRelease[] = [
       {
         type: 'Known limitations',
         items: [
-          'Backups are not encrypted. They contain the agent certificate authority\'s private key and the application encryption key, and must be kept on encrypted storage.',
+          "Backups are not encrypted. They contain the agent certificate authority's private key and the application encryption key, and must be kept on encrypted storage.",
           'Enrolling the same machine a second time creates a new host record; the previous one remains in the inventory, marked revoked, and every operation against it is refused.',
           'There is no automatic update mechanism and no APT repository. Upgrades are a documented sequence of commands.',
           'There is deliberately no shell, exec or arbitrary command execution on a managed host, and Compose projects are read-only.',

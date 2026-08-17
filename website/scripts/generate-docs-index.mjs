@@ -11,9 +11,11 @@
  * Title    the first `# ` heading
  * Summary  the first paragraph under it, as one line
  */
-import { readFile, readdir, writeFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { writeGenerated } from './write-generated.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const docs = join(root, '..', 'docs');
@@ -183,7 +185,7 @@ export const DOC_SECTIONS: readonly DocSection[] = ${JSON.stringify(
 )} as const;
 `;
 
-await writeFile(target, file, 'utf8');
+await writeGenerated(target, file);
 
 const count = sections.reduce((total, section) => total + section.pages.length, 0);
 console.log(`docs index: ${count} pages in ${sections.length} sections`);
