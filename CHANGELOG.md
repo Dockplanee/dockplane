@@ -6,6 +6,43 @@ Use release-oriented language.
 
 Do not include internal prompt history, development conversation notes or artificial task numbering.
 
+## 0.3.0 — 2026-08-17
+
+Third stable release. The product is what the two release candidates converged
+on, with the entries below describing it rather than repeating how it got there.
+What Dockplane manages is unchanged from `0.2.0`: the same capability catalog,
+the same containers and stacks, the same trust boundary.
+
+### Added
+- Settings reports what this installation is running: the control server's release and commit, the browser application's own release and commit, the migration the database has reached, the agent protocol range, and what the enrolled agents report. The server and the application are two images and are reported as two.
+- Agents on different versions are shown as a mixed fleet rather than as a fault. An older agent is supported for as long as its protocol version is one the control server accepts; only a protocol outside that range is an incompatibility, and an agent that has never reported a readable version is counted as unknown.
+- An optional check for a newer published release, off by default and off across every upgrade until an administrator sets `UPDATE_CHECK_ENABLED`. When it is on the control server makes one request a few times a day to a fixed public address, with no query string, no body and nothing about the installation in it. Nothing is downloaded, installed or upgraded by it.
+- A host that has been replaced can be archived. It leaves the active lists and stops being offered as somewhere to run new work, and everything it carried stays: its containers, Compose projects, stacks, actions and audit entries all still resolve the host they belong to. Restoring it is one action, and its agent is never touched.
+- The hosts list can be filtered to the active hosts, the archived ones, or all of them.
+- The native agent is scanned for vulnerabilities on both architectures and both reports are published with the release, under the same scanner and the same policy the control-plane images are held to.
+
+### Changed
+- Management tables adapt to the width they are given. Every column carries the priority of what it tells an operator, and the width that decides which are shown is the table's own rather than the window's. What an operator cannot act without is in view at every width, without scrolling sideways, and below a tablet's width a table becomes a stacked list.
+- A host whose agent is connected cannot be archived, and the control server decides that when the request arrives rather than from what the page was showing. An archived host that starts answering again stays archived.
+- New operational work against an archived host is refused with a stated reason. Reading is never refused, and archived is not the same as offline.
+- Deploying, starting, stopping, restarting and removing a stack are refused with `AGENT_UPGRADE_REQUIRED` on a host whose agent is older than `0.3.0-rc.2`, before anything is sent to that host. This is not a protocol incompatibility: protocol 1 is fully supported, and inventory, metrics, logs, container operations and Compose discovery are unaffected on those hosts.
+- The Go toolchain the agent and the Compose compiler are built with moved to 1.26.6, which resolves the standard-library findings the previous build carried.
+- Release images are built from pinned inputs. Every base image is named by digest as well as by tag, and the web runtime no longer applies distribution updates during the build, so the same commit produces the same image whenever it is built. The web runtime carries only what serving the application needs.
+- A release is refused unless every vulnerability report it should publish is there. They were previously expected only if a matching file happened to be present, so a scan that never ran and a scan that found nothing were the same thing.
+
+### Fixed
+- Containers Dockplane creates for a stack are associated with that stack. The agent labels them with the stack, the service and the revision, and did not report those labels; the control server therefore recorded them as ordinary containers belonging to nothing. A stack whose containers were running read as never deployed, and every operation that resolves a stack's containers found none.
+- Container lists say which stack a container belongs to. Ownership was decided from the Compose project alone, and a stack's containers carry no Compose labels because Dockplane builds them itself — so they were shown as external, which is what the interface says about a container it did not create. A Compose project Dockplane had only discovered was meanwhile presented as a stack.
+- Deleting a stack no longer reports success without removing anything. The check that refuses to delete a stack whose containers are still on the host reads the association above, so with it missing the check passed, the stack record was deleted and the workload kept running.
+- The settings page no longer scrolls the window sideways. Its sessions list was the one table not using the shared pattern, and a user agent string with nowhere to break moved the page under its own content.
+- The sort control in a table heading is large enough to hit. It measured seventeen pixels against the twenty-four WCAG 2.2 AA asks for.
+
+### Known limitations
+- A stack whose deployment never completed while its agent was old still reads as not deployed after the agent is upgraded, because that deployment genuinely never completed. Apply its revision again to reconcile it.
+- A stack deleted while its agent was old is not recreated. Its containers keep running and stay visible as managed containers with no stack. Dockplane can stop them but not remove them, so removing them is done on the Docker host.
+- The agent's supply-chain evidence is its checksums and its scan reports. It has no bill of materials and no provenance attestation of its own; the control-plane images have both.
+- arm64 remains experimental: packages, binaries and images are built for it and inspected, and no arm64 machine has run them.
+
 ## 0.3.0-rc.2 — 2026-08-17
 
 Second candidate for 0.3.0. It is 0.3.0-rc.1 with one defect fixed: containers
