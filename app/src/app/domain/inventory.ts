@@ -87,8 +87,8 @@ export interface Host {
  *
  * `managed` — Dockplane built it and holds the configuration it should have.
  * `external` — it was discovered on the host and belongs to somebody else.
- * `stack` — it belongs to a Compose project, which is where its configuration
- * comes from.
+ * `stack` — its configuration comes from a stack: one Dockplane deploys, or a
+ * Compose project it found on the host. Either way, not from here.
  */
 export type ManagementKind = 'managed' | 'external' | 'stack';
 

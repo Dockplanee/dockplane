@@ -235,8 +235,9 @@ export class ContainerDetail {
       return {
         severity: 'info',
         title: project ? `Managed by stack ${project}` : 'Managed by a stack',
-        detail:
-          'Its configuration is controlled by the Compose project it belongs to and cannot be changed here.',
+        detail: project
+          ? 'Its configuration is controlled by the Compose project it belongs to and cannot be changed here.'
+          : 'Its configuration comes from the stack it belongs to and is changed by applying a revision, not here.',
         link: container.composeProjectId
           ? { label: 'View project', path: ['/compose', container.composeProjectId] }
           : undefined,

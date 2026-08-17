@@ -178,7 +178,9 @@ export class ContainerEdit {
     }
 
     if (container.management.kind === 'stack') {
-      return 'This container belongs to a Compose project, and its configuration comes from there.';
+      return container.composeProjectName
+        ? 'This container belongs to a Compose project, and its configuration comes from there.'
+        : 'This container belongs to a stack, and its configuration comes from the revision it was deployed with.';
     }
 
     if (container.management.kind === 'external') {

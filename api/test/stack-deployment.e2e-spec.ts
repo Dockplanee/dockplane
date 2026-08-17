@@ -386,6 +386,45 @@ describe('deploying a stack', () => {
       }
     }, 120_000);
 
+    /*
+     * The stamping above stops at the database. Until 0.3.0 nothing carried it
+     * further: the container list classified by Compose project alone, and a
+     * stack's containers have no Compose labels because Dockplane builds them
+     * itself. They were listed as external — "not created by Dockplane" — which
+     * is what the interface says about a container it had just deployed.
+     */
+    it('lists the containers of a stack as belonging to one', async () => {
+      const { stackId } = await deployed();
+
+      host.seed('somebody-elses');
+      await discovery.sync(agentId);
+
+      const listing = await request(app.getHttpServer())
+        .get('/api/v1/containers')
+        .set('cookie', session.cookie)
+        .set('origin', ORIGIN);
+
+      const rows = listing.body.containers as {
+        id: string;
+        name: string;
+        management: { kind: string };
+      }[];
+
+      const stackRows = await stackContainers(stackId);
+      const listed = stackRows.map((row) => rows.find((entry) => entry.id === row.id)!);
+
+      expect(listed).toHaveLength(2);
+
+      for (const entry of listed) {
+        expect(entry).toBeDefined();
+        expect(entry.management.kind).toBe('stack');
+      }
+
+      // The three ownerships stay three. A container nobody here created is
+      // still external, and one Dockplane built on its own is still managed.
+      expect(rows.find((row) => row.name === 'somebody-elses')!.management.kind).toBe('external');
+    }, 120_000);
+
     it('asks for the volumes the file declares, under the names Compose uses', async () => {
       const { stackId } = await deployed();
       const stack = await stackRow(stackId);
@@ -1182,7 +1221,10 @@ describe('deploying a stack', () => {
 
       await discovery.sync(agentId);
 
-      const after = await db.client.select().from(containers).where(eq(containers.stackId, stackId));
+      const after = await db.client
+        .select()
+        .from(containers)
+        .where(eq(containers.stackId, stackId));
 
       expect(after.length).toBeGreaterThan(0);
       expect(after.every((row) => row.stackRevisionId === revisionId)).toBe(true);

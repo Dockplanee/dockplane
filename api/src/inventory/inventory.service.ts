@@ -21,7 +21,8 @@ const MANAGEMENT_CAPABILITIES = ['container.create', 'container.replace', 'conta
  * The distinction the interface needs before it offers anything: a container
  * Dockplane built can be changed, one it merely found cannot be changed without
  * inventing a configuration for somebody else's workload, and one belonging to
- * a Compose project gets its configuration from there.
+ * a stack — one Dockplane deploys, or a Compose project it found — gets its
+ * configuration from there.
  */
 export type ManagementKind = 'managed' | 'external' | 'stack';
 
@@ -466,8 +467,23 @@ export class InventoryService {
     for (const row of rows) {
       const own = configs.filter((config) => config.containerId === row.container.id);
 
+      /*
+       * A container whose configuration is held somewhere else.
+       *
+       * Two things put it there: a stack Dockplane deployed, and a Compose
+       * project Dockplane only found. Neither can be edited or removed as a
+       * container, because neither's configuration lives here.
+       *
+       * The stack was missing from this test until 0.3.0. Its containers carry
+       * no Compose labels — Dockplane builds them itself rather than shelling
+       * out to `docker compose` — so they fell through to `external`, whose
+       * one-line explanation is that Dockplane did not create the container.
+       * For a stack it had just deployed, that was untrue.
+       */
+      const heldElsewhere = row.container.stackId ?? row.container.composeProjectId;
+
       states.set(row.container.id, {
-        kind: row.container.composeProjectId ? 'stack' : own.length > 0 ? 'managed' : 'external',
+        kind: heldElsewhere ? 'stack' : own.length > 0 ? 'managed' : 'external',
         reconciling: own.some((config) => config.state === 'pending') || open.has(row.container.id),
         identityConflict: Boolean(row.container.identityConflict),
       });
