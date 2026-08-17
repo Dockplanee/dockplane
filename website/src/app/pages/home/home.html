@@ -45,7 +45,7 @@
       eyebrow="Operations"
       headingId="operations-heading"
       heading="Docker operations without host hopping."
-      lede="Stop jumping between SSH sessions and separate Docker endpoints. Dockplane gives connected hosts one consistent operational interface while keeping execution local to each machine through its agent."
+      lede="Stop moving between SSH sessions and separate Docker endpoints. Every connected host is managed from the same interface, and the work still happens on the machine itself, through its agent."
     />
 
     <div class="grid-three">
@@ -56,9 +56,9 @@
         Run, create, change and remove workloads through defined agent capabilities, with
         backend-enforced permissions and audit history.
       </dp-feature>
-      <dp-feature title="Stay self-hosted">
-        Run Dockplane on infrastructure you control. Your operational control plane does not need to
-        depend on an external management SaaS.
+      <dp-feature title="Nothing reaches in">
+        Each host runs one small service that connects outward to the control plane. No inbound
+        management port has to be opened on a Docker host.
       </dp-feature>
     </div>
   </div>
@@ -72,7 +72,7 @@
         eyebrow="Multi-host"
         headingId="multi-host-heading"
         heading="Built for more than one Docker host."
-        lede="Dockplane treats distributed Docker environments as the default. See host state, workload counts, agent status and health signals without opening a separate management session for every machine. A host that has been replaced can be archived, which takes it out of the working lists without losing what it ran."
+        lede="More than one Docker host is the normal case here, not the exception. Host state, workload counts, agent status and health signals are in one list, without a separate management session per machine. A host that has been replaced can be archived, which takes it out of the working lists without losing what it ran."
       />
     </div>
 
@@ -108,7 +108,7 @@
         eyebrow="Operational context"
         headingId="context-heading"
         heading="Know what is happening before you touch it."
-        lede="Inspect logs, resource usage, health state and recent events before performing an operational action. Dockplane keeps the context close to the workload you are managing."
+        lede="Read a workload's state, its health, its output and the events around it before you act on it. The context sits beside the thing you are managing rather than in a separate tool."
       />
     </div>
 
@@ -126,7 +126,7 @@
         eyebrow="Security"
         headingId="security-heading"
         heading="Remote control without a remote shell."
-        lede="Dockplane agents expose defined operational capabilities instead of an unrestricted command interface. Device identity, encrypted communication, authorization and audit history are part of the architecture from the start."
+        lede="An agent exposes a fixed set of operational capabilities and no way to run a command. Each host holds its own identity, the channel between it and the control plane is encrypted, and the control server authorizes an action before any agent is asked to perform it."
       />
 
       <div class="grid-two security__principles">
@@ -137,11 +137,12 @@
           Operations such as restarting a container or reading logs use defined and validated
           actions.
         </dp-feature>
-        <dp-feature title="Resource permissions">
-          Backend-enforced permissions decide who can perform which operations on which resources.
+        <dp-feature title="Permissions by operation">
+          Backend-enforced permissions decide who may perform which operations. Restarting a
+          container and removing one are separate grants.
         </dp-feature>
         <dp-feature title="Auditable changes">
-          Infrastructure mutations and security-relevant actions are recorded with actor, target and
+          Security-relevant and infrastructure-changing actions are recorded with actor, target and
           result context.
         </dp-feature>
       </div>
@@ -195,14 +196,17 @@
     />
 
     <div class="grid-three">
-      <dp-feature title="Yours to run"> Deploy and operate the control plane yourself. </dp-feature>
+      <dp-feature title="No account anywhere">
+        There is nothing to sign up for and no tenant to belong to. You install the control plane
+        and it is yours.
+      </dp-feature>
       <dp-feature title="Understandable">
         The architecture, permissions and agent trust model are documented instead of being hidden
         behind a remote service.
       </dp-feature>
-      <dp-feature title="Docker-focused">
-        Dockplane focuses on Docker operations instead of becoming a generic datacenter control
-        panel.
+      <dp-feature title="Scoped to Docker">
+        What Dockplane manages is Docker and its immediate operational environment. It is not on its
+        way to becoming a datacenter panel.
       </dp-feature>
     </div>
   </div>

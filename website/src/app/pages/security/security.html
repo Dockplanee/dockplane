@@ -2,7 +2,7 @@
   eyebrow="Security"
   headingId="security-heading"
   heading="Security is part of the control plane."
-  lede="Dockplane manages privileged Docker operations, so identity, authorization, constrained agent capabilities and auditability are architectural requirements rather than optional add-ons."
+  lede="Managing Docker on a machine is a privileged operation, so Dockplane is built around that. Every host holds its own identity, the control server authorizes each action, the agent can perform only the operations it was built with, and what changes is recorded."
 />
 
 <section dpSection aria-labelledby="identity-heading">
@@ -92,7 +92,7 @@
     </div>
     <div class="dp-prose stack__body">
       <p>
-        Security-relevant and infrastructure-mutating actions are recorded with actor, target,
+        Security-relevant and infrastructure-changing actions are recorded with actor, target,
         result and correlation context, without turning the audit log into a secret store.
       </p>
     </div>

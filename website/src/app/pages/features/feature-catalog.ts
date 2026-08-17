@@ -228,7 +228,7 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
     id: 'administration',
     index: '08',
     title: 'Security and administration',
-    summary: 'Who may do what, on which resources, and what was recorded about it.',
+    summary: 'Who may do what, how they prove who they are, and what was recorded about it.',
     entries: [
       {
         name: 'Local user accounts',
