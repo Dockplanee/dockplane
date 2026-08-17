@@ -2,7 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { Injectable, inject } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
 
-import { PageMetadata } from './page-metadata';
+import { PageMetadata, StructuredData } from './page-metadata';
 import { SITE_NAME, absoluteUrl } from './site.config';
 
 /** Social card rendered from the brand mark. Kept in sync with public/social-card.png. */
@@ -48,6 +48,36 @@ export class Seo {
     this.meta.updateTag({ name: 'twitter:image', content: socialCard });
 
     this.setCanonical(canonical);
+    this.setStructuredData(metadata.structuredData);
+  }
+
+  /**
+   * The page's JSON-LD, or none.
+   *
+   * One element, replaced on every navigation, so a page that says nothing
+   * structured does not inherit what the last one said.
+   *
+   * `<` is escaped rather than written literally. A description holding the
+   * characters `</script>` would otherwise close the element early and put the
+   * rest of the document's head into the page.
+   */
+  private setStructuredData(data: StructuredData | undefined): void {
+    const head = this.document.head;
+    const existing = head.querySelector<HTMLScriptElement>('script[type="application/ld+json"]');
+
+    if (!data) {
+      existing?.remove();
+      return;
+    }
+
+    const script = existing ?? this.document.createElement('script');
+
+    script.setAttribute('type', 'application/ld+json');
+    script.textContent = JSON.stringify(data).replace(/</g, '\\u003c');
+
+    if (!existing) {
+      head.appendChild(script);
+    }
   }
 
   private setCanonical(href: string): void {

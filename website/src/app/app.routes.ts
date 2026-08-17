@@ -1,10 +1,46 @@
 import { Routes } from '@angular/router';
 
-import { PageMetadata } from './core/page-metadata';
+import { PageMetadata, StructuredData } from './core/page-metadata';
+import { SITE_DESCRIPTION, SITE_NAME, absoluteUrl, externalLink } from './core/site.config';
 
 function metadata(value: PageMetadata): { metadata: PageMetadata } {
   return { metadata: value };
 }
+
+/**
+ * What the site is.
+ *
+ * The two facts a search engine cannot read off the page reliably: that these
+ * addresses are one site, and what it is called.
+ */
+const WEBSITE: StructuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: SITE_NAME,
+  url: absoluteUrl('/'),
+  description: SITE_DESCRIPTION,
+};
+
+/**
+ * What the software is.
+ *
+ * Deliberately without a version, a release date, a price, a rating or a
+ * download address. Dockplane's releases are published from the repository and
+ * a version here would be a second place claiming which one is current — one
+ * that goes stale the moment it is written.
+ */
+const SOFTWARE: StructuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: SITE_NAME,
+  url: absoluteUrl('/product'),
+  description:
+    'A self-hosted control plane for managing Docker across multiple hosts, with a native agent on each host.',
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'Linux',
+  license: 'https://www.gnu.org/licenses/agpl-3.0.html',
+  ...(externalLink('source') ? { codeRepository: externalLink('source') } : {}),
+};
 
 const NOT_FOUND_METADATA = metadata({
   title: 'Page not found — Dockplane',
@@ -22,15 +58,17 @@ export const routes: Routes = [
       title: 'Dockplane — Self-Hosted Multi-Host Docker Management',
       description:
         'Dockplane is a self-hosted control plane for managing containers, Compose stacks, logs, health and operations across multiple Docker hosts.',
+      structuredData: WEBSITE,
     }),
   },
   {
     path: 'product',
     loadComponent: () => import('./pages/product/product').then((m) => m.Product),
     data: metadata({
-      title: 'Product — Dockplane',
+      title: 'Docker hosts, containers and stacks — Dockplane',
       description:
         'Hosts, containers, managed Compose stacks, logs, events and backend-enforced permissions in one self-hosted Docker control plane.',
+      structuredData: SOFTWARE,
     }),
   },
   {

@@ -65,4 +65,68 @@ describe('Seo', () => {
 
     expect(meta('meta[name="robots"]')).toBe('index, follow');
   });
+
+  function jsonLd(): string | null {
+    return document.head.querySelector('script[type="application/ld+json"]')?.textContent ?? null;
+  }
+
+  it('writes the structured data of a page into the head as valid JSON', () => {
+    seo.apply(
+      {
+        title: 'Product — Dockplane',
+        description: 'Product summary.',
+        structuredData: { '@context': 'https://schema.org', '@type': 'SoftwareApplication' },
+      },
+      '/product',
+    );
+
+    const raw = jsonLd();
+
+    expect(raw).toBeTruthy();
+    expect(JSON.parse(raw!)).toEqual({
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+    });
+  });
+
+  it('escapes characters that would end the script element early', () => {
+    seo.apply(
+      {
+        title: 'Product — Dockplane',
+        description: 'Product summary.',
+        structuredData: { '@type': 'WebSite', name: "a </script><b> & 'quoted'" },
+      },
+      '/product',
+    );
+
+    const raw = jsonLd()!;
+
+    expect(raw).not.toContain('</script>');
+    expect(JSON.parse(raw).name).toBe("a </script><b> & 'quoted'");
+  });
+
+  it('carries no structured data over to a page that has none', () => {
+    seo.apply(
+      {
+        title: 'Product — Dockplane',
+        description: 'Product summary.',
+        structuredData: { '@type': 'WebSite' },
+      },
+      '/product',
+    );
+    seo.apply({ title: 'Features — Dockplane', description: 'Features summary.' }, '/features');
+
+    expect(jsonLd()).toBeNull();
+  });
+
+  it('keeps a single structured data element across navigations', () => {
+    seo.apply({ title: 'A', description: 'A.', structuredData: { '@type': 'WebSite' } }, '/');
+    seo.apply(
+      { title: 'B', description: 'B.', structuredData: { '@type': 'SoftwareApplication' } },
+      '/product',
+    );
+
+    expect(document.head.querySelectorAll('script[type="application/ld+json"]').length).toBe(1);
+    expect(JSON.parse(jsonLd()!)['@type']).toBe('SoftwareApplication');
+  });
 });
