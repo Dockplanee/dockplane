@@ -16,6 +16,7 @@ import { stackOperations, stackRevisionEnvironment } from '../src/database/schem
 import { TestAgentConnection } from './agent-client';
 import { createAgentCsr } from './agent-pki';
 import { TEST_DATABASE_URL } from './database';
+import { STACK_ATTRIBUTION_MINIMUM_AGENT_VERSION } from '../src/stacks/stack-attribution';
 import { FakeDockerHost } from './docker-host';
 import {
   DEFAULT_PASSWORD,
@@ -123,7 +124,11 @@ describe('a backup of this version, restored', () => {
   const openConnection = async () => {
     const opened = await TestAgentConnection.open({ port, caPem, ...credentials });
 
-    opened.send({ type: 'hello', protocolVersion: 1 });
+    opened.send({
+      type: 'hello',
+      protocolVersion: 1,
+      agentVersion: STACK_ATTRIBUTION_MINIMUM_AGENT_VERSION,
+    });
     await opened.waitFor('hello_ack');
 
     opened.onMessage((message) => {

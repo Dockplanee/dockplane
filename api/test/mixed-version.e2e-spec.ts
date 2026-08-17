@@ -302,14 +302,22 @@ describe('a control server this version with an agent from 0.1.0', () => {
   });
 
   describe('what this version added', () => {
-    it('refuses to deploy a stack, and says the host cannot do it', async () => {
+    /*
+     * Two things are true of a 0.1.0 agent: it has never heard of stack.deploy,
+     * and it does not report which stack a container belongs to. The second is
+     * established from the version the agent reported at hello, so it is
+     * answered before anything is sent — and it is the one an operator can act
+     * on, because the answer to both is the same upgrade.
+     */
+    it('refuses to deploy a stack, and says what would fix it', async () => {
       const { stackId, revisionId } = await saveStack();
 
       const response = await api('post', `/api/v1/stacks/${stackId}/deploy`, { revisionId });
 
       expect(response.status).toBe(409);
-      expect(response.body.code).toBe('AGENT_CAPABILITY_UNSUPPORTED');
-      expect(response.body.message).toBe('This host does not support that operation.');
+      expect(response.body.code).toBe('AGENT_UPGRADE_REQUIRED');
+      expect(String(response.body.message)).toContain('Upgrade the agent');
+      expect(String(response.body.message)).not.toContain('protocol');
     });
 
     /*
@@ -331,20 +339,22 @@ describe('a control server this version with an agent from 0.1.0', () => {
       ).toEqual([]);
     });
 
-    /* And the attempt is settled, so the same stack can be deployed again once
-     * the agent has been upgraded. */
-    it('does not leave the stack blocked behind an unresolved attempt', async () => {
+    /*
+     * The refusal happens where an offline or revoked agent is refused: before
+     * an attempt exists. There is nothing to settle afterwards, and the same
+     * stack deploys once the agent has been upgraded.
+     */
+    it('does not leave the stack blocked behind an attempt', async () => {
       const { stackId, revisionId } = await saveStack();
 
       await api('post', `/api/v1/stacks/${stackId}/deploy`, { revisionId });
 
-      const [attempt] = await db.client
-        .select()
-        .from(stackDeployments)
-        .where(eq(stackDeployments.stackId, stackId));
-
-      expect(attempt.status).toBe('failed');
-      expect(attempt.resolvedAt).not.toBeNull();
+      expect(
+        await db.client
+          .select()
+          .from(stackDeployments)
+          .where(eq(stackDeployments.stackId, stackId)),
+      ).toEqual([]);
 
       const again = await api('post', `/api/v1/stacks/${stackId}/deploy`, { revisionId });
 
@@ -362,18 +372,21 @@ describe('a control server this version with an agent from 0.1.0', () => {
       expect(response.body.code).toBe('AGENT_CAPABILITY_UNSUPPORTED');
     });
 
-    it('records the refusal in the audit trail', async () => {
+    /*
+     * Nothing was requested of the host, so nothing is recorded as having been
+     * requested of it. This is the same silence an offline or revoked agent
+     * produces: the audit trail records what Dockplane did, and here it did not
+     * reach the host at all.
+     */
+    it('writes no deployment into the audit trail', async () => {
       const { stackId, revisionId } = await saveStack();
 
       await api('post', `/api/v1/stacks/${stackId}/deploy`, { revisionId });
 
       const entries = await db.client.select().from(auditEntries);
-      const refused = entries.filter(
-        (entry) => entry.action.startsWith('stack.deploy') && entry.result === 'failure',
-      );
+      const deployments = entries.filter((entry) => entry.action.startsWith('stack.deploy'));
 
-      expect(refused).not.toHaveLength(0);
-      expect(refused[0].targetType).toBe('stack');
+      expect(deployments).toEqual([]);
     });
   });
 });

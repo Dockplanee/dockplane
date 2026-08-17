@@ -28,6 +28,39 @@ export interface FakeContainer {
   startedAt?: string;
 }
 
+/**
+ * The labels an agent forwards, which is not every label a container carries.
+ *
+ * The agent projects a container through an allow list before it reports it, so
+ * a host may hold a label the control server will never see. Modelling the host
+ * without that projection makes every test here more generous than the product:
+ * the server is handed identity labels the real agent withholds, and a stack
+ * whose attribution never arrives still reads as attributed.
+ *
+ * Kept in step with `forwardedLabels` in agent/internal/docker/containers.go,
+ * whose own test names this contract from the other side. A label added there
+ * belongs here, and one the server begins to read belongs in both.
+ */
+const FORWARDED_LABELS = new Set([
+  'com.docker.compose.project',
+  'com.docker.compose.service',
+  'com.docker.compose.container-number',
+  'com.docker.compose.oneoff',
+  'io.dockplane.managed',
+  'io.dockplane.container-id',
+  'io.dockplane.desired-config-id',
+  'io.dockplane.stack-id',
+  'io.dockplane.stack-service',
+  'io.dockplane.stack-revision-id',
+]);
+
+/** What a listing carries, once the agent's allow list has been applied. */
+export function forwarded(labels: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(labels).filter(([key]) => FORWARDED_LABELS.has(key)),
+  );
+}
+
 /** A Compose project as `compose.list` describes one. */
 export interface ComposeProjectReport {
   projectName: string;
@@ -175,7 +208,7 @@ export class FakeDockerHost {
       status: container.state === 'running' ? 'Up 1 second' : 'Exited (0)',
       health: 'none',
       createdAt: new Date().toISOString(),
-      labels: container.labels,
+      labels: forwarded(container.labels),
     }));
   }
 

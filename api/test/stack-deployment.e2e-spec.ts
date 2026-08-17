@@ -11,6 +11,7 @@ import { AgentGatewayService } from '../src/agents/agent-gateway.service';
 import { Database } from '../src/database/database';
 import { DiscoveryService } from '../src/discovery/discovery.service';
 import {
+  agents,
   actions,
   auditEntries,
   containers,
@@ -22,6 +23,7 @@ import {
 import { StackRecoveryService } from '../src/stacks/stack-recovery.service';
 import { TestAgentConnection } from './agent-client';
 import { createAgentCsr } from './agent-pki';
+import { STACK_ATTRIBUTION_MINIMUM_AGENT_VERSION } from '../src/stacks/stack-attribution';
 import { FakeDockerHost } from './docker-host';
 import {
   DEFAULT_PASSWORD,
@@ -96,7 +98,11 @@ describe('deploying a stack', () => {
   const openConnection = async () => {
     const opened = await TestAgentConnection.open({ port, caPem, ...credentials });
 
-    opened.send({ type: 'hello', protocolVersion: 1 });
+    opened.send({
+      type: 'hello',
+      protocolVersion: 1,
+      agentVersion: STACK_ATTRIBUTION_MINIMUM_AGENT_VERSION,
+    });
     await opened.waitFor('hello_ack');
 
     opened.onMessage((message) => {
@@ -1087,6 +1093,130 @@ describe('deploying a stack', () => {
         expect(entry.targetId).toBe(stackId);
         expect(JSON.stringify(entry)).not.toContain('postgres:17');
       }
+    }, 120_000);
+  });
+  /*
+   * An agent from before 0.3.0-rc.2, which forwarded none of the labels that
+   * say which stack a container belongs to.
+   *
+   * The server cannot tell such an agent's silence from a host with nothing on
+   * it, so it must not start something whose result it will not be able to
+   * read. The refusal happens before the host is asked for anything: an agent
+   * that cannot be understood afterwards must not be given work first.
+   */
+  describe('a host whose agent does not report stack attribution', () => {
+    const ageTheAgent = async (version: string | null) => {
+      await db.client.update(agents).set({ version }).where(eq(agents.id, agentId));
+    };
+
+    it('is refused, and the host is left alone', async () => {
+      const { stackId, revisionId } = await saveStack();
+
+      await ageTheAgent('0.2.0');
+      host.received.length = 0;
+
+      const response = await api('post', `/api/v1/stacks/${stackId}/deploy`, { revisionId });
+
+      expect(response.status).toBe(409);
+      expect(response.body.code).toBe('AGENT_UPGRADE_REQUIRED');
+      expect(host.received).not.toContain('stack.deploy');
+      expect(host.containers.size).toBe(0);
+    }, 120_000);
+
+    /*
+     * The protocol is not what is wrong, and saying so would send an operator
+     * to the wrong page. An older agent goes on serving everything else.
+     */
+    it('does not blame the protocol', async () => {
+      const { stackId, revisionId } = await saveStack();
+
+      await ageTheAgent('0.2.0');
+
+      const response = await api('post', `/api/v1/stacks/${stackId}/deploy`, { revisionId });
+
+      expect(response.body.code).not.toBe('AGENT_PROTOCOL_UNSUPPORTED');
+      expect(String(response.body.message)).not.toContain('protocol');
+    }, 120_000);
+
+    it('deploys once the agent has been upgraded', async () => {
+      const { stackId, revisionId } = await saveStack();
+
+      await ageTheAgent('0.2.0');
+      expect((await api('post', `/api/v1/stacks/${stackId}/deploy`, { revisionId })).status).toBe(
+        409,
+      );
+
+      await ageTheAgent('0.3.0-rc.2');
+
+      const response = await api('post', `/api/v1/stacks/${stackId}/deploy`, { revisionId });
+
+      expect(response.status).toBe(200);
+
+      const [stack] = await db.client.select().from(stacks).where(eq(stacks.id, stackId));
+
+      expect(stack.currentRevisionId).toBe(revisionId);
+    }, 120_000);
+  });
+
+  /*
+   * What an installation carries out of the defect: containers running on the
+   * host, correctly labelled, and a control server holding them with no stack.
+   * Upgrading the agent is the whole of the repair — the next listing carries
+   * the labels, and discovery attributes them where nothing else has to.
+   */
+  describe('a deployment whose attribution was lost before the agent was upgraded', () => {
+    it('is repaired by the next listing, without touching the database by hand', async () => {
+      const { stackId, revisionId } = await deployed();
+
+      await db.client
+        .update(containers)
+        .set({ stackId: null, stackService: null, stackRevisionId: null })
+        .where(eq(containers.stackId, stackId));
+
+      const before = await db.client
+        .select()
+        .from(containers)
+        .where(eq(containers.stackId, stackId));
+
+      expect(before).toHaveLength(0);
+
+      await discovery.sync(agentId);
+
+      const after = await db.client.select().from(containers).where(eq(containers.stackId, stackId));
+
+      expect(after.length).toBeGreaterThan(0);
+      expect(after.every((row) => row.stackRevisionId === revisionId)).toBe(true);
+      expect(after.map((row) => row.stackService).sort()).toEqual(['database', 'web']);
+    }, 120_000);
+
+    /*
+     * A container labelled for a stack the server has never heard of. It is
+     * what a stack deleted during the defect leaves behind, and the answer is
+     * to carry on: the container stays visible as what it is, and nothing
+     * invents a stack to hang it on.
+     */
+    it('leaves a container labelled for a stack that no longer exists alone', async () => {
+      const stranger = '11111111-2222-3333-4444-555555555555';
+
+      host.seed('orphan-web-1', {
+        'io.dockplane.managed': 'true',
+        'io.dockplane.stack-id': stranger,
+        'io.dockplane.stack-service': 'web',
+        'io.dockplane.stack-revision-id': '66666666-7777-8888-9999-000000000000',
+      });
+
+      const sync = await discovery.sync(agentId);
+
+      expect(sync).toBeDefined();
+
+      const [row] = await db.client
+        .select()
+        .from(containers)
+        .where(eq(containers.name, 'orphan-web-1'));
+
+      expect(row).toBeDefined();
+      expect(row.state).toBe('running');
+      expect(row.stackId).toBeNull();
     }, 120_000);
   });
 });

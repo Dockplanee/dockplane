@@ -12,6 +12,7 @@ import { Database } from '../src/database/database';
 import { DiscoveryService } from '../src/discovery/discovery.service';
 import {
   actions,
+  agents,
   auditEntries,
   containers,
   stackDeployments,
@@ -21,6 +22,7 @@ import {
 import { StackRecoveryService } from '../src/stacks/stack-recovery.service';
 import { TestAgentConnection } from './agent-client';
 import { createAgentCsr } from './agent-pki';
+import { STACK_ATTRIBUTION_MINIMUM_AGENT_VERSION } from '../src/stacks/stack-attribution';
 import { FakeDockerHost } from './docker-host';
 import {
   DEFAULT_PASSWORD,
@@ -94,7 +96,11 @@ describe('operating a deployed stack', () => {
   const openConnection = async () => {
     const opened = await TestAgentConnection.open({ port, caPem, ...credentials });
 
-    opened.send({ type: 'hello', protocolVersion: 1 });
+    opened.send({
+      type: 'hello',
+      protocolVersion: 1,
+      agentVersion: STACK_ATTRIBUTION_MINIMUM_AGENT_VERSION,
+    });
     await opened.waitFor('hello_ack');
 
     opened.onMessage((message) => {
@@ -863,5 +869,26 @@ describe('operating a deployed stack', () => {
 
       expect(response.body.stack.reconciling).toBe(true);
     }, 120_000);
+  });
+  /*
+   * Starting, stopping and restarting all resolve their containers through the
+   * stack attribution, so an agent that does not report it cannot be asked for
+   * any of them either. The refusal is the same one deploy and delete give.
+   */
+  describe('a host whose agent does not report stack attribution', () => {
+    for (const operation of ['start', 'stop', 'restart'] as const) {
+      it(`refuses ${operation} before the host is asked`, async () => {
+        const { stackId } = await deployed();
+
+        await db.client.update(agents).set({ version: '0.2.0' }).where(eq(agents.id, agentId));
+        host.received.length = 0;
+
+        const response = await api('post', `/api/v1/stacks/${stackId}/${operation}`);
+
+        expect(response.status).toBe(409);
+        expect(response.body.code).toBe('AGENT_UPGRADE_REQUIRED');
+        expect(host.received).not.toContain(`stack.${operation}`);
+      }, 120_000);
+    }
   });
 });

@@ -11,6 +11,7 @@ import { AgentGatewayService } from '../src/agents/agent-gateway.service';
 import { Database } from '../src/database/database';
 import { DiscoveryService } from '../src/discovery/discovery.service';
 import {
+  agents,
   auditEntries,
   containers,
   stackDeployments,
@@ -22,6 +23,7 @@ import {
 import { StackRecoveryService } from '../src/stacks/stack-recovery.service';
 import { TestAgentConnection } from './agent-client';
 import { createAgentCsr } from './agent-pki';
+import { STACK_ATTRIBUTION_MINIMUM_AGENT_VERSION } from '../src/stacks/stack-attribution';
 import { FakeDockerHost } from './docker-host';
 import {
   DEFAULT_PASSWORD,
@@ -93,7 +95,11 @@ describe('deleting a stack', () => {
   const openConnection = async () => {
     const opened = await TestAgentConnection.open({ port, caPem, ...credentials });
 
-    opened.send({ type: 'hello', protocolVersion: 1 });
+    opened.send({
+      type: 'hello',
+      protocolVersion: 1,
+      agentVersion: STACK_ATTRIBUTION_MINIMUM_AGENT_VERSION,
+    });
     await opened.waitFor('hello_ack');
 
     opened.onMessage((message) => {
@@ -669,6 +675,117 @@ describe('deleting a stack', () => {
 
       expect(listed.body.stacks.map((stack: { id: string }) => stack.id)).not.toContain(stackId);
       expect(listed.body.page.total).toBe(0);
+    }, 120_000);
+  });
+  /*
+   * An agent that predates stack attribution, which is every agent before
+   * 0.3.0-rc.2.
+   *
+   * Those agents set the stack labels on the containers they create and do not
+   * forward them, so the control server holds their containers with no stack at
+   * all. Everything below turns on what the server does when the absence of an
+   * attribution is not evidence of an absent container.
+   */
+  describe('a host whose agent does not report stack attribution', () => {
+    const ageTheAgent = async (version: string | null) => {
+      await db.client.update(agents).set({ version }).where(eq(agents.id, agentId));
+    };
+
+    it('is refused before the host is asked to remove anything', async () => {
+      const { stackId } = await deployed();
+
+      await ageTheAgent('0.2.0');
+      host.received.length = 0;
+
+      const response = await api('delete', `/api/v1/stacks/${stackId}`);
+
+      expect(response.status).toBe(409);
+      expect(response.body.code).toBe('AGENT_UPGRADE_REQUIRED');
+      expect(host.received).not.toContain('stack.remove');
+
+      // The stack is still there to be removed once the agent can be trusted.
+      const [stack] = await db.client.select().from(stacks).where(eq(stacks.id, stackId));
+
+      expect(stack).toBeDefined();
+    }, 120_000);
+
+    /*
+     * The case that made this necessary. A deployment that was dispatched but
+     * never finalised leaves the stack with no confirmed revision, which is the
+     * same shape as a stack nobody ever deployed — and that one is deleted
+     * without asking the host, on the strength of no container claiming it.
+     * With an agent that cannot claim, that strength is nothing.
+     */
+    it('will not call a stack undeployed on the word of an agent that cannot say', async () => {
+      const { stackId } = await deployed();
+
+      // What the defect produced: containers running, no attribution recorded,
+      // and no revision confirmed.
+      await db.client.update(containers).set({ stackId: null }).where(eq(containers.stackId, stackId));
+      await db.client.update(stacks).set({ currentRevisionId: null }).where(eq(stacks.id, stackId));
+      await ageTheAgent('0.2.0');
+      host.received.length = 0;
+
+      const response = await api('delete', `/api/v1/stacks/${stackId}`);
+
+      expect(response.status).toBe(409);
+      expect(response.body.code).toBe('AGENT_UPGRADE_REQUIRED');
+      expect(host.received).not.toContain('stack.remove');
+
+      const [stack] = await db.client.select().from(stacks).where(eq(stacks.id, stackId));
+
+      expect(stack).toBeDefined();
+    }, 120_000);
+
+    it('refuses an agent that has never said what it is', async () => {
+      const { stackId } = await deployed();
+
+      await ageTheAgent(null);
+
+      const response = await api('delete', `/api/v1/stacks/${stackId}`);
+
+      expect(response.status).toBe(409);
+      expect(response.body.code).toBe('AGENT_UPGRADE_REQUIRED');
+    }, 120_000);
+
+    /*
+     * A configuration nobody ever deployed cannot have left anything on a host,
+     * whatever that host is running. Refusing it too would strand a stack that
+     * was only ever a draft.
+     */
+    it('still deletes a stack that was never dispatched', async () => {
+      const { stackId } = await saveStack();
+
+      await ageTheAgent('0.2.0');
+
+      const response = await api('delete', `/api/v1/stacks/${stackId}`);
+
+      expect(response.status).toBe(200);
+
+      const [stack] = await db.client.select().from(stacks).where(eq(stacks.id, stackId));
+
+      expect(stack).toBeUndefined();
+    }, 120_000);
+
+    it('removes it properly once the agent has been upgraded', async () => {
+      const { stackId } = await deployed();
+
+      await ageTheAgent('0.2.0');
+      expect((await api('delete', `/api/v1/stacks/${stackId}`)).status).toBe(409);
+
+      await ageTheAgent('0.3.0-rc.2');
+      host.received.length = 0;
+
+      const response = await api('delete', `/api/v1/stacks/${stackId}`);
+
+      expect(response.status).toBe(200);
+      expect(host.received).toContain('stack.remove');
+
+      const remaining = [...host.containers.values()].filter((container) =>
+        container.labels['io.dockplane.stack-id'] === stackId,
+      );
+
+      expect(remaining).toHaveLength(0);
     }, 120_000);
   });
 });

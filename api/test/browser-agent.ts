@@ -28,6 +28,7 @@ import { createInterface } from 'node:readline';
 
 import { CAPABILITIES } from '../src/agents/capabilities';
 import { PROTOCOL_VERSION } from '../src/agents/protocol';
+import { STACK_ATTRIBUTION_MINIMUM_AGENT_VERSION } from '../src/stacks/stack-attribution';
 import { TestAgentConnection } from './agent-client';
 import { createAgentCsr } from './agent-pki';
 import { FakeDockerHost } from './docker-host';
@@ -176,7 +177,17 @@ async function connect(): Promise<void> {
 
   const opened = await TestAgentConnection.open({ port: gatewayPort, caPem, ...credentials });
 
-  opened.send({ type: 'hello', protocolVersion: PROTOCOL_VERSION });
+  /*
+   * A real agent always says which release it is, and the server reads that to
+   * decide what it may be asked to do. An agent with no version is a case of
+   * its own — mixed-version tests arrange it deliberately — and letting it be
+   * the default here would silently exempt every other test from those checks.
+   */
+  opened.send({
+    type: 'hello',
+    protocolVersion: PROTOCOL_VERSION,
+    agentVersion: STACK_ATTRIBUTION_MINIMUM_AGENT_VERSION,
+  });
   await opened.waitFor('hello_ack');
 
   opened.onMessage((message) => {
