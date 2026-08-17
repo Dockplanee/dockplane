@@ -43,7 +43,10 @@ if [[ ${#missing[@]} -gt 0 ]]; then
 	exit 3
 fi
 
-GO_VERSION="${GO_VERSION:-1.26.5}"
+GO_VERSION="${GO_VERSION:-1.26.6}"
+# Pinned by digest for the same reason the image Dockerfiles are: a tag can be
+# moved, and a released binary has to be a function of the commit that built it.
+GO_DIGEST="${GO_DIGEST:-sha256:0d1d3a794be25f809dd2cb3160d8c73276c4056a9f8242a138e908ddeee7b6b6}"
 # dpkg-deb comes from the distribution the package targets, so the package is
 # built by the same tooling that will install it.
 DEBIAN_IMAGE="${DEBIAN_IMAGE:-debian:12-slim}"
@@ -105,7 +108,7 @@ for arch in $ARCHITECTURES; do
 		-e CGO_ENABLED=0 -e GOOS=linux -e GOARCH="$arch" \
 		-e GOFLAGS=-buildvcs=false \
 		-w /src \
-		"golang:${GO_VERSION}" \
+		"golang:${GO_VERSION}@${GO_DIGEST}" \
 		go build -trimpath \
 		-ldflags "-s -w -X main.version=$VERSION -X main.commit=$COMMIT -X main.buildDate=$BUILD_DATE" \
 		-o /out/dockplane-agent ./cmd/dockplane-agent

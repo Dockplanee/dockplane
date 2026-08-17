@@ -32,7 +32,16 @@ WEB_IMAGE="${DOCKPLANE_WEB_IMAGE:-ghcr.io/dockplanee/dockplane-web}"
 # platform. A single-platform build loads straight into the local daemon.
 PLATFORMS="${PLATFORMS:-linux/amd64}"
 # Pinned, so the agent is not built against whatever toolchain is to hand.
-GO_VERSION="${GO_VERSION:-1.26.5}"
+# Both are passed through: a version without its digest resolves to whatever the
+# tag points at now, and a digest without its version would silently build an
+# older toolchain than the one named here.
+GO_VERSION="${GO_VERSION:-1.26.6}"
+# Two images of the same Go release: the agent is compiled in the default
+# variant and the Compose compiler in the bookworm one, which is the base the
+# control server's runtime is built on. Naming them apart keeps the wrong
+# digest from reaching the wrong build.
+AGENT_GO_DIGEST="${AGENT_GO_DIGEST:-sha256:0d1d3a794be25f809dd2cb3160d8c73276c4056a9f8242a138e908ddeee7b6b6}"
+COMPILER_GO_DIGEST="${COMPILER_GO_DIGEST:-sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36}"
 AGENT_PLATFORMS="${AGENT_PLATFORMS:-linux/amd64 linux/arm64}"
 PUSH="${PUSH:-0}"
 
@@ -202,6 +211,7 @@ docker buildx build "${build_args[@]}" \
 	--tag "$API_IMAGE:$VERSION" \
 	--file api/Dockerfile \
 	--build-arg "GO_VERSION=$GO_VERSION" \
+	--build-arg "GO_DIGEST=$COMPILER_GO_DIGEST" \
 	.
 
 echo "==> web image"
@@ -228,7 +238,7 @@ for platform in $AGENT_PLATFORMS; do
 		-e CGO_ENABLED=0 -e GOOS="$goos" -e GOARCH="$goarch" \
 		-e GOFLAGS=-buildvcs=false \
 		-w /src \
-		"golang:${GO_VERSION}" \
+		"golang:${GO_VERSION}@${AGENT_GO_DIGEST}" \
 		go build -trimpath \
 		-ldflags "-s -w -X main.version=$AGENT_VERSION -X main.commit=$COMMIT" \
 		-o "/out/$output" ./cmd/dockplane-agent

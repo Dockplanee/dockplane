@@ -21,8 +21,8 @@
 
 ARG NODE_VERSION=22.23.2
 ARG NODE_DIGEST=sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436
-ARG GO_VERSION=1.26.5
-ARG GO_DIGEST=sha256:53eeac89074db483fdf0ab3be1df32bf6e47562263d2d0d6baa7f26acb4957dd
+ARG GO_VERSION=1.26.6
+ARG GO_DIGEST=sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36
 
 # --- The Compose compiler ---------------------------------------------------
 #

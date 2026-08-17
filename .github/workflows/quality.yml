@@ -17,7 +17,7 @@ env:
   # The toolchains the release images are built with, so a gate that passes
   # here is a gate that passed against what ships.
   NODE_VERSION: '22.23.2'
-  GO_VERSION: '1.26.5'
+  GO_VERSION: '1.26.6'
   SHELLCHECK_IMAGE: 'koalaman/shellcheck:v0.11.0'
   ACTIONLINT_IMAGE: 'rhysd/actionlint:1.7.7'
 
