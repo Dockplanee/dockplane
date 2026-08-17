@@ -32,6 +32,7 @@ import {
   StackLifecycleOutcome,
   classifyStackLifecycle,
 } from './stack-lifecycle';
+import { assertStackAttribution } from './stack-attribution';
 import { UNRESOLVED_DEPLOYMENT, stackKey } from './stack-deployment.service';
 import { assertNotArchived } from '../inventory/host-archive';
 
@@ -818,13 +819,15 @@ export class StackLifecycleService {
   /** The same rule every other host operation uses: performed now, or refused. */
   private async connectedAgent(hostId: string): Promise<string> {
     const [agent] = await this.db.client
-      .select({ id: agents.id })
+      .select({ id: agents.id, version: agents.version })
       .from(agents)
       .where(and(eq(agents.hostId, hostId), isNull(agents.revokedAt)));
 
     if (!agent) {
       throw AppError.conflict('AGENT_REVOKED', 'This host has no agent that may be reached.');
     }
+
+    assertStackAttribution(agent.version, 'the stack cannot be changed');
 
     if (!this.connections.isConnected(agent.id)) {
       throw AppError.conflict(

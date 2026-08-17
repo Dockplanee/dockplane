@@ -45,6 +45,12 @@ export const ERROR_CODES = [
   'AGENT_REQUEST_EXPIRED',
   'AGENT_REQUEST_TIMEOUT',
   'AGENT_CAPABILITY_UNSUPPORTED',
+  /*
+   * The agent runs a release that predates part of what the operation needs.
+   * Distinct from an unsupported protocol: the agent speaks the protocol and
+   * goes on serving everything else.
+   */
+  'AGENT_UPGRADE_REQUIRED',
   'AGENT_CAPABILITY_FAILED',
   'AGENT_RESPONSE_INVALID',
   'AGENT_NOT_CONNECTED',

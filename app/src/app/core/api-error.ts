@@ -24,6 +24,8 @@ export type ApiErrorCode =
   | 'HOST_ARCHIVED'
   /* Its agent is connected, so it is in use and cannot be archived. */
   | 'HOST_CONNECTED'
+  /* The agent predates something the operation needs, not the protocol. */
+  | 'AGENT_UPGRADE_REQUIRED'
   | 'CONTAINER_DETAIL_UNAVAILABLE'
   | 'CONTAINER_ALREADY_RUNNING'
   | 'CONTAINER_ALREADY_STOPPED'
@@ -205,6 +207,8 @@ const MESSAGES: Record<ApiErrorCode, string> = {
   HOST_ARCHIVED:
     'This host is archived, so it is not a target for new work. Restore it first if it is in use again.',
   HOST_CONNECTED: 'This host has a connected agent, so it is in use and cannot be archived.',
+  AGENT_UPGRADE_REQUIRED:
+    'This host needs a newer Dockplane agent before its stacks can be managed. Other supported host and container functions remain available.',
   CONTAINER_NOT_FOUND: 'This container no longer exists on its host.',
   CONTAINER_DETAIL_UNAVAILABLE:
     'The host has not been reachable since this container was discovered, so no detail has been read yet.',

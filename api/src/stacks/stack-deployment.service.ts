@@ -28,6 +28,7 @@ import { DiscoveryService } from '../discovery/discovery.service';
 import { EventsService } from '../events/events.service';
 import { MutationRegistry } from '../operations/mutation-registry';
 import { ComposeCompilerService, StackDeploymentPlan } from './compose-compiler.service';
+import { assertStackAttribution } from './stack-attribution';
 import { ObservedService, StackApplyOutcome, classifyStackApply } from './stack-deployment';
 import { UNRESOLVED_OPERATION } from './stack-lifecycle.service';
 import { AgentStackPlan, agentPlanFor, containerNames } from './stack-plan';
@@ -926,13 +927,15 @@ export class StackDeploymentService {
   /** The same rule every other host operation uses: performed now, or refused. */
   private async connectedAgent(hostId: string): Promise<string> {
     const [agent] = await this.db.client
-      .select({ id: agents.id })
+      .select({ id: agents.id, version: agents.version })
       .from(agents)
       .where(and(eq(agents.hostId, hostId), isNull(agents.revokedAt)));
 
     if (!agent) {
       throw AppError.conflict('AGENT_REVOKED', 'This host has no agent that may be reached.');
     }
+
+    assertStackAttribution(agent.version, 'the stack cannot be changed');
 
     if (!this.connections.isConnected(agent.id)) {
       throw AppError.conflict(

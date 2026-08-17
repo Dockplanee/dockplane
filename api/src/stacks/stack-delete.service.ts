@@ -25,6 +25,7 @@ import {
 import { DiscoveryService } from '../discovery/discovery.service';
 import { EventsService } from '../events/events.service';
 import { MutationRegistry } from '../operations/mutation-registry';
+import { assertStackAttribution } from './stack-attribution';
 import { ObservedClaim, StackDeleteOutcome, classifyStackDelete } from './stack-delete';
 import { UNRESOLVED_DEPLOYMENT, stackKey } from './stack-deployment.service';
 import { UNRESOLVED_OPERATION } from './stack-lifecycle.service';
@@ -165,6 +166,36 @@ export class StackDeleteService {
       throw AppError.conflict(
         'STACK_STATE_AMBIGUOUS',
         'This stack is not recorded as deployed, but containers on its host claim to belong to it. Dockplane will not delete its configuration while they are there.',
+      );
+    }
+
+    /*
+     * Finding no containers is the whole of the reasoning above, and it is only
+     * an answer if the host is one that would have said. An agent that does not
+     * report stack attribution leaves that column empty for containers it is
+     * running right now, and deleting on the strength of it would report a
+     * removal that never happened.
+     *
+     * A stack that was never dispatched cannot have left anything behind, so it
+     * is deletable whatever the host is running. The distinction is the reason
+     * this is not simply refused for every old agent: a configuration nobody
+     * ever deployed stays deletable.
+     */
+    const [attempted] = await this.db.client
+      .select({ id: stackDeployments.id })
+      .from(stackDeployments)
+      .where(eq(stackDeployments.stackId, stack.id))
+      .limit(1);
+
+    if (attempted) {
+      const [agent] = await this.db.client
+        .select({ version: agents.version })
+        .from(agents)
+        .where(and(eq(agents.hostId, stack.hostId), isNull(agents.revokedAt)));
+
+      assertStackAttribution(
+        agent?.version,
+        'whether it left containers on the host cannot be established',
       );
     }
 
@@ -690,13 +721,15 @@ export class StackDeleteService {
 
   private async connectedAgent(hostId: string): Promise<string> {
     const [agent] = await this.db.client
-      .select({ id: agents.id })
+      .select({ id: agents.id, version: agents.version })
       .from(agents)
       .where(and(eq(agents.hostId, hostId), isNull(agents.revokedAt)));
 
     if (!agent) {
       throw AppError.conflict('AGENT_REVOKED', 'This host has no agent that may be reached.');
     }
+
+    assertStackAttribution(agent.version, 'this stack cannot be removed from its host');
 
     if (!this.connections.isConnected(agent.id)) {
       throw AppError.conflict(
