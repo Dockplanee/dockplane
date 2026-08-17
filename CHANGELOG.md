@@ -26,7 +26,7 @@ serve goes on working.
 
 ### Known limitations
 - A stack whose deployment never completed while its agent was old still reads as not deployed after the agent is upgraded, because that deployment genuinely never completed. Apply its revision again to reconcile it.
-- A stack deleted while its agent was old is not recreated. Its containers keep running and stay visible as managed containers with no stack; remove them individually if they are no longer wanted.
+- A stack deleted while its agent was old is not recreated. Its containers keep running and stay visible as managed containers with no stack. Dockplane can stop them but not remove them — removing a container through Dockplane needs a configuration it holds for that container, and one that belonged to a stack has none of its own — so removing them is done on the Docker host.
 
 ## 0.3.0-rc.1 — 2026-08-17
 

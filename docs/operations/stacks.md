@@ -449,5 +449,30 @@ this stack's own, and the stack is reconciled to the revision you applied.
 If a stack was deleted while its agent was old, its containers are still running
 and still labelled for a stack that no longer exists. Dockplane leaves them
 alone: they stay visible as managed containers on their host with no stack, and
-nothing invents a stack to hold them. Remove them individually from the
-container list if they are no longer wanted.
+nothing invents a stack to hold them. It does not remove them either, and it
+will not adopt them into a new stack.
+
+You can stop such a container from Dockplane. Removing it has to happen on the
+host, because removing a container through Dockplane needs a configuration
+Dockplane holds for it, and a container that belonged to a stack has none of its
+own — its stack held it, and that stack is gone. Dockplane answers
+`CONTAINER_NOT_MANAGED` rather than removing something it cannot describe.
+
+Identify the container before removing anything. Its labels name the stack it
+came from, and that identifier is the one no longer in Dockplane:
+
+```bash
+CONTAINER=payments-web-1
+
+docker inspect --format '{{index .Config.Labels "io.dockplane.stack-id"}}' "$CONTAINER"
+```
+
+Then, once you have stopped it and confirmed which one it is:
+
+```bash
+docker rm "$CONTAINER"
+```
+
+Remove them one at a time. There is deliberately no bulk form here: the label
+says which stack a container came from, not whether you still want what it is
+running.
