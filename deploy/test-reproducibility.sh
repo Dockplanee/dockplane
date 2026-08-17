@@ -107,7 +107,11 @@ runtime_copies() {
 for dockerfile in api/Dockerfile app/Dockerfile; do
 	commands="$(runtime_commands "$dockerfile")"
 
-	check "$([[ -n "$commands" ]] && echo ok || echo fail)" \
+	# The stage has to be there to be judged. What it must not be is missing —
+	# a runtime stage with no commands at all is the safest form of this, not an
+	# untested one, so the check is that the stage exists rather than that it
+	# runs something.
+	check "$(grep -qE '^FROM .* AS runtime$' "$dockerfile" && echo ok || echo fail)" \
 		"$dockerfile has a runtime stage to check"
 
 	unguarded=0

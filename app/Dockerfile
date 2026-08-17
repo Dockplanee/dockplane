@@ -5,8 +5,22 @@
 # public TLS and proxies the API, which is why there is no separate web server
 # in the stack.
 
+# Base images are pinned by digest as well as by tag.
+#
+# A tag is a name the registry may move: the same `2.11.4-alpine` can be
+# republished when its distribution patches a library, and a build of an
+# unchanged commit would then produce different bytes. The digest is what makes
+# an image an input rather than a lookup, so rebuilding a release is a function
+# of the commit and nothing else.
+#
+# Updating one is a commit: raise the version, resolve the new digest, rebuild,
+# scan, and let the release gates judge the result. That is what makes a change
+# to what the image carries something a person decided and a reviewer can see.
+
 ARG NODE_VERSION=22.23.2
+ARG NODE_DIGEST=sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436
 ARG CADDY_VERSION=2.11.4
+ARG CADDY_DIGEST=sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
 
 # --- Build ------------------------------------------------------------------
 #
@@ -15,7 +29,7 @@ ARG CADDY_VERSION=2.11.4
 # whichever architecture produced it — and building it under emulation buys
 # nothing while costing a great deal: the toolchain writes native binaries and
 # runs them immediately, which under QEMU races into ETXTBSY.
-FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS build
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim@${NODE_DIGEST} AS build
 
 WORKDIR /build
 
@@ -50,35 +64,14 @@ RUN npm run build \
 	&& find dist -exec touch {} +
 
 # --- Runtime ----------------------------------------------------------------
-FROM caddy:${CADDY_VERSION}-alpine AS runtime
+FROM caddy:${CADDY_VERSION}-alpine@${CADDY_DIGEST} AS runtime
 
-# The distribution's own security updates, from its own repositories.
-#
-# Caddy publishes an image per release and does not rebuild it when Alpine
-# patches a library inside it, so an image pinned to the newest Caddy still
-# carries whatever its base held on the day it was built. This applies what
-# Alpine has published since, and pins nothing by hand: mixing distributions or
-# picking individual package versions out of a repository is how a base image
-# becomes something nobody can reason about.
-#
-# It costs bit-for-bit reproducibility across time — the same Dockerfile builds
-# different bytes once Alpine publishes an update. That is what applying
-# security updates means; the release manifest records the digest that was
-# actually published.
-#
-# The cache directory is a scratch mount for the length of the command and is
-# not part of the layer, for the same reason as in the control server's image:
-# a command in this stage runs under emulation whenever the image's
-# architecture is not the machine's own, and an emulator writes its translation
-# cache into the filesystem it is running in.
-#
-# The package manager's log records when it ran, so it is removed in the same
-# command: a later one would only add a whiteout over bytes the image already
-# carries.
-RUN --mount=type=tmpfs,target=/root/.cache \
-	apk upgrade --no-cache \
-	&& rm -f /var/log/apk.log
-
+# Security updates arrive by changing the pinned base above, not by asking the
+# distribution what it has today. Applying them during the build made the image
+# a function of the moment it ran: two builds of one commit, days apart,
+# produced different bytes, and no rebuild could be checked against a published
+# artefact. Raising the pin instead makes each update a commit with a scan and a
+# reviewer behind it.
 ARG DOCKPLANE_VERSION=0.0.0-dev
 ARG DOCKPLANE_COMMIT=unknown
 ARG DOCKPLANE_BUILD_DATE=unknown

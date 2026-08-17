@@ -7,8 +7,22 @@
 # Built from the repository root rather than from api/, because the Compose
 # compiler is a sibling of the server rather than part of it.
 
+# Base images are pinned by digest as well as by tag.
+#
+# A tag is a name the registry may move: the same `2.11.4-alpine` can be
+# republished when its distribution patches a library, and a build of an
+# unchanged commit would then produce different bytes. The digest is what makes
+# an image an input rather than a lookup, so rebuilding a release is a function
+# of the commit and nothing else.
+#
+# Updating one is a commit: raise the version, resolve the new digest, rebuild,
+# scan, and let the release gates judge the result. That is what makes a change
+# to what the image carries something a person decided and a reviewer can see.
+
 ARG NODE_VERSION=22.23.2
+ARG NODE_DIGEST=sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436
 ARG GO_VERSION=1.26.5
+ARG GO_DIGEST=sha256:53eeac89074db483fdf0ab3be1df32bf6e47562263d2d0d6baa7f26acb4957dd
 
 # --- The Compose compiler ---------------------------------------------------
 #
@@ -20,7 +34,7 @@ ARG GO_VERSION=1.26.5
 # architecture being produced, which is what keeps an emulated Go toolchain out
 # of the build without shipping the builder's own architecture into the image.
 # Static, so the runtime image needs no Go and no libc beyond its own.
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS compose-compiler
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm@${GO_DIGEST} AS compose-compiler
 
 ARG TARGETARCH
 
@@ -44,7 +58,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -trimpath -ldflags '-
 # Only the production set is installed here. The build toolchain is not part of
 # it, which is why this stage does not run esbuild — the one thing that made an
 # emulated install fail.
-FROM node:${NODE_VERSION}-bookworm-slim AS production-deps
+FROM node:${NODE_VERSION}-bookworm-slim@${NODE_DIGEST} AS production-deps
 
 WORKDIR /build
 
@@ -56,7 +70,7 @@ RUN npm ci --omit=dev
 # On the machine doing the building. TypeScript compiles to JavaScript that is
 # the same whichever architecture produced it, and the toolchain that compiles
 # it has no business running under emulation.
-FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS build
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim@${NODE_DIGEST} AS build
 
 WORKDIR /build
 
@@ -83,7 +97,7 @@ RUN npm run build \
 	&& install -D -m 0644 package.json /runtime/package.json
 
 # --- Runtime ----------------------------------------------------------------
-FROM node:${NODE_VERSION}-bookworm-slim AS runtime
+FROM node:${NODE_VERSION}-bookworm-slim@${NODE_DIGEST} AS runtime
 
 ARG DOCKPLANE_VERSION=0.0.0-dev
 ARG DOCKPLANE_COMMIT=unknown
