@@ -53,7 +53,7 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
     entries: [
       {
         name: 'Container list',
-        detail: 'Containers across all connected hosts, filtered by host or group.',
+        detail: 'Containers across all connected hosts, filtered by host.',
       },
       {
         name: 'Inspect',
