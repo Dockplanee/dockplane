@@ -57,7 +57,9 @@ replacing theirs. Reload the stack and apply your change again.
 Deploying a stack for the first time, moving it to a newer revision, putting it
 back to an older one and repairing one that was left half-applied are the same
 operation: make this revision the thing that is running. It needs the deploy
-permission and an agent that is connected.
+permission and an agent that is connected. The agent also has to be one that
+reports which stack its containers belong to, which every release from
+0.3.0-rc.2 does; see [The agent's part](#the-agents-part) below.
 
 Any revision the stack has can be applied, not only the newest — going back to
 an earlier one is exactly what a rollback is. Applying the revision a stack is
@@ -412,3 +414,40 @@ services:
 
 The same boundary applies on the host as for any container: a value deployed as
 a container environment variable is readable by anyone with Docker access there.
+
+## The agent's part
+
+Dockplane labels every container it creates for a stack with the stack, the
+service and the revision, and the agent reports those labels back. That report
+is how the control server knows which containers on a host are a given stack's
+own, and every stack operation resolves its containers through it: deploying,
+starting, stopping, restarting and removing all begin by asking which containers
+are this stack's.
+
+Agents before 0.3.0-rc.2 set those labels on the host and did not report them.
+The control server saw their containers as ordinary managed containers with no
+stack, which made a running stack read as never deployed and left its operations
+with nothing to act on. A removal in that state found no containers of the
+stack, so it removed none — and said so as though there had been none.
+
+Stack operations on such a host are now refused, with `AGENT_UPGRADE_REQUIRED`,
+before anything is sent to it. Nothing else changes: the host goes on serving
+inventory, metrics, logs, container operations and Compose discovery, and its
+containers stay visible and manageable individually.
+
+### Repairing a host that ran an older agent
+
+Upgrade the agent. Nothing else is needed and no database repair is involved:
+the next inventory carries the labels, discovery attributes the containers to
+their stack, and the stack's services resolve again.
+
+A stack whose deployment never finished while the agent was old still reads as
+not deployed, because that deployment genuinely never completed. Apply its
+revision again once the agent is upgraded — the containers are recognised as
+this stack's own, and the stack is reconciled to the revision you applied.
+
+If a stack was deleted while its agent was old, its containers are still running
+and still labelled for a stack that no longer exists. Dockplane leaves them
+alone: they stay visible as managed containers on their host with no stack, and
+nothing invents a stack to hold them. Remove them individually from the
+container list if they are no longer wanted.
