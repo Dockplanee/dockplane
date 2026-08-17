@@ -53,8 +53,8 @@
         See workloads, health and resource state across every connected Docker host.
       </dp-feature>
       <dp-feature title="Operate safely">
-        Start, stop and restart workloads through defined agent capabilities with backend-enforced
-        permissions and audit history.
+        Run, create, change and remove workloads through defined agent capabilities, with
+        backend-enforced permissions and audit history.
       </dp-feature>
       <dp-feature title="Stay self-hosted">
         Run Dockplane on infrastructure you control. Your operational control plane does not need to
@@ -72,7 +72,7 @@
         eyebrow="Multi-host"
         headingId="multi-host-heading"
         heading="Built for more than one Docker host."
-        lede="Dockplane treats distributed Docker environments as the default. See host state, workload counts, agent status and health signals without opening a separate management session for every machine."
+        lede="Dockplane treats distributed Docker environments as the default. See host state, workload counts, agent status and health signals without opening a separate management session for every machine. A host that has been replaced can be archived, which takes it out of the working lists without losing what it ran."
       />
     </div>
 
@@ -87,10 +87,10 @@
     <div class="split__copy">
       <dp-section-header
         index="03"
-        eyebrow="Compose"
+        eyebrow="Stacks"
         headingId="compose-heading"
-        heading="Your Compose stacks, wherever they run."
-        lede="Understand which containers belong together, inspect their current state and manage Compose workloads without reducing every application to an unrelated list of containers."
+        heading="A Compose file, its history, and the host it runs on."
+        lede="A managed stack keeps its Compose configuration, the environment it needs and every revision it has had, so deploying an earlier one is the rollback. Compose projects already running on a host are discovered and grouped alongside them, and stay read-only."
       />
     </div>
 
@@ -157,10 +157,37 @@
   </div>
 </section>
 
-<section dpSection aria-labelledby="self-hosted-heading">
+<section dpSection aria-labelledby="versions-heading">
   <div class="dp-shell">
     <dp-section-header
       index="06"
+      eyebrow="Versions"
+      headingId="versions-heading"
+      heading="What is running, and what is not updating itself."
+      lede="Settings reports the control server, the browser application, the database schema, the agent protocol range and what every enrolled agent reports. A fleet part-way through a rollout is marked as running mixed versions rather than as broken."
+    />
+
+    <div class="grid-three">
+      <dp-feature title="No self-updating">
+        Dockplane can check the public release listing and say whether something newer exists. It is
+        off until an administrator turns it on, and nothing acts on the answer.
+      </dp-feature>
+      <dp-feature title="Upgrade in your own order">
+        Upgrade the control plane first, then the agents. An older agent keeps working while its
+        protocol version is one the server accepts.
+      </dp-feature>
+      <dp-feature title="Usable at the width you have">
+        The management lists and settings adapt to the space they are given, down to a stacked list
+        below a tablet's width.
+      </dp-feature>
+    </div>
+  </div>
+</section>
+
+<section dpSection tone="alt" divided aria-labelledby="self-hosted-heading">
+  <div class="dp-shell">
+    <dp-section-header
+      index="07"
       eyebrow="Self-hosted"
       headingId="self-hosted-heading"
       heading="Your control plane belongs on your infrastructure."

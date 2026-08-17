@@ -13,22 +13,34 @@ import { ComposeProject } from '../../visuals/compose-project/compose-project';
 import { HostFleet } from '../../visuals/host-fleet/host-fleet';
 import { OperationalContext } from '../../visuals/operational-context/operational-context';
 
-const EXAMPLE_PERMISSIONS = [
+/*
+ * Real permission keys, taken from api/src/rbac/permissions.ts. A plausible
+ * one that does not exist reads exactly like a real one on a marketing page,
+ * and `compose.operate` was on this list for three releases without ever
+ * having been a permission anybody could grant.
+ */
+export const EXAMPLE_PERMISSIONS = [
   'hosts.read',
-  'containers.read',
   'containers.restart',
   'containers.logs',
-  'compose.operate',
+  'containers.delete',
+  'stacks.deploy',
   'audit.read',
 ];
 
-const IN_SCOPE = [
-  'Docker hosts and host groups',
-  'Containers and Compose projects',
-  'Images, networks and volumes',
+/*
+ * What belongs in the product, which is not the same as what it does today.
+ * Written so that neither reading is wrong: everything here exists, and the
+ * features page is where the planned direction is marked as planned.
+ */
+export const IN_SCOPE = [
+  'Docker hosts and their agents',
+  'Containers, created here or discovered',
+  'Managed Compose stacks and their revisions',
+  'Compose projects found on a host',
   'Logs, events and health state',
-  'Host and container metrics',
-  'Users, roles and resource-scoped permissions',
+  'Host metrics',
+  'Users, roles and backend-enforced permissions',
   'Agent enrollment and revocation',
   'Audit history',
 ];

@@ -43,13 +43,19 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
         name: 'Agent state',
         detail: 'Whether the agent is connected and which protocol version it reports.',
       },
+      {
+        name: 'Archiving',
+        detail:
+          'A host that has been replaced leaves the working lists and keeps everything it carried. Reversible, and not a delete: no host record is removed and none is merged with another.',
+      },
     ],
   },
   {
     id: 'containers',
     index: '02',
     title: 'Containers',
-    summary: 'Inspect a workload and its context, then use a defined lifecycle action.',
+    summary:
+      'Every container on a connected host can be read and run. The ones Dockplane created can also be changed.',
     entries: [
       {
         name: 'Container list',
@@ -65,16 +71,65 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
         detail: 'Container log output with a timestamp column and horizontal scrolling.',
       },
       {
-        name: 'Lifecycle actions',
-        detail: 'Start, stop and restart through validated agent capabilities.',
+        name: 'Run state',
+        detail: 'Start, stop and restart any discovered container, through validated capabilities.',
+      },
+      {
+        name: 'Create a container',
+        detail: 'Image, ports, mounts, environment and restart policy, from a typed specification.',
+      },
+      {
+        name: 'Change a container',
+        detail:
+          'Editing replaces the container and keeps its identity and history. Volumes are never removed.',
+      },
+      {
+        name: 'Remove a container',
+        detail:
+          'Available for containers Dockplane created. A discovered one keeps a read-only configuration.',
+      },
+    ],
+  },
+  {
+    id: 'stacks',
+    index: '03',
+    title: 'Managed stacks',
+    summary: 'A Compose file Dockplane holds, with its history, deployed to a host you choose.',
+    entries: [
+      {
+        name: 'Saved configuration',
+        detail: 'A Compose file and the environment it needs, stored with the stack.',
+      },
+      {
+        name: 'Encrypted values',
+        detail: 'A value marked secret is stored encrypted and never shown again.',
+      },
+      {
+        name: 'Revisions',
+        detail: 'Every saved configuration is kept, with the difference to the one before it.',
+      },
+      {
+        name: 'Configuration rollback',
+        detail:
+          'Deploying an earlier revision is the rollback. It restores configuration, not volumes.',
+      },
+      {
+        name: 'Deploy',
+        detail:
+          'The control server resolves the plan; the agent applies it and reports the result.',
+      },
+      {
+        name: 'Stack lifecycle',
+        detail: 'Start, stop, restart and delete a deployed stack as one workload.',
       },
     ],
   },
   {
     id: 'compose',
-    index: '03',
-    title: 'Compose',
-    summary: 'Applications stay grouped instead of dissolving into an unrelated container list.',
+    index: '04',
+    title: 'Compose projects found on a host',
+    summary:
+      'Projects Dockplane did not deploy are discovered and read, so applications stay grouped.',
     entries: [
       { name: 'Project discovery', detail: 'Compose projects found on each connected host.' },
       {
@@ -86,11 +141,47 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
         name: 'Project inspection',
         detail: 'Labels and discovered configuration metadata where safely available.',
       },
+      {
+        name: 'Read-only',
+        detail:
+          'A discovered project is not deployed, changed or removed. Taking one over is not part of this release.',
+      },
+    ],
+  },
+  {
+    id: 'versions',
+    index: '05',
+    title: 'Versions',
+    summary: 'What a deployment is running, and the one request it makes only if you ask it to.',
+    entries: [
+      {
+        name: 'Component versions',
+        detail:
+          'The control server and the browser application report their own release and commit.',
+      },
+      {
+        name: 'Agent versions',
+        detail: 'What every enrolled agent reports, and the protocol range the server accepts.',
+      },
+      {
+        name: 'Mixed versions',
+        detail: 'A fleet part-way through a rollout is marked as mixed rather than as broken.',
+      },
+      {
+        name: 'Unknown and unsupported',
+        detail:
+          'An agent outside the accepted protocol range is an error; one that reports nothing readable is counted as unknown.',
+      },
+      {
+        name: 'Optional update check',
+        detail:
+          'Dockplane can ask the public release listing whether something newer exists. It is off until an administrator turns it on, and nothing acts on the answer.',
+      },
     ],
   },
   {
     id: 'operations',
-    index: '04',
+    index: '06',
     title: 'Operational context',
     summary:
       'What happened, what it affected and whether the action you requested actually succeeded.',
@@ -112,8 +203,30 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
     ],
   },
   {
+    id: 'interface',
+    index: '07',
+    title: 'The interface',
+    summary: 'An operational surface that stays usable at the width it is given.',
+    entries: [
+      {
+        name: 'Tables that fit the window',
+        detail:
+          'A full table where everything fits, a compact one that keeps what somebody needs in order to act, and a stacked list below a tablet width.',
+      },
+      {
+        name: 'What is always in view',
+        detail:
+          'What a thing is, which host it belongs to, what state it is in, and the way to act on it — at every width.',
+      },
+      {
+        name: 'Controls that can be hit',
+        detail: 'Interactive targets sized against WCAG 2.2 AA rather than against a mouse.',
+      },
+    ],
+  },
+  {
     id: 'administration',
-    index: '05',
+    index: '08',
     title: 'Security and administration',
     summary: 'Who may do what, on which resources, and what was recorded about it.',
     entries: [

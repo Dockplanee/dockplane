@@ -62,7 +62,7 @@ export const DOC_SECTIONS: readonly DocSection[] = [
       },
       {
         "title": "Container Operations",
-        "summary": "Dockplane can start, stop and restart a container it has discovered, and can create, change and remove a container it manages itself. These are the only operations that change a managed host.",
+        "summary": "Dockplane can start, stop and restart a container it has discovered, and can create, change and remove a container it manages itself. Together with the stack operations in Stacks, these are the only things that change a managed host.",
         "url": "https://github.com/Dockplanee/dockplane/blob/main/docs/operations/container-lifecycle.md"
       },
       {
@@ -123,7 +123,7 @@ export const DOC_SECTIONS: readonly DocSection[] = [
       },
       {
         "title": "Vulnerability Assessment",
-        "summary": "Every release is scanned, both images on both architectures, and the report for each is published as a release asset. This page is the assessment behind those numbers: what is in them, what was fixed, and why what remains is still there.",
+        "summary": "Every release is scanned and the report for each artefact is published as a release asset: both control-plane images on both architectures, and — from 0.3.0 — the agent binary on both architectures. This page is the assessment behind those numbers: what is in them, what was fixed, and why what remains is still there.",
         "url": "https://github.com/Dockplanee/dockplane/blob/main/docs/security/vulnerabilities.md"
       }
     ]

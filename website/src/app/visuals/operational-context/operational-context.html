@@ -1,12 +1,11 @@
 <figure class="context">
   <figcaption class="context__caption">
-    Interface preview showing resource usage, container log output and recent operational events for
-    a workload.
+    Interface preview showing the state of a workload, its log output and recent operational events.
   </figcaption>
 
   <dp-app-frame view="paperless-db" context="docker-02">
     <div class="context__metrics">
-      @for (metric of metrics; track metric.label) {
+      @for (metric of facts; track metric.label) {
         <dp-metric-tile
           class="tile--aligned"
           [label]="metric.label"

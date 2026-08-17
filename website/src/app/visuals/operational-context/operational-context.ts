@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 
 import { MetricTile } from '../../ui/metric-tile/metric-tile';
 import { AppFrame } from '../app-frame/app-frame';
-import { PREVIEW_CONTAINER_METRICS, PREVIEW_EVENTS, PREVIEW_LOG_LINES } from '../preview-data';
+import { PREVIEW_CONTAINER_FACTS, PREVIEW_EVENTS, PREVIEW_LOG_LINES } from '../preview-data';
 
 @Component({
   selector: 'dp-operational-context',
@@ -12,7 +12,7 @@ import { PREVIEW_CONTAINER_METRICS, PREVIEW_EVENTS, PREVIEW_LOG_LINES } from '..
   imports: [AppFrame, MetricTile],
 })
 export class OperationalContext {
-  protected readonly metrics = PREVIEW_CONTAINER_METRICS;
+  protected readonly facts = PREVIEW_CONTAINER_FACTS;
   protected readonly logLines = PREVIEW_LOG_LINES;
   protected readonly events = PREVIEW_EVENTS;
 }

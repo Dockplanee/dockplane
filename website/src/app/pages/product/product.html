@@ -15,6 +15,12 @@
         heading="One view of every connected host."
         lede="See host connectivity, Docker version, agent state, workload counts and key resource signals without switching between machines."
       />
+
+      <p class="dp-prose">
+        A host that has been replaced can be archived: it leaves the working lists and keeps
+        everything it carried, and it can be brought back. Archiving is not a delete — no host
+        record is removed, and none is merged with another.
+      </p>
     </div>
     <div>
       <dp-host-fleet />
@@ -29,20 +35,27 @@
       eyebrow="Containers"
       headingId="containers-heading"
       heading="Operate containers with context."
-      lede="Inspect container state, image, health, resource usage and logs before using controlled lifecycle actions such as start, stop or restart."
+      lede="Read a container's state, image, health and logs before acting on it. Every container on a connected host can be started, stopped and restarted; the ones Dockplane created can also be changed and removed."
     />
 
     <div class="grid-three">
       <dp-feature title="State and health">
         Current state, health check result and the image a container is running.
       </dp-feature>
-      <dp-feature title="Resource signals">
-        CPU, memory and network usage next to the workload they belong to.
-      </dp-feature>
-      <dp-feature title="Controlled actions">
+      <dp-feature title="Run state">
         Start, stop and restart map to defined agent capabilities rather than free-form commands.
       </dp-feature>
+      <dp-feature title="Create and change">
+        Define a container and edit it later. Editing replaces it and keeps its identity and
+        history, and volumes are never removed.
+      </dp-feature>
     </div>
+
+    <p class="dp-prose">
+      A container Dockplane did not create keeps a read-only configuration: its environment is
+      deliberately not read back off a host, so there is nothing to edit from. It can still be
+      inspected, followed and run.
+    </p>
   </div>
 </section>
 
@@ -51,11 +64,16 @@
     <div>
       <dp-section-header
         index="03"
-        eyebrow="Compose"
+        eyebrow="Stacks"
         headingId="compose-heading"
-        heading="Keep application context intact."
-        lede="Dockplane treats Compose projects as grouped workloads so you can understand which containers belong together while keeping container-level detail available."
+        heading="Compose files Dockplane keeps, and Compose projects it finds."
+        lede="A managed stack is a Compose file Dockplane holds, with its environment, its encrypted values and every revision it has had. Deploying an earlier revision is the rollback — it restores configuration, not volumes."
       />
+
+      <p class="dp-prose">
+        A Compose project already running on a host is a different thing: it is discovered,
+        inspected and grouped, and it stays read-only. Dockplane does not take one over.
+      </p>
     </div>
     <div>
       <dp-compose-project />
@@ -101,19 +119,25 @@
   <div class="dp-shell">
     <dp-section-header
       index="06"
-      eyebrow="Docker resources"
+      eyebrow="Versions"
       headingId="resources-heading"
-      heading="Understand the resources behind your workloads."
-      lede="Inspect Docker images, networks and volumes across connected hosts. High-risk mutations remain deliberately constrained rather than being exposed just because the Docker API supports them."
+      heading="Know what this deployment is running."
+      lede="The control server and the browser application are two images and report themselves as two. Alongside them: the database schema, the agent protocol range, and what every enrolled agent reports."
     />
 
     <div class="grid-three">
-      <dp-feature title="Images"> The images your workloads run, resolved per host. </dp-feature>
-      <dp-feature title="Networks">
-        Docker networks and the workloads attached to them.
+      <dp-feature title="Mixed agent versions">
+        A fleet part-way through a rollout is marked as mixed rather than as broken. An older agent
+        keeps working while its protocol version is one the server accepts.
       </dp-feature>
-      <dp-feature title="Volumes">
-        Volume metadata, with destructive operations kept outside the safe foundation.
+      <dp-feature title="States worth naming">
+        An agent outside the accepted protocol range is reported as an incompatibility. One that has
+        never reported a readable version is counted as unknown, not as out of date.
+      </dp-feature>
+      <dp-feature title="An update check you switch on">
+        Dockplane can ask the public release listing whether something newer exists. It is off until
+        an administrator turns it on, and nothing acts on the answer: there is no auto-updater and
+        no agent auto-upgrade.
       </dp-feature>
     </div>
   </div>

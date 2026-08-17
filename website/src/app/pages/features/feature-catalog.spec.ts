@@ -27,6 +27,38 @@ describe('the feature catalogue', () => {
     }
   });
 
+  it('presents what this release does implement', () => {
+    // The other half of the same problem: the page described 0.1 for two
+    // releases after 0.1, so containers read as start-stop-restart and every
+    // Compose project read as something Dockplane could only look at.
+    for (const claim of [
+      'Create a container',
+      'Change a container',
+      'Remove a container',
+      'Configuration rollback',
+      'Deploy',
+      'Archiving',
+      'Agent versions',
+      'Optional update check',
+    ]) {
+      expect(available, `"${claim}" is missing from the page`).toContain(claim);
+    }
+  });
+
+  it('keeps managed stacks and discovered projects apart', () => {
+    const ids = FEATURE_AREAS.map((area) => area.id);
+
+    expect(ids).toContain('stacks');
+    expect(ids).toContain('compose');
+
+    const discovered = FEATURE_AREAS.find((area) => area.id === 'compose');
+    const details = discovered?.entries.map((entry) => entry.detail).join(' ') ?? '';
+
+    // A discovered project is read. Anything else on this page would be the
+    // one distinction the product most needs its website to hold.
+    expect(details).toMatch(/read-only|not deployed/i);
+  });
+
   it('does not present the same thing as both available and planned', () => {
     const planned = PLANNED.map((entry) => entry.name);
 

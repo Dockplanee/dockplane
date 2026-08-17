@@ -30,7 +30,7 @@ export const routes: Routes = [
     data: metadata({
       title: 'Product — Dockplane',
       description:
-        'Hosts, containers, Compose projects, logs, events and resource-scoped permissions in one self-hosted Docker control plane.',
+        'Hosts, containers, managed Compose stacks, logs, events and backend-enforced permissions in one self-hosted Docker control plane.',
     }),
   },
   {
@@ -39,7 +39,7 @@ export const routes: Routes = [
     data: metadata({
       title: 'Features — Dockplane',
       description:
-        'Host inventory, container lifecycle, Compose projects, Docker resources, operational context, roles and audit history in a self-hosted Docker control plane.',
+        'Host inventory, container lifecycle, managed Compose stacks, version visibility, operational context, roles and audit history in a self-hosted Docker control plane.',
     }),
   },
   {

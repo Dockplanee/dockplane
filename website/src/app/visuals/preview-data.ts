@@ -96,10 +96,17 @@ export const PREVIEW_COMPOSE = {
   ] as readonly PreviewWorkload[],
 } as const;
 
-export const PREVIEW_CONTAINER_METRICS: readonly PreviewMetric[] = [
-  { label: 'CPU', value: '4.2%', detail: 'of host capacity' },
-  { label: 'Memory', value: '512 MiB', detail: 'of 2 GiB limit' },
-  { label: 'Network', value: '1.4 MB/s', detail: 'in / out combined' },
+/**
+ * What Dockplane reports about a single container.
+ *
+ * Deliberately not CPU, memory and network: metrics are collected for a host,
+ * not for a workload, and a preview showing per-container usage would be an
+ * interface for something the product does not have.
+ */
+export const PREVIEW_CONTAINER_FACTS: readonly PreviewMetric[] = [
+  { label: 'State', value: 'Running', detail: 'up 6 days' },
+  { label: 'Health', value: 'Unhealthy', detail: 'check failing since 10:43' },
+  { label: 'Restarts', value: '3', detail: 'since it was created' },
 ];
 
 export const PREVIEW_LOG_LINES: readonly string[] = [
@@ -116,11 +123,19 @@ export const PREVIEW_EVENTS: readonly PreviewEvent[] = [
   { time: '09:58:41', summary: 'Host reconnected', target: 'storage-01', tone: 'ok' },
 ];
 
+/**
+ * A few of the capabilities the agent defines, shown as examples.
+ *
+ * Chosen to span the surface rather than one corner of it: something read,
+ * something that runs a container, something that builds one, and something
+ * that deploys a stack. The full catalogue is in the security documentation,
+ * which is the one place it is maintained.
+ */
 export const PREVIEW_CAPABILITIES: readonly string[] = [
-  'container.list',
+  'host.metrics',
   'container.inspect',
-  'container.start',
-  'container.stop',
-  'container.restart',
   'container.logs',
+  'container.restart',
+  'container.replace',
+  'stack.deploy',
 ];
