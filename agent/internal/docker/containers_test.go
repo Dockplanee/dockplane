@@ -161,6 +161,14 @@ containers to resources by.
 
 Written as an exact set rather than a set of individual checks, so widening it
 is a decision somebody makes here rather than a side effect somewhere else.
+
+The set is exact in both directions, and the second direction is the one that
+was missing. Withholding a label the server reads does not fail safe: discovery
+records the container with nothing to attribute it by, a stack whose containers
+are running reads as never deployed, and operations on it are refused or, worse,
+report success having dispatched nothing. Every entry below is read by
+api/src/discovery/discovery.service.ts, and a label added there belongs here in
+the same change.
 */
 func TestForwardedLabelsAreExactlyTheOnesTheServerReads(t *testing.T) {
 	offered := map[string]string{
@@ -171,8 +179,12 @@ func TestForwardedLabelsAreExactlyTheOnesTheServerReads(t *testing.T) {
 		docker.LabelManaged:                   "true",
 		docker.LabelContainerID:               "container-x",
 		docker.LabelDesiredConfigID:           "config-a",
+		docker.LabelStackID:                   "3f1d2c4e-0b6a-4a5f-9c8d-7e2b1a0f4d63",
+		docker.LabelStackService:              "web",
+		docker.LabelStackRevisionID:           "8a7c6b5d-4e3f-42a1-b0c9-1d2e3f4a5b6c",
 
-		// Everything else, however plausible it looks.
+		// Everything else, however plausible it looks. LabelStack is the stack
+		// name, which nothing on the server reads; a name is not an identity.
 		docker.LabelStack:            "billing",
 		"com.docker.compose.version": "2.31.0",
 		"io.dockplane.anything":      "no",
@@ -188,6 +200,9 @@ func TestForwardedLabelsAreExactlyTheOnesTheServerReads(t *testing.T) {
 		docker.LabelManaged,
 		docker.LabelContainerID,
 		docker.LabelDesiredConfigID,
+		docker.LabelStackID,
+		docker.LabelStackService,
+		docker.LabelStackRevisionID,
 	}
 
 	engine := docker.NewEngine(&fakeClient{summaries: []container.Summary{{

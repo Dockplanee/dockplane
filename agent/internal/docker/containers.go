@@ -24,6 +24,11 @@ const (
 // Labels are free-form and routinely carry deployment detail, tokens and
 // internal addresses. Only the Compose labels the product actually groups by
 // are forwarded; everything else stays on the host.
+//
+// Every entry here is read by the control server. A label the server reads and
+// this list omits is worse than a missing feature: the server sees a container
+// with no trace of what it belongs to and concludes, correctly for what it was
+// given, that the thing is not there.
 var forwardedLabels = map[string]bool{
 	LabelProject:         true,
 	LabelService:         true,
@@ -31,10 +36,19 @@ var forwardedLabels = map[string]bool{
 	LabelOneOff:          true,
 	// Dockplane's own, so the control server can recognise a container it
 	// built even after Docker has given the replacement a new identifier.
-	// Neither carries anything an operator put there.
+	// None of them carries anything an operator put there: they are
+	// identifiers Dockplane generated and a service name it read from a
+	// revision it compiled itself.
 	LabelManaged:         true,
 	LabelContainerID:     true,
 	LabelDesiredConfigID: true,
+	// Which stack a container belongs to, which of its services it is, and
+	// which revision it is running. Discovery attributes a container to its
+	// stack by these, and every stack operation resolves its containers
+	// through that attribution.
+	LabelStackID:         true,
+	LabelStackService:    true,
+	LabelStackRevisionID: true,
 }
 
 // ContainerSummary is the normalised form of a listed container.
