@@ -39,7 +39,7 @@ export class Seo {
     this.meta.updateTag({ property: 'og:image:height', content: SOCIAL_CARD_HEIGHT });
     this.meta.updateTag({
       property: 'og:image:alt',
-      content: `${SITE_NAME} — self-hosted multi-host Docker management`,
+      content: `The ${SITE_NAME} wordmark above the words: your Docker hosts, one control plane.`,
     });
 
     this.meta.updateTag({ name: 'twitter:card', content: 'summary_large_image' });

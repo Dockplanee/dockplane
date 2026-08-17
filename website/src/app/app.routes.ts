@@ -55,7 +55,7 @@ export const routes: Routes = [
     path: '',
     loadComponent: () => import('./pages/home/home').then((m) => m.Home),
     data: metadata({
-      title: 'Dockplane — Self-Hosted Multi-Host Docker Management',
+      title: 'Dockplane — self-hosted Docker management across your hosts',
       description:
         'Dockplane is a self-hosted control plane for managing containers, Compose stacks, logs, health and operations across multiple Docker hosts.',
       structuredData: WEBSITE,
@@ -95,7 +95,7 @@ export const routes: Routes = [
     data: metadata({
       title: 'Documentation — Dockplane',
       description:
-        'Deployment topology, host enrollment and the documentation set for the self-hosted Dockplane control plane.',
+        'Installing Dockplane, connecting a Docker host, upgrading, backups, the agent, stacks and the reference material behind them.',
     }),
   },
   {

@@ -211,7 +211,7 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
       {
         name: 'Tables that fit the window',
         detail:
-          'A full table where everything fits, a compact one that keeps what somebody needs in order to act, and a stacked list below a tablet width.',
+          'A full table where everything fits, a compact one that keeps what somebody needs to act, and a stacked list below a tablet width.',
       },
       {
         name: 'What is always in view',
