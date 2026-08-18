@@ -86,11 +86,14 @@ See workloads, health and resource state across every connected Docker host.
 Run, create, change and remove workloads through defined agent capabilities, with backend-enforced permissions and audit history.
 ```
 
-### Nothing reaches in
+### No inbound port
 
 ```text
-Each host runs one small service that connects outward to the control plane. No inbound management port has to be opened on a Docker host.
+Each Docker host runs one small service that connects outward to the control plane, so managing a host does not mean opening a port on it.
 ```
+
+Scoped to the management path. This is not a claim about a host's network
+exposure in general.
 
 ## 02 Multi-host
 
@@ -103,7 +106,7 @@ Built for more than one Docker host.
 Body:
 
 ```text
-More than one Docker host is the normal case here, not the exception. Host state, workload counts, agent status and health signals are in one list, without a separate management session per machine. A host that has been replaced can be archived, which takes it out of the working lists without losing what it ran.
+Host state, workload counts, agent status and health signals are in one list, without a separate management session per machine. A host that has been replaced can be archived, which takes it out of the working lists without losing what it ran.
 ```
 
 ## 03 Stacks
@@ -234,11 +237,14 @@ Body:
 Dockplane runs on systems you control and works without an external management service.
 ```
 
-### No account anywhere
+### No vendor account
 
 ```text
-There is nothing to sign up for and no tenant to belong to. You install the control plane and it is yours.
+There is no service to sign up for and no tenant at a provider. The accounts Dockplane knows about are the ones you create in your own installation.
 ```
+
+Dockplane has local accounts, roles, sessions and second factors. Copy about
+self-hosting must not read as though it had none.
 
 ### Understandable
 
@@ -398,7 +404,7 @@ Follow what changed.
 Body:
 
 ```text
-Workload logs, normalized events and action history, so what happened is readable afterwards and an operation can be checked against what it reported.
+Workload logs, normalized events and action history, so you can read what happened and check an operation against what it reported.
 ```
 
 ## 05 Permissions and audit
@@ -559,7 +565,7 @@ Security is part of the control plane.
 Body:
 
 ```text
-Managing Docker on a machine is a privileged operation, so Dockplane is built around that. Every host holds its own identity, the control server authorizes each action, the agent can perform only the operations it was built with, and what changes is recorded.
+Managing Docker on a machine is a privileged operation. Every host holds its own identity, the control server authorizes each action, the agent can perform only the operations it was built with, and what changes is recorded.
 ```
 
 ## 01 Agent identity

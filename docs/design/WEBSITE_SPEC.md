@@ -11,9 +11,8 @@ The approved wording lives in one place:
 docs/design/WEBSITE_COPY.md
 ```
 
-This file describes structure, layout and delivery. It deliberately does not
-repeat the copy, because a second copy of a sentence is a second thing to keep
-current and the one that goes stale is never the one anybody is reading.
+This file describes structure, layout and delivery. It does not repeat the copy:
+two copies of a sentence means one of them goes stale.
 
 Do not rewrite the product voice into generic SaaS marketing unless the product
 positioning actually changes.

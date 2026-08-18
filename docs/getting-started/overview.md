@@ -6,9 +6,9 @@ hosts.**
 > Your Docker hosts. One control plane.
 
 You run it yourself. It talks to your Docker hosts through an agent you install
-on each of them, over a connection the host opens outward. There is no account
-to create anywhere, and nothing about your hosts, your workloads or your users
-is sent outside your network.
+on each of them, over a connection the host opens outward. There is no service
+to sign up for, and nothing about your hosts, your workloads or your users is
+sent anywhere.
 
 One request leaves the network if you ask for it. Dockplane can check the
 project's public release listing to tell you when a newer release exists. It is

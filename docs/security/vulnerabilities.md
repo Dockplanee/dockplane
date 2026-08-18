@@ -8,7 +8,7 @@ still there.
 
 The figures below are from **0.3.0-rc.2**, the last release scanned. They are
 what its published reports contain, not a summary of them. `0.3.0` has not been
-built, so nothing here describes it.
+published, so nothing here describes it.
 
 Nothing is hidden. A finding that cannot be fixed is named, along with the
 reason it is not being treated as a release blocker.

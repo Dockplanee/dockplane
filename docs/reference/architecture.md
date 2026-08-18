@@ -187,7 +187,7 @@ Normalized operational event.
 Security-relevant append-oriented record.
 
 Host groups, images, networks, volumes and a higher-level service grouping are
-in the product's direction and are not entities today. See
+direction rather than entities in this release. See
 [Product Scope](../product/PRODUCT_SCOPE.md).
 
 ## Docker Integration
@@ -207,9 +207,9 @@ The full catalogue and what each capability returns are in
 
 ## Compose
 
-Compose is modeled as a first-class workload grouping.
+A Compose project is a workload grouping in its own right. What Dockplane keeps
+for one:
 
-Dockplane should preserve:
 - project name
 - host
 - associated containers
@@ -217,7 +217,7 @@ Dockplane should preserve:
 - discovered configuration metadata where safely available
 - current state
 
-Do not assume every container belongs to Compose.
+Not every container belongs to a Compose project.
 
 ## Services
 
@@ -284,10 +284,7 @@ Failures must result in deterministic states and useful operator messages.
 
 ## Public Website Separation
 
-The public website should be independently deployable and should not depend on the authenticated Dockplane control server.
-
-This:
-- reduces public attack surface
-- keeps product/docs pages available during control-plane maintenance
-- allows static hosting/CDN use
-- separates release concerns
+The public website is deployed on its own and does not depend on a running
+control server. That keeps the public attack surface smaller, leaves the product
+and documentation pages readable while a control plane is down for maintenance,
+allows static hosting, and separates the two release cycles.

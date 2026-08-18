@@ -101,8 +101,8 @@ the migrations it needs.
 The management lists and the settings page adapt to the width they are given: a
 full table where everything fits, a compact one that keeps what somebody needs
 to act, and a stacked list below a tablet's width. What an operator cannot act
-without — what the thing is, which host it belongs to, what state it is in, and
-the way to act on it — is in the window at every width.
+without is in the window at every width: what the thing is, which host it
+belongs to, what state it is in, and the way to act on it.
 
 ## Versions
 

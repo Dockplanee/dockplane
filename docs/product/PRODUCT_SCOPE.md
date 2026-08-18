@@ -30,11 +30,11 @@ As the number of Docker hosts grows, operators end up:
 - running Docker commands by hand
 - opening separate dashboards
 - piecing health together from logs
-- without a single action and audit history
+- working without one action and audit history
 - granting permissions inconsistently
 
-Dockplane centralizes that operational experience while keeping host-local
-execution constrained to the agent.
+Dockplane puts that work in one place, and the execution stays on each host,
+inside the agent.
 
 ## Core Product Areas
 
