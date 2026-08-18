@@ -7,14 +7,14 @@ hosts.**
 
 You run it yourself. It talks to your Docker hosts through an agent you install
 on each of them, over a connection the host opens outward. There is no service
-to sign up for, and nothing about your hosts, your workloads or your users is
-sent anywhere.
+to sign up for.
 
 One request leaves the network if you ask for it. Dockplane can check the
 project's public release listing to tell you when a newer release exists. It is
-off until an administrator turns it on, it carries nothing about the
-installation, and nothing acts on the answer — there is no auto-updater and no
-control that installs anything. See [Versions](../operations/versions.md).
+off until an administrator turns it on; when it is on it carries no host,
+workload, user or installation identifier, and nothing acts on the answer —
+there is no auto-updater and no control that installs anything. See
+[Versions](../operations/versions.md).
 
 ## Remote control without a remote shell
 
