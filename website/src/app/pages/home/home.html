@@ -56,9 +56,9 @@
         Run, create, change and remove workloads through defined agent capabilities, with
         backend-enforced permissions and audit history.
       </dp-feature>
-      <dp-feature title="Nothing reaches in">
-        Each host runs one small service that connects outward to the control plane. No inbound
-        management port has to be opened on a Docker host.
+      <dp-feature title="No inbound port">
+        Each Docker host runs one small service that connects outward to the control plane, so
+        managing a host does not mean opening a port on it.
       </dp-feature>
     </div>
   </div>
@@ -72,7 +72,7 @@
         eyebrow="Multi-host"
         headingId="multi-host-heading"
         heading="Built for more than one Docker host."
-        lede="More than one Docker host is the normal case here, not the exception. Host state, workload counts, agent status and health signals are in one list, without a separate management session per machine. A host that has been replaced can be archived, which takes it out of the working lists without losing what it ran."
+        lede="Host state, workload counts, agent status and health signals are in one list, without a separate management session per machine. A host that has been replaced can be archived, which takes it out of the working lists without losing what it ran."
       />
     </div>
 
@@ -196,9 +196,9 @@
     />
 
     <div class="grid-three">
-      <dp-feature title="No account anywhere">
-        There is nothing to sign up for and no tenant to belong to. You install the control plane
-        and it is yours.
+      <dp-feature title="No vendor account">
+        There is no service to sign up for and no tenant at a provider. The accounts Dockplane knows
+        about are the ones you create in your own installation.
       </dp-feature>
       <dp-feature title="Understandable">
         The architecture, permissions and agent trust model are documented instead of being hidden
