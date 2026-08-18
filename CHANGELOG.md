@@ -6,7 +6,7 @@ Use release-oriented language.
 
 Do not include internal prompt history, development conversation notes or artificial task numbering.
 
-## Unreleased
+## 0.3.0 — 2026-08-18
 
 Third stable release, and what the two release candidates converged on. What
 Dockplane manages is unchanged from `0.2.0`: the same capability catalog, the

@@ -3,7 +3,8 @@ import { ChangelogRelease } from './changelog-entries';
 
 export const CHANGELOG: readonly ChangelogRelease[] = [
   {
-    version: 'Unreleased',
+    version: '0.3.0',
+    date: '2026-08-18',
     changes: [
       {
         type: 'Added',
